@@ -85,28 +85,10 @@ function BeltBadge({ faixa, graus, size = 'md', t }: { faixa: string; graus: num
 }
 
 // ─── HeroImage ───────────────────────────────────────────────────────────────
-// Para usar a foto real: substituir o <div> interno por
-// <img src="/images/hero.jpg" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
 function HeroImage({ t }: { t: Theme }) {
   return (
     <div style={{ position: 'relative', width: '100%', height: 280, overflow: 'hidden', flexShrink: 0 }}>
-      <div style={{
-        width: '100%', height: '100%',
-        background: 'linear-gradient(155deg, #1a0000 0%, #0f0000 40%, #200808 100%)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {/* Silhueta placeholder — substituir por <img> quando a foto for escolhida */}
-        <svg width="110" height="160" viewBox="0 0 110 160" fill="none" opacity={0.45}>
-          <ellipse cx="55" cy="26" rx="17" ry="20" fill="#3a0000" />
-          <path d="M18 65 Q18 52 55 50 Q92 52 92 65 L89 125 H21 Z" fill="#2a0000" />
-          <rect x="10" y="95" width="90" height="9" rx="2" fill="#DC2626" opacity="0.65" />
-          <rect x="51" y="104" width="8" height="24" rx="2" fill="#DC2626" opacity="0.45" />
-          <path d="M21 66 Q8 72 6 98 L21 95" fill="#260000" />
-          <path d="M89 66 Q102 72 104 98 L89 95" fill="#260000" />
-          <rect x="16" y="126" width="30" height="34" rx="5" fill="#2a0000" />
-          <rect x="64" y="126" width="30" height="34" rx="5" fill="#2a0000" />
-        </svg>
-      </div>
+      <img src="/images/lutador-faixa.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
       {/* Gradiente que esfumaça até o fundo do app */}
       <div style={{ position: 'absolute', inset: 0, background: t.heroGrad, pointerEvents: 'none' }} />
       {/* Título sobreposto */}
