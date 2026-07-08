@@ -88,7 +88,11 @@ function BeltBadge({ faixa, graus, size = 'md', t }: { faixa: string; graus: num
 function HeroImage({ t }: { t: Theme }) {
   return (
     <div style={{ position: 'relative', width: '100%', height: 280, overflow: 'hidden', flexShrink: 0 }}>
-      <img src="/images/lutador-faixa.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+      <img
+        src="/images/lutador-faixa.jpg"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover object-top"
+      />
       {/* Gradiente que esfumaça até o fundo do app */}
       <div style={{ position: 'absolute', inset: 0, background: t.heroGrad, pointerEvents: 'none' }} />
       {/* Título sobreposto */}
