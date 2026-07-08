@@ -13,14 +13,23 @@ function makeTheme(dark: boolean) {
     border: '#222', border2: '#2a2a2a',
     text: '#FFFFFF', textSub: '#888', textMute: '#555',
     accent: '#DC2626', inputBg: '#141414',
+    accentBg: 'rgba(220,38,38,0.1)',
     heroGrad: 'linear-gradient(to bottom, rgba(13,13,13,0) 20%, #0D0D0D 100%)',
   } : {
     bg: '#F5F5F0', surface: '#FFFFFF', surface2: '#F0EFE9',
     border: '#E0DDD5', border2: '#D5D2CA',
     text: '#111111', textSub: '#555', textMute: '#999',
     accent: '#991B1B', inputBg: '#FAFAF7',
+    accentBg: 'rgba(153,27,27,0.07)',
     heroGrad: 'linear-gradient(to bottom, rgba(245,245,240,0) 20%, #F5F5F0 100%)',
   }
+}
+
+// frequência alta = branco/escuro, média = cinza, baixa = vermelho
+function freqColor(ratio: number, t: Theme) {
+  if (ratio >= 0.75) return t.text
+  if (ratio >= 0.5)  return t.textSub
+  return t.accent
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -160,7 +169,7 @@ function InsightPanel({ alunos, t }: { alunos: any[]; t: Theme }) {
         </div>
         <div style={{
           background: t.surface, borderRadius: 10, padding: 13,
-          border: `1px solid ${t.border}`, borderTop: '3px solid #F44336',
+          border: `1px solid ${t.border}`, borderTop: `3px solid ${t.accent}`,
         }}>
           <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
             Precisa atenção
@@ -168,7 +177,7 @@ function InsightPanel({ alunos, t }: { alunos: any[]; t: Theme }) {
           <div style={{ color: t.text, fontWeight: 700, fontSize: 13, marginBottom: 3 }}>
             {atencao.nome.split(' ')[0]}
           </div>
-          <div style={{ color: '#F44336', fontSize: 11, fontFamily: 'monospace' }}>
+          <div style={{ color: t.accent, fontSize: 11, fontFamily: 'monospace' }}>
             {Math.round(atencao.pct * 100)}% freq
           </div>
         </div>
@@ -180,7 +189,7 @@ function InsightPanel({ alunos, t }: { alunos: any[]; t: Theme }) {
 // ─── FreqBar ─────────────────────────────────────────────────────────────────
 function FreqBar({ presencas, totalAulas, t }: { presencas: number; totalAulas: number; t: Theme }) {
   const pct = totalAulas > 0 ? Math.round((presencas / totalAulas) * 100) : 0
-  const color = pct >= 75 ? '#4CAF50' : pct >= 50 ? '#FF9800' : '#F44336'
+  const color = freqColor(pct / 100, t)
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -209,7 +218,7 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
   const R        = 38
   const C        = 2 * Math.PI * R   // ~238.76
   const dash     = C * (1 - pct)
-  const ringColor = pct >= 0.75 ? '#4CAF50' : pct >= 0.5 ? '#FF9800' : '#F44336'
+  const ringColor = freqColor(pct, t)
   const belt     = BELT_COLORS[aluno.faixa] ?? BELT_COLORS.branca
 
   const nomeParts = aluno.nome.split(' ')
@@ -543,9 +552,9 @@ function ModalNovaAula({ alunos, onClose, onSaved, t }: { alunos: Aluno[]; onClo
               {POSITIONS.map(p => (
                 <button key={p} onClick={() => set('posicao', p)} style={{
                   padding: '6px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-                  background: form.posicao === p ? '#1a3a1a' : t.surface2,
-                  color: form.posicao === p ? '#4CAF50' : t.textSub,
-                  border: form.posicao === p ? '1px solid #4CAF50' : `1px solid ${t.border}`,
+                  background: form.posicao === p ? t.accentBg : t.surface2,
+                  color: form.posicao === p ? t.accent : t.textSub,
+                  border: form.posicao === p ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
                 }}>{p}</button>
               ))}
             </div>
@@ -561,14 +570,14 @@ function ModalNovaAula({ alunos, onClose, onSaved, t }: { alunos: Aluno[]; onClo
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
-                    background: presentes.includes(a.id) ? '#0f1f0f' : t.surface,
-                    border: presentes.includes(a.id) ? '1px solid #2a4a2a' : `1px solid ${t.border}`,
+                    background: presentes.includes(a.id) ? t.accentBg : t.surface,
+                    border: presentes.includes(a.id) ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
                   }}
                 >
                   <div style={{
                     width: 20, height: 20, borderRadius: 4, border: '2px solid',
-                    borderColor: presentes.includes(a.id) ? '#4CAF50' : t.border2,
-                    background: presentes.includes(a.id) ? '#4CAF50' : 'transparent',
+                    borderColor: presentes.includes(a.id) ? t.accent : t.border2,
+                    background: presentes.includes(a.id) ? t.accent : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 12, color: '#000', flexShrink: 0,
                   }}>
@@ -733,7 +742,7 @@ export default function AppShell({ alunosIniciais, aulasIniciais }: { alunosInic
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <span style={{ background: '#1a3a1a', border: '1px solid #2a4a2a', borderRadius: 4, padding: '3px 8px', fontSize: 12, color: '#4CAF50' }}>
+                  <span style={{ background: t.surface2, border: `1px solid ${t.border}`, borderRadius: 4, padding: '3px 8px', fontSize: 12, color: t.textSub }}>
                     {(a.presencas ?? []).filter((p: any) => p.presente).length} presentes
                   </span>
                 </div>
