@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Anton, Open_Sans } from 'next/font/google'
+import SplashGate from '@/components/SplashGate'
 import './globals.css'
 
 const anton = Anton({
@@ -30,7 +31,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className={`${anton.variable} ${openSans.variable}`}>
-      <body className="font-body">{children}</body>
+      <body className="font-body">
+        <SplashGate>{children}</SplashGate>
+      </body>
     </html>
   )
 }
