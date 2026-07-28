@@ -1,18 +1,36 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
+import { Anton, Open_Sans } from 'next/font/google'
 import './globals.css'
+
+const anton = Anton({
+  subsets: ['latin'],
+  weight: '400',
+  variable: '--font-display',
+})
+
+const openSans = Open_Sans({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-body',
+})
 
 export const metadata: Metadata = {
   title: 'GrauMestre',
   description: 'Gestão de alunos e aulas de jiu-jítsu',
   manifest: '/manifest.json',
-  themeColor: '#0D0D0D',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0a0a0a',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <body>{children}</body>
+    <html lang="pt-BR" className={`${anton.variable} ${openSans.variable}`}>
+      <body className="font-body">{children}</body>
     </html>
   )
 }

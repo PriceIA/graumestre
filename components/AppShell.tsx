@@ -11,25 +11,19 @@ import {
   grausMaximos, nomeFaixaExibicao, diasRestantesProvisorio,
   anosNaFaixaAtual, prontoParaProximaFaixa, podeProximoGrauPreta,
 } from '@/lib/regras-ibjjf'
+import { alertaGraduacao } from '@/lib/alertas-graduacao'
+import DashboardProfessor from '@/components/DashboardProfessor'
 
-// ─── Tema (paleta preto / vermelho / branco) ──────────────────────────────────
-type Theme = ReturnType<typeof makeTheme>
-function makeTheme(dark: boolean) {
-  return dark ? {
-    bg: '#0D0D0D', surface: '#141414', surface2: '#1a1a1a',
-    border: '#222', border2: '#2a2a2a',
-    text: '#FFFFFF', textSub: '#888', textMute: '#555',
-    accent: '#DC2626', inputBg: '#141414',
-    accentBg: 'rgba(220,38,38,0.1)',
-    heroGrad: 'linear-gradient(to bottom, rgba(13,13,13,0) 20%, #0D0D0D 100%)',
-  } : {
-    bg: '#F5F5F0', surface: '#FFFFFF', surface2: '#F0EFE9',
-    border: '#E0DDD5', border2: '#D5D2CA',
-    text: '#111111', textSub: '#555', textMute: '#999',
-    accent: '#991B1B', inputBg: '#FAFAF7',
-    accentBg: 'rgba(153,27,27,0.07)',
-    heroGrad: 'linear-gradient(to bottom, rgba(245,245,240,0) 20%, #F5F5F0 100%)',
-  }
+// ─── Tema (paleta GrauMestre — preto/vermelho, fixa) ──────────────────────────
+// Paleta única (sem alternância claro/escuro), conforme design schema do
+// Dashboard do Professor.
+type Theme = typeof theme
+const theme = {
+  bg: '#0a0a0a', surface: '#161616', surface2: '#1f1f1f',
+  border: 'rgba(255,255,255,0.12)', border2: 'rgba(255,255,255,0.18)',
+  text: '#FFFFFF', textSub: 'rgba(255,255,255,0.6)', textMute: 'rgba(255,255,255,0.4)',
+  accent: '#df2531', inputBg: '#161616',
+  accentBg: 'rgba(223,37,49,0.1)',
 }
 
 // frequência alta = branco/escuro, média = cinza, baixa = vermelho
@@ -37,22 +31,6 @@ function freqColor(ratio: number, t: Theme) {
   if (ratio >= 0.75) return t.text
   if (ratio >= 0.5)  return t.textSub
   return t.accent
-}
-
-// ─── Alerta de graduação — sugestão, nunca bloqueio (art. 3.1.3 / 4.1.5) ──────
-// `ultimaGraduacaoData` vem do histórico em `graduacoes`; sem nenhum registro
-// ainda, dataInicioFaixaAtual() cai de volta em `aluno.inicio`.
-function alertaGraduacao(aluno: Aluno, ultimaGraduacaoData: string | null): string | null {
-  const infantil = aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
-  if (infantil) return null // sem tempo mínimo infantil (art. 3.1.1)
-
-  if (aluno.faixa === 'preta') {
-    const anos = anosNaFaixaAtual(aluno, ultimaGraduacaoData)
-    const { pode, proximoGrau } = podeProximoGrauPreta(anos, anos, aluno.graus)
-    return pode && proximoGrau ? `Pronto para o ${proximoGrau}º grau` : null
-  }
-
-  return prontoParaProximaFaixa(aluno, ultimaGraduacaoData) ? 'Tempo mínimo cumprido — pronto para próxima faixa' : null
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -116,129 +94,6 @@ function BeltBadge({ faixa, graus, size = 'md', t }: { faixa: Faixa; graus: numb
         {label}
       </span>
       <Diamonds faixa={faixa} graus={graus} size={size === 'sm' ? 7 : 9} t={t} />
-    </div>
-  )
-}
-
-// ─── HeroImage ───────────────────────────────────────────────────────────────
-function HeroImage({ t }: { t: Theme }) {
-  return (
-    <div style={{ position: 'relative', width: '100%', height: 280, overflow: 'hidden', flexShrink: 0 }}>
-      <img
-        src="/images/lutador-faixa.jpg"
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover object-top"
-      />
-      {/* Gradiente que esfumaça até o fundo do app */}
-      <div style={{ position: 'absolute', inset: 0, background: t.heroGrad, pointerEvents: 'none' }} />
-      {/* Título sobreposto */}
-      <div style={{ position: 'absolute', bottom: 22, left: 20 }}>
-        <div style={{
-          color: t.accent, fontSize: 10, fontFamily: 'monospace',
-          letterSpacing: 4, textTransform: 'uppercase', marginBottom: 5,
-        }}>
-          OSS
-        </div>
-        <div style={{ fontSize: 30, fontWeight: 900, color: '#FFFFFF', letterSpacing: -1, textShadow: '0 2px 24px rgba(0,0,0,0.9)' }}>
-          GrauMestre
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── InsightPanel (Painel do Professor) ──────────────────────────────────────
-function InsightPanel({ alunos, t }: { alunos: any[]; t: Theme }) {
-  if (alunos.length < 2) return null
-
-  const withPct = alunos.map(a => ({
-    ...a,
-    pct: (a.total_aulas ?? 0) > 0 ? (a.total_presencas ?? 0) / (a.total_aulas ?? 1) : 0,
-  }))
-
-  // Aluno mais perto da graduação: maior frequência entre os que ainda podem avançar
-  const perto = [...withPct]
-    .filter(a => !(a.graus >= 4 && a.faixa === 'preta'))
-    .sort((a, b) => b.pct - a.pct)[0]
-
-  // Aluno que precisa de atenção: menor frequência
-  const atencao = [...withPct].sort((a, b) => a.pct - b.pct)[0]
-
-  if (!perto || !atencao) return null
-
-  return (
-    <div style={{ padding: '0 16px 14px' }}>
-      <div style={{
-        color: t.textMute, fontSize: 9, fontFamily: 'monospace',
-        textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8,
-      }}>
-        Painel do Professor
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <div style={{
-          background: t.surface, borderRadius: 10, padding: 13,
-          border: `1px solid ${t.border}`, borderTop: `3px solid ${t.accent}`,
-        }}>
-          <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-            Perto da faixa
-          </div>
-          <div style={{ color: t.text, fontWeight: 700, fontSize: 13, marginBottom: 3 }}>
-            {perto.nome.split(' ')[0]}
-          </div>
-          <div style={{ color: t.accent, fontSize: 11, fontFamily: 'monospace' }}>
-            {Math.round(perto.pct * 100)}% freq
-          </div>
-        </div>
-        <div style={{
-          background: t.surface, borderRadius: 10, padding: 13,
-          border: `1px solid ${t.border}`, borderTop: `3px solid ${t.accent}`,
-        }}>
-          <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-            Precisa atenção
-          </div>
-          <div style={{ color: t.text, fontWeight: 700, fontSize: 13, marginBottom: 3 }}>
-            {atencao.nome.split(' ')[0]}
-          </div>
-          <div style={{ color: t.accent, fontSize: 11, fontFamily: 'monospace' }}>
-            {Math.round(atencao.pct * 100)}% freq
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── AlertasGraduacao — sugestões de tempo mínimo cumprido, nunca bloqueio ────
-function AlertasGraduacao({ alunos, onSelect, t }: { alunos: any[]; onSelect: (aluno: any) => void; t: Theme }) {
-  const prontos = alunos
-    .map(aluno => ({ aluno, msg: alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null) }))
-    .filter((x): x is { aluno: any; msg: string } => x.msg !== null)
-
-  if (prontos.length === 0) return null
-
-  return (
-    <div style={{ padding: '0 16px 14px' }}>
-      <div style={{
-        color: t.textMute, fontSize: 9, fontFamily: 'monospace',
-        textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8,
-      }}>
-        Prontos para graduar
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {prontos.map(({ aluno, msg }) => (
-          <div
-            key={aluno.id} onClick={() => onSelect(aluno)}
-            style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              background: t.surface, border: `1px solid ${t.accent}`, borderRadius: 8,
-              padding: '10px 12px', cursor: 'pointer',
-            }}
-          >
-            <span style={{ color: t.text, fontWeight: 700, fontSize: 13 }}>{aluno.nome}</span>
-            <span style={{ color: t.accent, fontSize: 11, fontFamily: 'monospace' }}>{msg}</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
@@ -1038,9 +893,7 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
-  const [dark, setDark]   = useState(true)
-  const [toggleHover, setToggleHover] = useState(false)
-  const t = makeTheme(dark)
+  const t = theme
 
   const [alunos, setAlunos] = useState<any[]>(alunosIniciais)
   const [aulas]             = useState<any[]>(aulasIniciais)
@@ -1060,66 +913,18 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
     if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0 }])
   }
 
-  const freqMedia = alunos.length
-    ? Math.round(alunos.reduce((acc: number, a: any) => acc + ((a.total_presencas ?? 0) / Math.max(a.total_aulas ?? 1, 1)), 0) / alunos.length * 100)
-    : 0
-
   const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(new Date().toISOString().slice(0, 7))).length
-  const paraGraduacao = alunos.filter((a: any) => a.graus === 4).length
 
   return (
-    <div style={{ background: t.bg, minHeight: '100vh', fontFamily: 'system-ui,sans-serif', color: t.text, maxWidth: 480, margin: '0 auto' }}>
+    <div style={{ background: t.bg, minHeight: '100vh', fontFamily: 'var(--font-body), system-ui, sans-serif', color: t.text, maxWidth: 480, margin: '0 auto' }}>
 
-      {/* Hero */}
-      <HeroImage t={t} />
-
-      {/* Barra de stats + toggle de tema */}
-      <div style={{ padding: '14px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ display: 'flex', flex: 1, gap: 8 }}>
-          {[
-            { label: 'AULAS/MÊS', value: aulasEsseMes },
-            { label: 'P/ FAIXA',  value: paraGraduacao },
-            { label: 'FREQ MÉD',  value: freqMedia + '%' },
-          ].map(s => (
-            <div key={s.label} style={{ flex: 1, background: t.surface, borderRadius: 8, padding: '8px 10px', border: `1px solid ${t.border}` }}>
-              <div style={{ color: t.accent, fontWeight: 800, fontSize: 16, fontFamily: 'monospace' }}>{s.value}</div>
-              <div style={{ color: t.textMute, fontSize: 8, fontFamily: 'monospace', letterSpacing: 1, marginTop: 1 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-        {/* Toggle de tema com rotação no hover */}
-        <button
-          onClick={() => setDark(d => !d)}
-          onMouseEnter={() => setToggleHover(true)}
-          onMouseLeave={() => setToggleHover(false)}
-          style={{
-            background: t.surface2, border: `1px solid ${t.border}`,
-            borderRadius: 20, width: 44, height: 26, cursor: 'pointer',
-            position: 'relative', flexShrink: 0,
-            transform: toggleHover ? 'rotate(15deg)' : 'rotate(0deg)',
-            transition: 'transform 0.25s ease',
-          }}
-        >
-          <div style={{
-            position: 'absolute', top: 3, left: dark ? 20 : 3,
-            width: 18, height: 18, borderRadius: '50%',
-            background: t.accent, transition: 'left 0.25s',
-          }} />
-        </button>
-      </div>
+      {/* Dashboard do Professor */}
+      <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} onSelectAluno={setAlunoSel} />
 
       {/* Perfil do professor responsável — sempre visível */}
       {professor && (
         <div style={{ paddingTop: 14 }}>
           <ProfessorCard professor={professor} onClick={() => setModalProfessor(true)} t={t} />
-        </div>
-      )}
-
-      {/* Painel do Professor + alertas de graduação — só na aba alunos */}
-      {tab === 'alunos' && (
-        <div>
-          <InsightPanel alunos={alunos} t={t} />
-          <AlertasGraduacao alunos={alunos} onSelect={setAlunoSel} t={t} />
         </div>
       )}
 
@@ -1247,8 +1052,8 @@ function FabButton({ onClick, t }: { onClick: () => void; t: Theme }) {
         borderRadius: '50%', width: 56, height: 56,
         fontSize: 28, cursor: 'pointer', fontWeight: 900,
         boxShadow: `0 4px 24px ${t.accent}66`,
-        transform: pressed ? 'scale(0.88)' : 'scale(1)',
-        transition: 'transform 0.1s ease, box-shadow 0.1s',
+        transform: pressed ? 'scale(0.95)' : 'scale(1)',
+        transition: 'transform 0.12s ease, box-shadow 0.1s',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         lineHeight: 1,
       }}
