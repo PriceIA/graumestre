@@ -15,5 +15,10 @@ export default async function Home() {
     .order('data', { ascending: false })
     .limit(50)
 
-  return <AppShell alunosIniciais={alunos ?? []} aulasIniciais={aulas ?? []} />
+  const { data: professor } = await supabase
+    .from('professor_perfil')
+    .select('*')
+    .single()
+
+  return <AppShell alunosIniciais={alunos ?? []} aulasIniciais={aulas ?? []} professorInicial={professor ?? null} />
 }

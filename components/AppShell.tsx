@@ -3,7 +3,8 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { Aluno } from '@/lib/types'
+import type { Aluno, ProfessorPerfil } from '@/lib/types'
+import { professorPodeAssinar, tipoAprovacaoGraduacao } from '@/lib/regras-ibjjf'
 
 // ─── Tema (paleta preto / vermelho / branco) ──────────────────────────────────
 type Theme = ReturnType<typeof makeTheme>
@@ -307,9 +308,137 @@ function Field({ label, value, onChange, type = 'text', placeholder, t }: {
   )
 }
 
+// ─── Card do Professor ────────────────────────────────────────────────────────
+function ProfessorCard({ professor, onClick, t }: { professor: ProfessorPerfil; onClick: () => void; t: Theme }) {
+  return (
+    <div style={{ padding: '0 16px 14px' }}>
+      <div
+        onClick={onClick}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10,
+          padding: '12px 14px', cursor: 'pointer',
+        }}
+      >
+        <div>
+          <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>
+            Professor
+          </div>
+          <div style={{ color: t.text, fontWeight: 700, fontSize: 14 }}>{professor.nome}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <BeltBadge faixa={professor.faixa} graus={Math.min(professor.graus, 4)} size="sm" t={t} />
+          <span style={{ color: t.accent, fontWeight: 800, fontSize: 12, fontFamily: 'monospace' }}>{professor.graus}º grau</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Modal Professor ─────────────────────────────────────────────────────────
+function ModalProfessor({ professor, onClose, onSave, t }: {
+  professor: ProfessorPerfil; onClose: () => void; onSave: (p: ProfessorPerfil) => void; t: Theme
+}) {
+  const [graus, setGraus] = useState(professor.graus)
+  const [saving, setSaving] = useState(false)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const id = setTimeout(() => setVisible(true), 10)
+    return () => clearTimeout(id)
+  }, [])
+
+  const handleClose = () => {
+    setVisible(false)
+    setTimeout(onClose, 220)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    const { error } = await supabase.from('professor_perfil').update({ graus }).eq('id', professor.id)
+    if (error) {
+      alert(`Não foi possível salvar o grau do professor: ${error.message}`)
+      setSaving(false)
+      return
+    }
+    onSave({ ...professor, graus })
+    handleClose()
+  }
+
+  return (
+    <div
+      onClick={handleClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        transition: 'background 0.22s',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: t.bg, width: '100%', maxWidth: 480,
+          borderRadius: '16px 16px 0 0', border: `1px solid ${t.border}`,
+          maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
+          opacity: visible ? 1 : 0,
+          transition: 'transform 0.22s ease, opacity 0.22s ease',
+        }}
+      >
+        <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>Perfil do Professor</div>
+          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
+        </div>
+
+        <div style={{ padding: 20, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Nome</div>
+            <div style={{ color: t.text, fontSize: 14 }}>{professor.nome}</div>
+          </div>
+          <div>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+              Grau na faixa preta (0–9)
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {Array.from({ length: 10 }, (_, g) => g).map(g => (
+                <button key={g} onClick={() => setGraus(g)} style={{
+                  width: 40, height: 40, borderRadius: 6, cursor: 'pointer', fontWeight: 700,
+                  background: graus === g ? t.accent : t.surface2,
+                  color: graus === g ? '#fff' : t.textMute,
+                  border: `1px solid ${t.border}`, fontSize: 14,
+                }}>{g}</button>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, color: t.textSub, fontSize: 12, fontFamily: 'monospace' }}>
+              7º = Vermelha e Preta · 8º = Vermelha e Branca · 9º = Vermelha
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', gap: 10 }}>
+          <button
+            onClick={handleClose}
+            style={{ flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${t.border}`, background: 'none', color: t.textSub, cursor: 'pointer', fontSize: 14 }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave} disabled={saving}
+            style={{ flex: 2, padding: 12, borderRadius: 8, border: 'none', background: t.accent, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
+          >
+            {saving ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
-function ModalAluno({ aluno, onClose, onSave, t }: {
+function ModalAluno({ aluno, professor, onClose, onSave, t }: {
   aluno: Aluno & { total_presencas?: number; total_aulas?: number };
+  professor: ProfessorPerfil | null;
   onClose: () => void; onSave: (a: Aluno) => void; t: Theme
 }) {
   const [form, setForm]   = useState({ ...aluno })
@@ -318,6 +447,14 @@ function ModalAluno({ aluno, onClose, onSave, t }: {
   const [visible, setVisible] = useState(false)
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
   const tabs = ['perfil', 'frequência', 'notas', 'graduação']
+
+  // Validação de quem pode assinar (art. 6°, 7.3, 7.4, 7.4.1) — só entra em
+  // jogo quando a faixa está de fato mudando nesta edição.
+  const faixaAlterada = form.faixa !== aluno.faixa
+  const tipoAprovacao = tipoAprovacaoGraduacao(form.faixa, form.status_graduacao)
+  const aprovacao: { ok: boolean; motivo?: string } = professor && faixaAlterada
+    ? professorPodeAssinar(professor, tipoAprovacao)
+    : { ok: true }
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
@@ -449,6 +586,20 @@ function ModalAluno({ aluno, onClose, onSave, t }: {
                   : <div style={{ color: t.accent, fontSize: 13 }}>Pronto para subir de faixa</div>
                 }
               </div>
+
+              {!professor && (
+                <div style={{ marginTop: 12, padding: 12, background: t.surface, borderRadius: 8, border: `1px solid ${t.border}`, color: t.textSub, fontSize: 12 }}>
+                  Perfil do professor não encontrado — não é possível validar quem pode assinar esta graduação.
+                </div>
+              )}
+              {professor && faixaAlterada && !aprovacao.ok && (
+                <div style={{
+                  marginTop: 12, padding: 12, borderRadius: 8,
+                  background: t.accentBg, border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+                }}>
+                  ⚠ {aprovacao.motivo}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -461,10 +612,16 @@ function ModalAluno({ aluno, onClose, onSave, t }: {
             Cancelar
           </button>
           <button
-            onClick={handleSave} disabled={saving}
-            style={{ flex: 2, padding: 12, borderRadius: 8, border: 'none', background: t.accent, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
+            onClick={handleSave} disabled={saving || (faixaAlterada && !aprovacao.ok)}
+            style={{
+              flex: 2, padding: 12, borderRadius: 8, border: 'none',
+              background: t.accent, color: '#fff', fontWeight: 800, fontSize: 14,
+              cursor: saving || (faixaAlterada && !aprovacao.ok) ? 'not-allowed' : 'pointer',
+              opacity: saving || (faixaAlterada && !aprovacao.ok) ? 0.5 : 1,
+              transition: 'opacity 0.15s',
+            }}
           >
-            {saving ? 'Salvando…' : 'Salvar alterações'}
+            {saving ? 'Salvando…' : faixaAlterada && !aprovacao.ok ? 'Grau insuficiente p/ assinar' : 'Salvar alterações'}
           </button>
         </div>
       </div>
@@ -605,7 +762,9 @@ function ModalNovaAula({ alunos, onClose, onSaved, t }: { alunos: Aluno[]; onClo
 }
 
 // ─── AppShell ────────────────────────────────────────────────────────────────
-export default function AppShell({ alunosIniciais, aulasIniciais }: { alunosIniciais: any[]; aulasIniciais: any[] }) {
+export default function AppShell({ alunosIniciais, aulasIniciais, professorInicial }: {
+  alunosIniciais: any[]; aulasIniciais: any[]; professorInicial: ProfessorPerfil | null
+}) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [dark, setDark]   = useState(true)
@@ -617,6 +776,8 @@ export default function AppShell({ alunosIniciais, aulasIniciais }: { alunosInic
   const [tab, setTab]       = useState<'alunos' | 'aulas'>('alunos')
   const [alunoSel, setAlunoSel]   = useState<any | null>(null)
   const [modalAula, setModalAula] = useState(false)
+  const [professor, setProfessor] = useState<ProfessorPerfil | null>(professorInicial)
+  const [modalProfessor, setModalProfessor] = useState(false)
 
   const novoAluno = async () => {
     const { data, error } = await supabase
@@ -676,8 +837,15 @@ export default function AppShell({ alunosIniciais, aulasIniciais }: { alunosInic
         </button>
       </div>
 
+      {/* Perfil do professor responsável — sempre visível */}
+      {professor && (
+        <div style={{ paddingTop: 14 }}>
+          <ProfessorCard professor={professor} onClick={() => setModalProfessor(true)} t={t} />
+        </div>
+      )}
+
       {/* Painel do Professor — só na aba alunos */}
-      {tab === 'alunos' && <div style={{ paddingTop: 14 }}><InsightPanel alunos={alunos} t={t} /></div>}
+      {tab === 'alunos' && <div><InsightPanel alunos={alunos} t={t} /></div>}
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}` }}>
@@ -755,6 +923,7 @@ export default function AppShell({ alunosIniciais, aulasIniciais }: { alunosInic
       {alunoSel && (
         <ModalAluno
           aluno={alunoSel}
+          professor={professor}
           onClose={() => setAlunoSel(null)}
           onSave={updated => {
             setAlunos(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
@@ -768,6 +937,17 @@ export default function AppShell({ alunosIniciais, aulasIniciais }: { alunosInic
           alunos={alunos}
           onClose={() => setModalAula(false)}
           onSaved={() => startTransition(() => router.refresh())}
+          t={t}
+        />
+      )}
+      {modalProfessor && professor && (
+        <ModalProfessor
+          professor={professor}
+          onClose={() => setModalProfessor(false)}
+          onSave={updated => {
+            setProfessor(updated)
+            startTransition(() => router.refresh())
+          }}
           t={t}
         />
       )}
