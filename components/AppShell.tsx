@@ -3,8 +3,13 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { Aluno, ProfessorPerfil } from '@/lib/types'
-import { professorPodeAssinar, tipoAprovacaoGraduacao } from '@/lib/regras-ibjjf'
+import type { Aluno, Faixa, ProfessorPerfil } from '@/lib/types'
+import {
+  professorPodeAssinar, tipoAprovacaoGraduacao,
+  calcularIdade, calcularCategoria, ehInfantil,
+  FAIXAS_INFANTIS, FAIXAS_ADULTAS, NOMES_FAIXA,
+  grausMaximos, nomeFaixaExibicao,
+} from '@/lib/regras-ibjjf'
 
 // ─── Tema (paleta preto / vermelho / branco) ──────────────────────────────────
 type Theme = ReturnType<typeof makeTheme>
@@ -34,13 +39,24 @@ function freqColor(ratio: number, t: Theme) {
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
-const BELT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  branca: { bg: '#FFFFFF', text: '#0D0D0D', label: 'Branca' },
-  cinza:  { bg: '#9E9E9E', text: '#fff',    label: 'Cinza'  },
-  azul:   { bg: '#1565C0', text: '#fff',    label: 'Azul'   },
-  roxa:   { bg: '#6A1B9A', text: '#fff',    label: 'Roxa'   },
-  marrom: { bg: '#4E342E', text: '#fff',    label: 'Marrom' },
-  preta:  { bg: '#0D0D0D', text: '#C9A84C', label: 'Preta'  },
+const BELT_COLORS: Record<Faixa, { bg: string; text: string }> = {
+  branca: { bg: '#FFFFFF', text: '#0D0D0D' },
+  cinza_branca:   { bg: '#BDBDBD', text: '#0D0D0D' },
+  cinza:          { bg: '#9E9E9E', text: '#fff' },
+  cinza_preta:    { bg: '#757575', text: '#fff' },
+  amarela_branca: { bg: '#FFF59D', text: '#0D0D0D' },
+  amarela:        { bg: '#FBC02D', text: '#0D0D0D' },
+  amarela_preta:  { bg: '#F9A825', text: '#0D0D0D' },
+  laranja_branca: { bg: '#FFCC80', text: '#0D0D0D' },
+  laranja:        { bg: '#F57C00', text: '#fff' },
+  laranja_preta:  { bg: '#E65100', text: '#fff' },
+  verde_branca:   { bg: '#A5D6A7', text: '#0D0D0D' },
+  verde:          { bg: '#2E7D32', text: '#fff' },
+  verde_preta:    { bg: '#1B5E20', text: '#fff' },
+  azul:   { bg: '#1565C0', text: '#fff' },
+  roxa:   { bg: '#6A1B9A', text: '#fff' },
+  marrom: { bg: '#4E342E', text: '#fff' },
+  preta:  { bg: '#0D0D0D', text: '#C9A84C' },
 }
 
 const POSITIONS = [
@@ -49,10 +65,11 @@ const POSITIONS = [
 ]
 
 // ─── Diamantes de grau (rotate-45, vermelho quando preenchido) ────────────────
-function Diamonds({ graus, size = 8, t }: { graus: number; size?: number; t: Theme }) {
+function Diamonds({ faixa, graus, size = 8, t }: { faixa: Faixa; graus: number; size?: number; t: Theme }) {
+  const max = grausMaximos(faixa)
   return (
-    <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-      {[0, 1, 2, 3].map(i => (
+    <div style={{ display: 'flex', gap: 3, alignItems: 'center', flexWrap: 'wrap' }}>
+      {Array.from({ length: max }, (_, i) => i).map(i => (
         <div key={i} style={{
           width: size, height: size,
           transform: 'rotate(45deg)',
@@ -67,20 +84,21 @@ function Diamonds({ graus, size = 8, t }: { graus: number; size?: number; t: The
 }
 
 // ─── BeltBadge ───────────────────────────────────────────────────────────────
-function BeltBadge({ faixa, graus, size = 'md', t }: { faixa: string; graus: number; size?: string; t: Theme }) {
+function BeltBadge({ faixa, graus, size = 'md', t }: { faixa: Faixa; graus: number; size?: string; t: Theme }) {
   const belt = BELT_COLORS[faixa] ?? BELT_COLORS.branca
+  const label = nomeFaixaExibicao(faixa, graus)
   const px = size === 'sm' ? '4px 8px' : '5px 11px'
   const fs = size === 'sm' ? 10 : 12
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       <span style={{
         background: belt.bg, color: belt.text, padding: px, borderRadius: 3,
         fontWeight: 700, fontSize: fs, letterSpacing: 1, textTransform: 'uppercase',
         border: faixa === 'branca' ? '1px solid #ccc' : 'none', fontFamily: 'monospace',
       }}>
-        {belt.label}
+        {label}
       </span>
-      <Diamonds graus={graus} size={size === 'sm' ? 7 : 9} t={t} />
+      <Diamonds faixa={faixa} graus={graus} size={size === 'sm' ? 7 : 9} t={t} />
     </div>
   )
 }
@@ -206,7 +224,7 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
   const C        = 2 * Math.PI * R   // ~238.76
   const dash     = C * (1 - pct)
   const ringColor = freqColor(pct, t)
-  const belt     = BELT_COLORS[aluno.faixa] ?? BELT_COLORS.branca
+  const belt     = BELT_COLORS[aluno.faixa as Faixa] ?? BELT_COLORS.branca
 
   const nomeParts = aluno.nome.split(' ')
 
@@ -277,12 +295,13 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
         fontWeight: 700, fontSize: 9, letterSpacing: 1,
         textTransform: 'uppercase', fontFamily: 'monospace',
         border: aluno.faixa === 'branca' ? '1px solid #ccc' : 'none',
+        textAlign: 'center',
       }}>
-        {belt.label}
+        {nomeFaixaExibicao(aluno.faixa, aluno.graus)}
       </div>
 
       {/* Graus */}
-      <Diamonds graus={aluno.graus} size={8} t={t} />
+      <Diamonds faixa={aluno.faixa} graus={aluno.graus} size={8} t={t} />
 
       {/* Tempo na arte */}
       <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', letterSpacing: 1 }}>
@@ -327,7 +346,7 @@ function ProfessorCard({ professor, onClick, t }: { professor: ProfessorPerfil; 
           <div style={{ color: t.text, fontWeight: 700, fontSize: 14 }}>{professor.nome}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <BeltBadge faixa={professor.faixa} graus={Math.min(professor.graus, 4)} size="sm" t={t} />
+          <BeltBadge faixa={professor.faixa} graus={professor.graus} size="sm" t={t} />
           <span style={{ color: t.accent, fontWeight: 800, fontSize: 12, fontFamily: 'monospace' }}>{professor.graus}º grau</span>
         </div>
       </div>
@@ -456,6 +475,14 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
     ? professorPodeAssinar(professor, tipoAprovacao)
     : { ok: true }
 
+  // Idade/categoria (art. 2.2.1) e lista de faixas disponíveis — infantil e
+  // adulto nunca aparecem juntos no seletor (art. 2°).
+  const idade     = form.data_nascimento ? calcularIdade(form.data_nascimento) : null
+  const categoria = form.data_nascimento ? calcularCategoria(form.data_nascimento) : null
+  const infantilAluno = form.data_nascimento ? ehInfantil(form.data_nascimento) : false
+  const faixasDisponiveis = infantilAluno ? FAIXAS_INFANTIS : FAIXAS_ADULTAS
+  const maxGrausFaixa = grausMaximos(form.faixa)
+
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
     return () => clearTimeout(id)
@@ -526,6 +553,22 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
           {tab === 'perfil' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <Field label="Nome" value={form.nome} onChange={v => set('nome', v)} t={t} />
+              <Field
+                label="Data de nascimento" value={form.data_nascimento ?? ''}
+                onChange={v => set('data_nascimento', v || null)} type="date" t={t}
+              />
+              {form.data_nascimento && (
+                <div style={{ display: 'flex', gap: 20 }}>
+                  <div>
+                    <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Idade</div>
+                    <div style={{ color: t.text, fontSize: 14 }}>{idade} anos</div>
+                  </div>
+                  <div>
+                    <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Categoria</div>
+                    <div style={{ color: t.text, fontSize: 14 }}>{categoria}</div>
+                  </div>
+                </div>
+              )}
               <Field label="Instagram" value={form.instagram ?? ''} onChange={v => set('instagram', v)} t={t} />
               <Field label="Foto URL" value={form.foto_url ?? ''} onChange={v => set('foto_url', v)} placeholder="https://..." t={t} />
               <Field label="Início no jiu-jítsu" value={form.inicio} onChange={v => set('inicio', v)} type="date" t={t} />
@@ -557,20 +600,22 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
 
           {tab === 'graduação' && (
             <div>
-              <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 12 }}>Faixa atual</div>
+              <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 12 }}>
+                Faixa atual {form.data_nascimento && `— ${infantilAluno ? 'infantil' : 'adulto'}`}
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {Object.entries(BELT_COLORS).map(([k, v]) => (
-                  <button key={k} onClick={() => set('faixa', k)} style={{
+                {faixasDisponiveis.map(fx => (
+                  <button key={fx} onClick={() => set('faixa', fx)} style={{
                     padding: '8px 14px', borderRadius: 6, cursor: 'pointer',
-                    background: v.bg, color: v.text, fontWeight: 700, fontSize: 12,
-                    border: form.faixa === k ? `2px solid ${t.accent}` : '2px solid transparent',
+                    background: BELT_COLORS[fx].bg, color: BELT_COLORS[fx].text, fontWeight: 700, fontSize: 12,
+                    border: form.faixa === fx ? `2px solid ${t.accent}` : '2px solid transparent',
                     textTransform: 'uppercase', letterSpacing: 1,
-                  }}>{v.label}</button>
+                  }}>{NOMES_FAIXA[fx]}</button>
                 ))}
               </div>
               <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 10 }}>Graus</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {[0, 1, 2, 3, 4].map(g => (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Array.from({ length: maxGrausFaixa + 1 }, (_, g) => g).map(g => (
                   <button key={g} onClick={() => set('graus', g)} style={{
                     width: 44, height: 44, borderRadius: 6, cursor: 'pointer', fontWeight: 700,
                     background: form.graus === g ? t.accent : t.surface2,
@@ -581,8 +626,8 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
               </div>
               <div style={{ marginTop: 16, padding: 14, background: t.surface, borderRadius: 8, border: `1px solid ${t.border}` }}>
                 <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', marginBottom: 6 }}>PRÓXIMO PASSO</div>
-                {form.graus < 4
-                  ? <div style={{ color: t.accent, fontSize: 13 }}>+1 grau → {form.graus + 1} graus na faixa {BELT_COLORS[form.faixa]?.label}</div>
+                {form.graus < maxGrausFaixa
+                  ? <div style={{ color: t.accent, fontSize: 13 }}>+1 grau → {nomeFaixaExibicao(form.faixa, form.graus + 1)}</div>
                   : <div style={{ color: t.accent, fontSize: 13 }}>Pronto para subir de faixa</div>
                 }
               </div>
