@@ -8,7 +8,7 @@ import {
   professorPodeAssinar, tipoAprovacaoGraduacao,
   calcularIdade, calcularCategoria, ehInfantil,
   FAIXAS_INFANTIS, FAIXAS_ADULTAS, NOMES_FAIXA,
-  grausMaximos, nomeFaixaExibicao,
+  grausMaximos, nomeFaixaExibicao, diasRestantesProvisorio,
 } from '@/lib/regras-ibjjf'
 
 // ─── Tema (paleta preto / vermelho / branco) ──────────────────────────────────
@@ -327,6 +327,33 @@ function Field({ label, value, onChange, type = 'text', placeholder, t }: {
   )
 }
 
+// ─── Toggle ──────────────────────────────────────────────────────────────────
+function Toggle({ label, checked, onChange, t }: { label: string; checked: boolean; onChange: (v: boolean) => void; t: Theme }) {
+  return (
+    <div
+      onClick={() => onChange(!checked)}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+        background: checked ? t.accentBg : t.surface, border: `1px solid ${checked ? t.accent : t.border}`,
+      }}
+    >
+      <span style={{ color: t.text, fontSize: 13 }}>{label}</span>
+      <div style={{
+        width: 40, height: 22, borderRadius: 20, flexShrink: 0,
+        background: checked ? t.accent : t.surface2, border: `1px solid ${t.border}`,
+        position: 'relative', transition: 'background 0.2s',
+      }}>
+        <div style={{
+          position: 'absolute', top: 2, left: checked ? 20 : 2,
+          width: 16, height: 16, borderRadius: '50%', background: '#fff',
+          transition: 'left 0.2s',
+        }} />
+      </div>
+    </div>
+  )
+}
+
 // ─── Card do Professor ────────────────────────────────────────────────────────
 function ProfessorCard({ professor, onClick, t }: { professor: ProfessorPerfil; onClick: () => void; t: Theme }) {
   return (
@@ -630,6 +657,74 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
                   ? <div style={{ color: t.accent, fontSize: 13 }}>+1 grau → {nomeFaixaExibicao(form.faixa, form.graus + 1)}</div>
                   : <div style={{ color: t.accent, fontSize: 13 }}>Pronto para subir de faixa</div>
                 }
+              </div>
+
+              {/* Exceções de tempo mínimo (art. 3.1.3) — só a do campeonato da faixa atual */}
+              {(aluno.faixa === 'azul' || aluno.faixa === 'roxa' || aluno.faixa === 'marrom') && (
+                <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase' }}>
+                    Exceções de tempo mínimo
+                  </div>
+                  {aluno.faixa === 'azul' && (
+                    <Toggle label="Campeão mundial faixa azul" checked={form.campeao_mundial_azul} onChange={v => set('campeao_mundial_azul', v)} t={t} />
+                  )}
+                  {aluno.faixa === 'roxa' && (
+                    <Toggle label="Campeão mundial faixa roxa" checked={form.campeao_mundial_roxa} onChange={v => set('campeao_mundial_roxa', v)} t={t} />
+                  )}
+                  {aluno.faixa === 'marrom' && (
+                    <Toggle label="Campeão mundial faixa marrom" checked={form.campeao_mundial_marrom} onChange={v => set('campeao_mundial_marrom', v)} t={t} />
+                  )}
+                </div>
+              )}
+
+              <div style={{ marginTop: 20 }}>
+                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Veio de faixa juvenil
+                </div>
+                <select
+                  value={form.veio_de_faixa_juvenil ?? ''}
+                  onChange={e => set('veio_de_faixa_juvenil', e.target.value || null)}
+                  style={{ width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 14, boxSizing: 'border-box' }}
+                >
+                  <option value="">Nenhuma</option>
+                  <option value="azul_juvenil">Azul juvenil</option>
+                  <option value="roxa_juvenil">Roxa juvenil</option>
+                  <option value="laranja">Laranja</option>
+                  <option value="verde">Verde</option>
+                </select>
+              </div>
+
+              <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase' }}>
+                  Graduação provisória (art. 7°)
+                </div>
+                <Toggle
+                  label="Sem histórico de faixa documentado"
+                  checked={form.status_graduacao === 'provisorio'}
+                  onChange={v => setForm(f => ({
+                    ...f,
+                    status_graduacao: v ? 'provisorio' : 'regular',
+                    provisorio_desde: v ? (f.provisorio_desde ?? new Date().toISOString().split('T')[0]) : null,
+                  }))}
+                  t={t}
+                />
+                {form.status_graduacao === 'provisorio' && (
+                  <>
+                    <Field
+                      label="Provisório desde" value={form.provisorio_desde ?? ''}
+                      onChange={v => set('provisorio_desde', v || null)} type="date" t={t}
+                    />
+                    {form.provisorio_desde && (
+                      <div style={{
+                        alignSelf: 'flex-start', padding: '6px 12px', borderRadius: 6,
+                        background: t.accentBg, border: `1px solid ${t.accent}`,
+                        color: t.accent, fontSize: 12, fontFamily: 'monospace',
+                      }}>
+                        {diasRestantesProvisorio(form.provisorio_desde)} dias restantes
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               {!professor && (
