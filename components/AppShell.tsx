@@ -40,20 +40,19 @@ function freqColor(ratio: number, t: Theme) {
 }
 
 // ─── Alerta de graduação — sugestão, nunca bloqueio (art. 3.1.3 / 4.1.5) ──────
-// Sem histórico de graduação registrado ainda, usa `inicio` (matrícula geral)
-// como aproximação da data de início na faixa atual (mesmo fallback de
-// dataInicioFaixaAtual em lib/regras-ibjjf.ts).
-function alertaGraduacao(aluno: Aluno): string | null {
+// `ultimaGraduacaoData` vem do histórico em `graduacoes`; sem nenhum registro
+// ainda, dataInicioFaixaAtual() cai de volta em `aluno.inicio`.
+function alertaGraduacao(aluno: Aluno, ultimaGraduacaoData: string | null): string | null {
   const infantil = aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
   if (infantil) return null // sem tempo mínimo infantil (art. 3.1.1)
 
   if (aluno.faixa === 'preta') {
-    const anos = anosNaFaixaAtual(aluno, null)
+    const anos = anosNaFaixaAtual(aluno, ultimaGraduacaoData)
     const { pode, proximoGrau } = podeProximoGrauPreta(anos, anos, aluno.graus)
     return pode && proximoGrau ? `Pronto para o ${proximoGrau}º grau` : null
   }
 
-  return prontoParaProximaFaixa(aluno, null) ? 'Tempo mínimo cumprido — pronto para próxima faixa' : null
+  return prontoParaProximaFaixa(aluno, ultimaGraduacaoData) ? 'Tempo mínimo cumprido — pronto para próxima faixa' : null
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -212,7 +211,7 @@ function InsightPanel({ alunos, t }: { alunos: any[]; t: Theme }) {
 // ─── AlertasGraduacao — sugestões de tempo mínimo cumprido, nunca bloqueio ────
 function AlertasGraduacao({ alunos, onSelect, t }: { alunos: any[]; onSelect: (aluno: any) => void; t: Theme }) {
   const prontos = alunos
-    .map(aluno => ({ aluno, msg: alertaGraduacao(aluno) }))
+    .map(aluno => ({ aluno, msg: alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null) }))
     .filter((x): x is { aluno: any; msg: string } => x.msg !== null)
 
   if (prontos.length === 0) return null
@@ -278,7 +277,7 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
   const dash     = C * (1 - pct)
   const ringColor = freqColor(pct, t)
   const belt     = BELT_COLORS[aluno.faixa as Faixa] ?? BELT_COLORS.branca
-  const alerta   = alertaGraduacao(aluno)
+  const alerta   = alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null)
 
   const nomeParts = aluno.nome.split(' ')
 
@@ -549,7 +548,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
 
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
 function ModalAluno({ aluno, professor, onClose, onSave, t }: {
-  aluno: Aluno & { total_presencas?: number; total_aulas?: number };
+  aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null };
   professor: ProfessorPerfil | null;
   onClose: () => void; onSave: (a: Aluno) => void; t: Theme
 }) {
@@ -575,6 +574,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
   const infantilAluno = form.data_nascimento ? ehInfantil(form.data_nascimento) : false
   const faixasDisponiveis = infantilAluno ? FAIXAS_INFANTIS : FAIXAS_ADULTAS
   const maxGrausFaixa = grausMaximos(form.faixa)
+  const ultimaGraduacaoData = aluno.ultima_graduacao_data ?? null
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
@@ -589,14 +589,14 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
   const handleSave = async () => {
     // Tempo mínimo é sugestão, nunca bloqueio (art. 3.1.3 / 4.1.5) — avisa e
     // deixa o professor decidir, ao contrário do grau de assinatura (bloqueio).
-    if (faixaAlterada && aluno.faixa !== 'preta' && !prontoParaProximaFaixa(aluno, null)) {
+    if (faixaAlterada && aluno.faixa !== 'preta' && !prontoParaProximaFaixa(aluno, ultimaGraduacaoData)) {
       const confirmado = window.confirm(
         'O tempo mínimo na faixa atual ainda não foi cumprido segundo o Sistema Geral de Graduação IBJJF. Graduar mesmo assim?'
       )
       if (!confirmado) return
     }
     if (aluno.faixa === 'preta' && form.graus > aluno.graus) {
-      const anos = anosNaFaixaAtual(aluno, null)
+      const anos = anosNaFaixaAtual(aluno, ultimaGraduacaoData)
       const { pode } = podeProximoGrauPreta(anos, anos, aluno.graus)
       if (!pode) {
         const confirmado = window.confirm(
@@ -607,15 +607,36 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
     }
 
     setSaving(true)
-    const { id, created_at, total_presencas, total_aulas, ...data } =
-      form as typeof form & { created_at?: string; total_presencas?: number; total_aulas?: number }
+    const { id, created_at, total_presencas, total_aulas, ultima_graduacao_data, ...data } =
+      form as typeof form & { created_at?: string; total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null }
     const { error } = await supabase.from('alunos').update(data).eq('id', id)
     if (error) {
       alert(`Não foi possível salvar as alterações: ${error.message}`)
       setSaving(false)
       return
     }
-    onSave(form)
+
+    // Registra o histórico sempre que faixa ou grau mudam (mesmo grau dentro
+    // da mesma faixa), para dataInicioFaixaAtual() ter uma data real a usar.
+    let novaUltimaGraduacao = ultima_graduacao_data ?? null
+    if (form.faixa !== aluno.faixa || form.graus !== aluno.graus) {
+      const hoje = new Date().toISOString().split('T')[0]
+      const { error: gradErr } = await supabase.from('graduacoes').insert({
+        aluno_id: id,
+        faixa_anterior: aluno.faixa,
+        faixa_nova: form.faixa,
+        graus_anterior: aluno.graus,
+        graus_novo: form.graus,
+        data: hoje,
+      })
+      if (gradErr) {
+        alert(`As alterações foram salvas, mas não foi possível registrar o histórico de graduação: ${gradErr.message}`)
+      } else {
+        novaUltimaGraduacao = hoje
+      }
+    }
+
+    onSave({ ...form, ultima_graduacao_data: novaUltimaGraduacao } as Aluno)
     handleClose()
   }
 

@@ -20,5 +20,21 @@ export default async function Home() {
     .select('*')
     .single()
 
-  return <AppShell alunosIniciais={alunos ?? []} aulasIniciais={aulas ?? []} professorInicial={professor ?? null} />
+  const { data: graduacoes } = await supabase
+    .from('graduacoes')
+    .select('aluno_id, data')
+    .order('data', { ascending: false })
+
+  // primeira ocorrência por aluno = graduação mais recente, já que veio ordenado desc
+  const ultimaGraduacaoPorAluno: Record<string, string> = {}
+  for (const g of graduacoes ?? []) {
+    if (!ultimaGraduacaoPorAluno[g.aluno_id]) ultimaGraduacaoPorAluno[g.aluno_id] = g.data
+  }
+
+  const alunosComGraduacao = (alunos ?? []).map(a => ({
+    ...a,
+    ultima_graduacao_data: ultimaGraduacaoPorAluno[a.id] ?? null,
+  }))
+
+  return <AppShell alunosIniciais={alunosComGraduacao} aulasIniciais={aulas ?? []} professorInicial={professor ?? null} />
 }
