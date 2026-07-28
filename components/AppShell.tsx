@@ -9,6 +9,7 @@ import {
   calcularIdade, calcularCategoria, ehInfantil,
   FAIXAS_INFANTIS, FAIXAS_ADULTAS, NOMES_FAIXA,
   grausMaximos, nomeFaixaExibicao, diasRestantesProvisorio,
+  anosNaFaixaAtual, prontoParaProximaFaixa, podeProximoGrauPreta,
 } from '@/lib/regras-ibjjf'
 
 // ─── Tema (paleta preto / vermelho / branco) ──────────────────────────────────
@@ -36,6 +37,23 @@ function freqColor(ratio: number, t: Theme) {
   if (ratio >= 0.75) return t.text
   if (ratio >= 0.5)  return t.textSub
   return t.accent
+}
+
+// ─── Alerta de graduação — sugestão, nunca bloqueio (art. 3.1.3 / 4.1.5) ──────
+// Sem histórico de graduação registrado ainda, usa `inicio` (matrícula geral)
+// como aproximação da data de início na faixa atual (mesmo fallback de
+// dataInicioFaixaAtual em lib/regras-ibjjf.ts).
+function alertaGraduacao(aluno: Aluno): string | null {
+  const infantil = aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
+  if (infantil) return null // sem tempo mínimo infantil (art. 3.1.1)
+
+  if (aluno.faixa === 'preta') {
+    const anos = anosNaFaixaAtual(aluno, null)
+    const { pode, proximoGrau } = podeProximoGrauPreta(anos, anos, aluno.graus)
+    return pode && proximoGrau ? `Pronto para o ${proximoGrau}º grau` : null
+  }
+
+  return prontoParaProximaFaixa(aluno, null) ? 'Tempo mínimo cumprido — pronto para próxima faixa' : null
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -191,6 +209,41 @@ function InsightPanel({ alunos, t }: { alunos: any[]; t: Theme }) {
   )
 }
 
+// ─── AlertasGraduacao — sugestões de tempo mínimo cumprido, nunca bloqueio ────
+function AlertasGraduacao({ alunos, onSelect, t }: { alunos: any[]; onSelect: (aluno: any) => void; t: Theme }) {
+  const prontos = alunos
+    .map(aluno => ({ aluno, msg: alertaGraduacao(aluno) }))
+    .filter((x): x is { aluno: any; msg: string } => x.msg !== null)
+
+  if (prontos.length === 0) return null
+
+  return (
+    <div style={{ padding: '0 16px 14px' }}>
+      <div style={{
+        color: t.textMute, fontSize: 9, fontFamily: 'monospace',
+        textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8,
+      }}>
+        Prontos para graduar
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {prontos.map(({ aluno, msg }) => (
+          <div
+            key={aluno.id} onClick={() => onSelect(aluno)}
+            style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              background: t.surface, border: `1px solid ${t.accent}`, borderRadius: 8,
+              padding: '10px 12px', cursor: 'pointer',
+            }}
+          >
+            <span style={{ color: t.text, fontWeight: 700, fontSize: 13 }}>{aluno.nome}</span>
+            <span style={{ color: t.accent, fontSize: 11, fontFamily: 'monospace' }}>{msg}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── FreqBar ─────────────────────────────────────────────────────────────────
 function FreqBar({ presencas, totalAulas, t }: { presencas: number; totalAulas: number; t: Theme }) {
   const pct = totalAulas > 0 ? Math.round((presencas / totalAulas) * 100) : 0
@@ -225,6 +278,7 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
   const dash     = C * (1 - pct)
   const ringColor = freqColor(pct, t)
   const belt     = BELT_COLORS[aluno.faixa as Faixa] ?? BELT_COLORS.branca
+  const alerta   = alertaGraduacao(aluno)
 
   const nomeParts = aluno.nome.split(' ')
 
@@ -238,6 +292,7 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
       onTouchStart={() => setPressed(true)}
       onTouchEnd={() => setPressed(false)}
       style={{
+        position: 'relative',
         background: t.surface,
         border: `1px solid ${hovered ? t.accent : t.border}`,
         borderRadius: 14,
@@ -249,6 +304,17 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
         userSelect: 'none',
       }}
     >
+      {/* Sugestão de graduação — nunca bloqueio, só um aviso visual */}
+      {alerta && (
+        <div title={alerta} style={{
+          position: 'absolute', top: 8, right: 8,
+          background: t.accent, color: '#fff', fontSize: 8, fontWeight: 800,
+          padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', letterSpacing: 0.5,
+        }}>
+          PRONTO
+        </div>
+      )}
+
       {/* Anel de frequência + avatar circular */}
       <div style={{ position: 'relative', width: 88, height: 88, marginBottom: 2 }}>
         <svg width="88" height="88" style={{ position: 'absolute', top: 0, left: 0, transform: 'rotate(-90deg)' }}>
@@ -521,6 +587,25 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
   }
 
   const handleSave = async () => {
+    // Tempo mínimo é sugestão, nunca bloqueio (art. 3.1.3 / 4.1.5) — avisa e
+    // deixa o professor decidir, ao contrário do grau de assinatura (bloqueio).
+    if (faixaAlterada && aluno.faixa !== 'preta' && !prontoParaProximaFaixa(aluno, null)) {
+      const confirmado = window.confirm(
+        'O tempo mínimo na faixa atual ainda não foi cumprido segundo o Sistema Geral de Graduação IBJJF. Graduar mesmo assim?'
+      )
+      if (!confirmado) return
+    }
+    if (aluno.faixa === 'preta' && form.graus > aluno.graus) {
+      const anos = anosNaFaixaAtual(aluno, null)
+      const { pode } = podeProximoGrauPreta(anos, anos, aluno.graus)
+      if (!pode) {
+        const confirmado = window.confirm(
+          'O tempo mínimo para o próximo grau ainda não foi cumprido. Conceder o grau mesmo assim?'
+        )
+        if (!confirmado) return
+      }
+    }
+
     setSaving(true)
     const { id, created_at, total_presencas, total_aulas, ...data } =
       form as typeof form & { created_at?: string; total_presencas?: number; total_aulas?: number }
@@ -984,8 +1069,13 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
         </div>
       )}
 
-      {/* Painel do Professor — só na aba alunos */}
-      {tab === 'alunos' && <div><InsightPanel alunos={alunos} t={t} /></div>}
+      {/* Painel do Professor + alertas de graduação — só na aba alunos */}
+      {tab === 'alunos' && (
+        <div>
+          <InsightPanel alunos={alunos} t={t} />
+          <AlertasGraduacao alunos={alunos} onSelect={setAlunoSel} t={t} />
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}` }}>
