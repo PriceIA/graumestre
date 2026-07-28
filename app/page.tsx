@@ -22,18 +22,21 @@ export default async function Home() {
 
   const { data: graduacoes } = await supabase
     .from('graduacoes')
-    .select('aluno_id, data')
+    .select('*')
     .order('data', { ascending: false })
 
   // primeira ocorrência por aluno = graduação mais recente, já que veio ordenado desc
   const ultimaGraduacaoPorAluno: Record<string, string> = {}
+  const historicoPorAluno: Record<string, any[]> = {}
   for (const g of graduacoes ?? []) {
     if (!ultimaGraduacaoPorAluno[g.aluno_id]) ultimaGraduacaoPorAluno[g.aluno_id] = g.data
+    ;(historicoPorAluno[g.aluno_id] ??= []).push(g)
   }
 
   const alunosComGraduacao = (alunos ?? []).map(a => ({
     ...a,
     ultima_graduacao_data: ultimaGraduacaoPorAluno[a.id] ?? null,
+    historico_graduacoes: historicoPorAluno[a.id] ?? [],
   }))
 
   return <AppShell alunosIniciais={alunosComGraduacao} aulasIniciais={aulas ?? []} professorInicial={professor ?? null} />

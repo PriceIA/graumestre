@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { Aluno, Faixa, ProfessorPerfil } from '@/lib/types'
+import type { Aluno, Faixa, Graduacao, ProfessorPerfil } from '@/lib/types'
 import {
   professorPodeAssinar, tipoAprovacaoGraduacao,
   calcularIdade, calcularCategoria, ehInfantil,
@@ -548,7 +548,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
 
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
 function ModalAluno({ aluno, professor, onClose, onSave, t }: {
-  aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null };
+  aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[] };
   professor: ProfessorPerfil | null;
   onClose: () => void; onSave: (a: Aluno) => void; t: Theme
 }) {
@@ -705,6 +705,31 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
               <Field label="Instagram" value={form.instagram ?? ''} onChange={v => set('instagram', v)} t={t} />
               <Field label="Foto URL" value={form.foto_url ?? ''} onChange={v => set('foto_url', v)} placeholder="https://..." t={t} />
               <Field label="Início no jiu-jítsu" value={form.inicio} onChange={v => set('inicio', v)} type="date" t={t} />
+
+              <div>
+                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+                  Histórico de graduações
+                </div>
+                {(aluno.historico_graduacoes ?? []).length === 0 ? (
+                  <div style={{ color: t.textSub, fontSize: 12, fontStyle: 'italic' }}>Nenhuma graduação registrada ainda.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(aluno.historico_graduacoes ?? []).map(g => (
+                      <div key={g.id} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                          <span style={{ color: t.text, fontSize: 13, fontWeight: 700 }}>
+                            {nomeFaixaExibicao(g.faixa_anterior, g.graus_anterior)} → {nomeFaixaExibicao(g.faixa_nova, g.graus_novo)}
+                          </span>
+                          <span style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', flexShrink: 0 }}>{g.data}</span>
+                        </div>
+                        <div style={{ color: t.textSub, fontSize: 11, fontFamily: 'monospace' }}>
+                          {g.graus_anterior}º → {g.graus_novo}º grau
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
