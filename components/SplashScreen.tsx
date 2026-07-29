@@ -1,42 +1,39 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import { useEffect, useRef, useState } from 'react';
 
 interface SplashScreenProps {
-  /** Chamado quando a animação termina (ou é pulada) */
+  /** Chamado quando o vídeo termina (ou é pulado) */
   onComplete?: () => void;
 }
 
-type Phase = 'logo' | 'oss' | 'wipe';
-
 const SESSION_KEY = 'gm_splash_seen';
 
+/**
+ * Teto absoluto: o splash nunca fica mais que isso na tela, aconteça o que
+ * acontecer. O vídeo tem ~5s; o resto é margem.
+ */
+const TETO_MS = 8000;
+
+/**
+ * Se o vídeo não saiu do zero até aqui, desistimos. Um `<video>` travado no
+ * `readyState 0` não dispara `error` nem `loadedmetadata`, então checar por
+ * evento não basta — tem que ser no tempo.
+ */
+const CHECAGEM_ARRANQUE_MS = 3000;
+
 export default function SplashScreen({ onComplete }: SplashScreenProps) {
-  const [phase, setPhase] = useState<Phase>('logo');
   const [visible, setVisible] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const doneRef = useRef(false);
 
-  useEffect(() => {
-    // já viu nesta sessão? pula direto
-    if (typeof window !== 'undefined' && sessionStorage.getItem(SESSION_KEY)) {
-      setVisible(false);
-      onComplete?.();
-      return;
-    }
-
-    const t1 = setTimeout(() => setPhase('oss'), 2200);
-    const t2 = setTimeout(() => setPhase('wipe'), 4400);
-    const t3 = setTimeout(() => finish(), 5200);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  /** idempotente: `ended`, clique, erro e timeouts podem chegar juntos */
   function finish() {
+    if (doneRef.current) return;
+    doneRef.current = true;
+
+    timersRef.current.forEach(clearTimeout);
     if (typeof window !== 'undefined') {
       sessionStorage.setItem(SESSION_KEY, '1');
     }
@@ -44,13 +41,40 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
     onComplete?.();
   }
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // já viu nesta sessão? pula direto
+    if (sessionStorage.getItem(SESSION_KEY)) {
+      finish();
+      return;
+    }
+
+    // autoplay com som mudo é permitido, mas alguns navegadores ainda
+    // recusam; se recusar, não deixa o usuário preso no preto
+    videoRef.current?.play().catch(() => finish());
+
+    timersRef.current.push(
+      setTimeout(() => {
+        // não arrancou do zero: assume travado e libera o app
+        if (!videoRef.current?.currentTime) finish();
+      }, CHECAGEM_ARRANQUE_MS),
+      setTimeout(finish, TETO_MS)
+    );
+
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!visible) return null;
 
   return (
     <div
       onClick={finish}
       role="button"
-      aria-label="Pular animação de abertura"
+      aria-label="Pular abertura"
       style={{
         position: 'fixed',
         inset: 0,
@@ -63,144 +87,26 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
         cursor: 'pointer',
       }}
     >
-      {/* faixa vermelha diagonal que varre a tela ao final */}
-      <div
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        preload="auto"
+        onEnded={finish}
+        onError={finish}
+        onStalled={finish}
         style={{
-          position: 'absolute',
-          inset: '-25% -10%',
-          background: '#af0000',
-          transform:
-            phase === 'wipe'
-              ? 'translateX(0%) skewX(-8deg)'
-              : 'translateX(135%) skewX(-8deg)',
-          transition: 'transform 0.85s cubic-bezier(.76,0,.24,1)',
-          zIndex: 3,
-        }}
-      />
-
-      {/* fase 1: logo */}
-      <div
-        style={{
-          position: 'absolute',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: phase === 'logo' ? 1 : 0,
-          transform: phase === 'logo' ? 'scale(1)' : 'scale(1.12)',
-          transition: 'opacity 0.5s ease, transform 0.5s ease',
-          zIndex: 2,
+          width: '100%',
+          height: '100%',
+          // `contain` para nunca cortar a logo em tela estreita
+          objectFit: 'contain',
         }}
       >
-        <div
-          className="gm-logo-ring"
-          style={{
-            width: 200,
-            height: 200,
-            borderRadius: '50%',
-            overflow: 'hidden',
-            WebkitMaskImage: 'radial-gradient(circle, #000 66%, transparent 71%)',
-            maskImage: 'radial-gradient(circle, #000 66%, transparent 71%)',
-            filter: 'drop-shadow(0 0 40px rgba(175,0,0,0.45))',
-          }}
-        >
-          <Image
-            src="/images/logo-fo.jpeg"
-            alt="Flavio Oliveira Jiu-Jitsu"
-            width={200}
-            height={200}
-            style={{ objectFit: 'cover', width: '100%', height: '100%' }}
-            priority
-          />
-        </div>
-      </div>
-
-      {/* fase 2: OSS / PROFESSOR */}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 2,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          opacity: phase !== 'logo' ? 1 : 0,
-          transition: 'opacity 0.4s ease',
-        }}
-      >
-        <span
-          className={phase !== 'logo' ? 'gm-oss-in' : ''}
-          style={{
-            fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            letterSpacing: '0.06em',
-            fontSize: 'clamp(64px, 17vw, 150px)',
-            lineHeight: 0.85,
-            color: '#ffffff',
-            textShadow: '0 0 45px rgba(175,0,0,0.55)',
-          }}
-        >
-          OSS
-        </span>
-        <span
-          className={phase !== 'logo' ? 'gm-prof-in' : ''}
-          style={{
-            fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.4em',
-            fontSize: 'clamp(13px, 2.8vw, 20px)',
-            color: '#af0000',
-            marginTop: 14,
-          }}
-        >
-          Professor
-        </span>
-      </div>
-
-      <style jsx>{`
-        .gm-logo-ring {
-          animation: gm-pop 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-        }
-        .gm-oss-in {
-          display: inline-block;
-          animation: gm-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-        }
-        .gm-prof-in {
-          display: inline-block;
-          animation: gm-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
-        }
-        @keyframes gm-pop {
-          0% {
-            opacity: 0;
-            transform: scale(0.35) rotate(-10deg);
-          }
-          60% {
-            opacity: 1;
-            transform: scale(1.08) rotate(2deg);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1) rotate(0deg);
-          }
-        }
-        @keyframes gm-rise {
-          0% {
-            opacity: 0;
-            transform: translateY(24px) scale(0.92);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .gm-logo-ring,
-          .gm-oss-in,
-          .gm-prof-in {
-            animation: none !important;
-          }
-        }
-      `}</style>
+        {/* só mp4: H.264/AAC toca em todo navegador, e o webm VP9 travava
+            em readyState 0 sem disparar error, prendendo o splash */}
+        <source src="/abertura-graumestre.mp4" type="video/mp4" />
+      </video>
     </div>
   );
 }
