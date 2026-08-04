@@ -744,7 +744,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                 {(form as any).total_presencas ?? 0} presenças de {(form as any).total_aulas ?? 0} aulas registradas
               </div>
               <div style={{ marginTop: 12, padding: 12, background: t.surface, borderRadius: 8, border: `1px solid ${t.border}`, color: t.textSub, fontSize: 13 }}>
-                Para registrar presença, use o botão "+" na aba Aulas e marque os alunos que vieram.
+                Para registrar presença, abra a aula na aba Aulas — ou crie uma no "+" — e faça a chamada.
               </div>
             </div>
           )}
@@ -932,14 +932,16 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
 }
 
 // ─── Modal Nova Aula ─────────────────────────────────────────────────────────
-function ModalNovaAula({ alunos, onClose, onSaved, t }: { alunos: Aluno[]; onClose: () => void; onSaved: () => void; t: Theme }) {
+// Só os dados da aula. A chamada não vive mais aqui: o botão cria a aula e
+// entrega o registro pronto para o AppShell abrir a <Chamada />. Sem aula
+// gravada não existe aula_id, e sem aula_id a presença não teria onde ser
+// salva a cada toque.
+function ModalNovaAula({ onClose, onCriada, t }: { onClose: () => void; onCriada: (aula: any) => void; t: Theme }) {
   const [form, setForm]   = useState({ data: new Date().toISOString().split('T')[0], tecnica: '', posicao: '', notas: '' })
-  const [presentes, setPresentes] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [erro, setErro]   = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
   const set    = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
-  const toggle = (id: string) => setPresentes(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
-  const ausentes = alunos.map(a => a.id).filter(id => !presentes.includes(id))
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
@@ -953,13 +955,26 @@ function ModalNovaAula({ alunos, onClose, onSaved, t }: { alunos: Aluno[]; onClo
 
   const handleSave = async () => {
     setSaving(true)
-    const res = await fetch('/api/aulas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: form, presentes, ausentes }),
-    })
-    if (res.ok) { onSaved(); handleClose() }
-    else setSaving(false)
+    // Whitelist explícita das colunas de `aulas` — mesmo motivo da edição de
+    // aluno: campo que não é coluna derruba a request inteira (PGRST204).
+    const { data: aula, error } = await supabase
+      .from('aulas')
+      .insert({
+        data:    form.data,
+        tecnica: form.tecnica || null,
+        posicao: form.posicao || null,
+        notas:   form.notas   || null,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      setErro(`Não foi possível criar a aula: ${error.message}`)
+      setSaving(false)
+      return
+    }
+    onCriada(aula)
+    handleClose()
   }
 
   return (
@@ -1005,36 +1020,6 @@ function ModalNovaAula({ alunos, onClose, onSaved, t }: { alunos: Aluno[]; onClo
             </div>
           </div>
           <div>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
-              Quem veio hoje ({presentes.length}/{alunos.length})
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {alunos.map(a => (
-                <div
-                  key={a.id} onClick={() => toggle(a.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
-                    background: presentes.includes(a.id) ? t.accentBg : t.surface,
-                    border: presentes.includes(a.id) ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
-                  }}
-                >
-                  <div style={{
-                    width: 20, height: 20, borderRadius: 4, border: '2px solid',
-                    borderColor: presentes.includes(a.id) ? t.accent : t.border2,
-                    background: presentes.includes(a.id) ? t.accent : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, color: '#000', flexShrink: 0,
-                  }}>
-                    {presentes.includes(a.id) ? '✓' : ''}
-                  </div>
-                  <span style={{ color: t.text, fontSize: 14 }}>{a.nome}</span>
-                  <div style={{ marginLeft: 'auto' }}><BeltBadge faixa={a.faixa} graus={a.graus} size="sm" t={t} /></div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
             <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Observações</div>
             <textarea
               value={form.notas} onChange={e => set('notas', e.target.value)}
@@ -1044,20 +1029,283 @@ function ModalNovaAula({ alunos, onClose, onSaved, t }: { alunos: Aluno[]; onClo
           </div>
         </div>
 
-        <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', gap: 10 }}>
+        <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {erro && (
+            <div style={{
+              padding: 12, borderRadius: 8, background: t.accentBg,
+              border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+            }}>
+              ⚠ {erro}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={handleClose}
+              style={{ flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${t.border}`, background: 'none', color: t.textSub, cursor: 'pointer', fontSize: 14 }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave} disabled={saving}
+              style={{ flex: 2, padding: 12, borderRadius: 8, border: 'none', background: t.accent, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
+            >
+              {saving ? 'Criando…' : 'Iniciar chamada →'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Chamada ─────────────────────────────────────────────────────────────────
+// Hoje quem lança presença é sempre o professor. Quando o aluno tiver login e
+// confirmar a própria presença, só este literal muda para 'aluno' na chamada
+// dele — o formato do registro já comporta os dois casos, e a decisão de QUEM
+// pode gravar continua fora daqui (RLS/papel). Ver 006_presenca_autoria.sql.
+const CONFIRMADO_POR_PROFESSOR = 'professor'
+
+// Whitelist explícita das colunas de `presencas` — mesmo padrão do update de
+// aluno, nada derivado entra no payload.
+function payloadPresenca(aulaId: string, alunoId: string, presente: boolean) {
+  return {
+    aula_id:        aulaId,
+    aluno_id:       alunoId,
+    presente,
+    confirmado_por: CONFIRMADO_POR_PROFESSOR,
+    confirmado_em:  new Date().toISOString(),
+  }
+}
+
+// upsert em vez de insert/update: o unique(aula_id, aluno_id) da 001 resolve o
+// conflito sozinho, então marcar e desmarcar o mesmo aluno à vontade nunca
+// duplica linha nem exige um select antes para saber se já existe.
+function gravarPresencas(registros: ReturnType<typeof payloadPresenca>[]) {
+  return supabase.from('presencas').upsert(registros, { onConflict: 'aula_id,aluno_id' })
+}
+
+// Tela cheia, uma linha por aluno, um toque alterna presente/ausente e grava na
+// hora. Sem botão "Salvar" de propósito: professor no tatame com o celular na
+// mão sai da tela a qualquer momento, e o que já foi tocado tem que estar no
+// banco. Desmarcar é update de `presente` para false, nunca delete — o registro
+// de que o aluno não veio naquele dia também é histórico.
+function Chamada({ aula, alunos, onClose, t }: {
+  aula: any; alunos: any[]; onClose: () => void; t: Theme
+}) {
+  // null = ainda carregando o que já está gravado para esta aula
+  const [presentes, setPresentes] = useState<Record<string, boolean> | null>(null)
+  const [busca, setBusca]   = useState('')
+  const [erro, setErro]     = useState<string | null>(null)
+  const [salvando, setSalvando] = useState<Set<string>>(new Set())
+  const [visible, setVisible]   = useState(false)
+
+  useEffect(() => {
+    const id = setTimeout(() => setVisible(true), 10)
+    return () => clearTimeout(id)
+  }, [])
+
+  // Estado inicial vem do banco, não da memória: reabrir a chamada da mesma
+  // aula tem que mostrar exatamente o que foi gravado antes.
+  useEffect(() => {
+    let cancelado = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('presencas')
+        .select('aluno_id, presente')
+        .eq('aula_id', aula.id)
+      if (cancelado) return
+      if (error) {
+        setErro(`Não foi possível carregar a chamada: ${error.message}`)
+        setPresentes({})
+        return
+      }
+      const mapa: Record<string, boolean> = {}
+      for (const p of data ?? []) mapa[p.aluno_id] = p.presente
+      setPresentes(mapa)
+    })()
+    return () => { cancelado = true }
+  }, [aula.id])
+
+  const handleClose = () => {
+    setVisible(false)
+    setTimeout(onClose, 220)
+  }
+
+  const termo = busca.trim().toLowerCase()
+  const visiveis = termo ? alunos.filter(a => a.nome.toLowerCase().includes(termo)) : alunos
+  const totalPresentes = presentes ? alunos.filter(a => presentes[a.id]).length : 0
+
+  const marcarSalvando = (ids: string[], ativo: boolean) =>
+    setSalvando(prev => {
+      const proximo = new Set(prev)
+      for (const id of ids) ativo ? proximo.add(id) : proximo.delete(id)
+      return proximo
+    })
+
+  // Otimista: pinta antes de gravar e desfaz se o banco recusar, para a tela
+  // nunca mostrar presença que não foi salva de verdade.
+  const alternar = async (alunoId: string) => {
+    if (!presentes) return
+    const anterior = presentes[alunoId] ?? false
+    const novo = !anterior
+
+    setPresentes(p => ({ ...p!, [alunoId]: novo }))
+    marcarSalvando([alunoId], true)
+
+    const { error } = await gravarPresencas([payloadPresenca(aula.id, alunoId, novo)])
+
+    marcarSalvando([alunoId], false)
+    if (error) {
+      setPresentes(p => ({ ...p!, [alunoId]: anterior }))
+      const nome = alunos.find(a => a.id === alunoId)?.nome ?? 'aluno'
+      setErro(`Não foi possível salvar a presença de ${nome}: ${error.message}`)
+      return
+    }
+    setErro(null)
+  }
+
+  // Age sobre a lista visível: com busca ativa, marcar quem está fora da tela
+  // seria uma surpresa ruim. Sem busca, é a turma inteira.
+  const marcarTodos = async () => {
+    if (!presentes) return
+    const alvos = visiveis.filter(a => !presentes[a.id])
+    if (alvos.length === 0) return
+
+    const anterior = { ...presentes }
+    setPresentes(p => {
+      const proximo = { ...p! }
+      for (const a of alvos) proximo[a.id] = true
+      return proximo
+    })
+    const ids = alvos.map(a => a.id)
+    marcarSalvando(ids, true)
+
+    const { error } = await gravarPresencas(alvos.map(a => payloadPresenca(aula.id, a.id, true)))
+
+    marcarSalvando(ids, false)
+    if (error) {
+      setPresentes(anterior)
+      setErro(`Não foi possível marcar todos: ${error.message}`)
+      return
+    }
+    setErro(null)
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 120,
+      background: t.bg,
+      display: 'flex', flexDirection: 'column',
+      opacity: visible ? 1 : 0, transition: 'opacity 0.22s ease',
+    }}>
+      {/* Cabeçalho fixo: contador ao vivo + busca sempre à mão */}
+      <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>Chamada</div>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', marginTop: 2 }}>
+              {[aula.data, aula.tecnica].filter(Boolean).join(' · ')}
+            </div>
+          </div>
           <button
             onClick={handleClose}
-            style={{ flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${t.border}`, background: 'none', color: t.textSub, cursor: 'pointer', fontSize: 14 }}
+            style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4, flexShrink: 0 }}
           >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave} disabled={saving}
-            style={{ flex: 2, padding: 12, borderRadius: 8, border: 'none', background: t.accent, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
-          >
-            {saving ? 'Salvando…' : `Salvar aula (${presentes.length} presentes)`}
+            ✕
           </button>
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{ color: t.accent, fontWeight: 800, fontSize: 22, fontFamily: 'monospace' }}>
+            {totalPresentes}
+          </div>
+          <div style={{ color: t.textSub, fontSize: 13 }}>de {alunos.length} presentes</div>
+          <button
+            onClick={marcarTodos}
+            style={{
+              marginLeft: 'auto', padding: '8px 12px', borderRadius: 8,
+              border: `1px solid ${t.accent}`, background: t.accentBg, color: t.accent,
+              fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            Marcar todos
+          </button>
+        </div>
+
+        <input
+          value={busca} onChange={e => setBusca(e.target.value)}
+          placeholder="Buscar por nome…"
+          style={{
+            width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`,
+            borderRadius: 8, padding: '10px 12px', color: t.text, fontSize: 14,
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+
+      {erro && (
+        <div style={{
+          margin: '12px 16px 0', padding: 12, borderRadius: 8, background: t.accentBg,
+          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5, flexShrink: 0,
+        }}>
+          ⚠ {erro}
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {presentes === null ? (
+          <div style={{ color: t.textMute, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Carregando…</div>
+        ) : visiveis.length === 0 ? (
+          <div style={{
+            padding: 24, textAlign: 'center', background: t.surface,
+            border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSub, fontSize: 13,
+          }}>
+            Nenhum aluno com esse nome.
+          </div>
+        ) : visiveis.map(a => {
+          const presente = presentes[a.id] ?? false
+          const emVoo = salvando.has(a.id)
+          return (
+            <div
+              key={a.id} onClick={() => alternar(a.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+                background: presente ? t.accentBg : t.surface,
+                border: presente ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
+                opacity: emVoo ? 0.6 : 1,
+                transition: 'background 0.15s, border-color 0.15s, opacity 0.15s',
+              }}
+            >
+              <div style={{
+                width: 40, height: 40, borderRadius: '50%', overflow: 'hidden',
+                background: t.surface2, border: `1px solid ${t.border}`, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {a.foto_url
+                  ? <img src={a.foto_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 16, fontWeight: 900, color: t.accent, fontFamily: 'monospace' }}>{a.nome[0]}</span>
+                }
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: t.text, fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{a.nome}</div>
+                <BeltBadge faixa={a.faixa} graus={a.graus} size="sm" t={t} />
+              </div>
+
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%', border: '2px solid',
+                borderColor: presente ? t.accent : t.border2,
+                background: presente ? t.accent : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 15, color: '#fff', flexShrink: 0,
+                transition: 'background 0.15s, border-color 0.15s',
+              }}>
+                {presente ? '✓' : ''}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -1206,6 +1454,8 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
   const [tab, setTab]       = useState<'alunos' | 'aulas' | 'lixeira'>('alunos')
   const [alunoSel, setAlunoSel]   = useState<any | null>(null)
   const [modalAula, setModalAula] = useState(false)
+  // aula cuja chamada está aberta — recém-criada pelo modal ou reaberta pelo card
+  const [chamadaAula, setChamadaAula] = useState<any | null>(null)
   const [professor, setProfessor] = useState<ProfessorPerfil | null>(professorInicial)
   const [modalProfessor, setModalProfessor] = useState(false)
   const [erroAula, setErroAula] = useState<string | null>(null)
@@ -1318,13 +1568,18 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
               </div>
             )}
             {aulas.map((a: any) => (
-              <div key={a.id} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: 16 }}>
+              // card inteiro abre a chamada daquela aula — sem botão extra
+              <div
+                key={a.id} onClick={() => setChamadaAula(a)}
+                style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: 16, cursor: 'pointer' }}
+              >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
                   <div style={{ color: t.text, fontWeight: 700 }}>{a.tecnica || 'Aula'}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                     <div style={{ color: t.textMute, fontSize: 12, fontFamily: 'monospace' }}>{a.data}</div>
                     <button
-                      onClick={() => apagarAula(a)}
+                      // sem o stopPropagation, apagar a aula abriria a chamada dela junto
+                      onClick={e => { e.stopPropagation(); apagarAula(a) }}
                       title="Apagar aula"
                       style={{
                         background: 'none', border: 'none', color: t.textMute,
@@ -1394,9 +1649,21 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
       )}
       {modalAula && (
         <ModalNovaAula
-          alunos={alunos}
           onClose={() => setModalAula(false)}
-          onSaved={() => startTransition(() => router.refresh())}
+          // aula criada: o modal sai e a chamada dela entra, sem passo intermediário
+          onCriada={aula => { setModalAula(false); setChamadaAula(aula) }}
+          t={t}
+        />
+      )}
+      {chamadaAula && (
+        <Chamada
+          aula={chamadaAula}
+          alunos={alunos}
+          onClose={async () => {
+            setChamadaAula(null)
+            // recarrega para o card da aula refletir o novo total de presentes
+            await recarregar()
+          }}
           t={t}
         />
       )}
