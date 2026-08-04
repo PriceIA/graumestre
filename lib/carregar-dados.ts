@@ -36,10 +36,28 @@ export async function carregarDados() {
     ;(historicoPorAluno[g.aluno_id] ??= []).push(g)
   }
 
+  // Data da última presença por aluno, para o cálculo de afastado
+  // (lib/afastamento.ts). Sai das aulas que já vieram acima em vez de uma query
+  // nova: elas chegam com presencas(aluno_id, presente) embutido e ordenadas por
+  // data desc, então a primeira ocorrência de cada aluno já é a mais recente.
+  //
+  // Só conta presente = true: linha com presente = false registra que o aluno
+  // faltou naquele dia, o oposto do que estamos medindo. O limite de 50 aulas
+  // acima não distorce o resultado — quem não aparece em nenhuma das 50 últimas
+  // está fora do prazo de qualquer forma.
+  const ultimaPresencaPorAluno: Record<string, string> = {}
+  for (const aula of aulas ?? []) {
+    for (const p of (aula as any).presencas ?? []) {
+      if (!p.presente) continue
+      if (!ultimaPresencaPorAluno[p.aluno_id]) ultimaPresencaPorAluno[p.aluno_id] = (aula as any).data
+    }
+  }
+
   const alunosComGraduacao = (alunos ?? []).map(a => ({
     ...a,
     ultima_graduacao_data: ultimaGraduacaoPorAluno[a.id] ?? null,
     historico_graduacoes: historicoPorAluno[a.id] ?? [],
+    ultima_presenca_data: ultimaPresencaPorAluno[a.id] ?? null,
   }))
 
   return { alunos: alunosComGraduacao, aulas: aulas ?? [] }

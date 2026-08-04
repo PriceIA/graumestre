@@ -12,6 +12,7 @@ import {
   anosNaFaixaAtual, prontoParaProximaFaixa, podeProximoGrauPreta,
 } from '@/lib/regras-ibjjf'
 import { alertaGraduacao } from '@/lib/alertas-graduacao'
+import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
 import { carregarDados } from '@/lib/carregar-dados'
 import DashboardProfessor from '@/components/DashboardProfessor'
 
@@ -73,7 +74,7 @@ const COLUNAS_ALUNO = [
   'nome', 'faixa', 'graus', 'inicio', 'data_nascimento', 'foto_url', 'instagram', 'notas',
   'campeao_mundial_azul', 'campeao_mundial_roxa', 'campeao_mundial_marrom',
   'veio_de_faixa_juvenil', 'status_graduacao', 'provisorio_desde',
-  'curso_primeiros_socorros', 'curso_regras_data',
+  'curso_primeiros_socorros', 'curso_regras_data', 'afastado_manual',
 ] as const satisfies readonly (keyof Aluno)[]
 
 function payloadAluno(form: Aluno): Record<string, unknown> {
@@ -216,6 +217,7 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
   const ringColor = freqColor(pct, t)
   const belt     = BELT_COLORS[aluno.faixa as Faixa] ?? BELT_COLORS.branca
   const alerta   = alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null)
+  const afastado = estaAfastado(aluno)
 
   const nomeParts = aluno.nome.split(' ')
 
@@ -241,6 +243,19 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
         userSelect: 'none',
       }}
     >
+      {/* Afastado é estado informativo, não erro: cinza no canto oposto ao
+          selo PRONTO, sem cor de alarme e sem competir com ele. */}
+      {afastado && (
+        <div title={motivoAfastamento(aluno) ?? 'Afastado'} style={{
+          position: 'absolute', top: 8, left: 8,
+          background: t.surface2, color: t.textMute, fontSize: 8, fontWeight: 700,
+          padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', letterSpacing: 0.5,
+          border: `1px solid ${t.border}`,
+        }}>
+          AFASTADO
+        </div>
+      )}
+
       {/* Sugestão de graduação — nunca bloqueio, só um aviso visual */}
       {alerta && (
         <div title={alerta} style={{
@@ -310,6 +325,130 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
       <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', letterSpacing: 1 }}>
         {anos > 0 ? `${anos}A ` : ''}{meses}M
       </div>
+    </div>
+  )
+}
+
+// ─── Filtros da lista de alunos ──────────────────────────────────────────────
+// Combináveis em AND: marcar Azul + Adulto mostra quem é as duas coisas, não a
+// união. Nenhum critério aqui recalcula nada — faixa lê a coluna, "prontos"
+// chama a mesma alertaGraduacao() que alimenta a home e o selo do card, e
+// afastado vem de estaAfastado().
+type Filtros = {
+  faixa: Faixa | null
+  prontos: boolean
+  afastados: boolean
+  categoria: 'infantil' | 'adulto' | null
+}
+
+const FILTROS_VAZIOS: Filtros = { faixa: null, prontos: false, afastados: false, categoria: null }
+
+// Ordem de exibição dos chips de faixa: progressão adulta primeiro, depois as
+// infantis que não aparecem nela (cinza, amarela, laranja, verde e variações).
+const ORDEM_FAIXAS: Faixa[] = [
+  ...FAIXAS_ADULTAS,
+  ...FAIXAS_INFANTIS.filter(f => !FAIXAS_ADULTAS.includes(f)),
+]
+
+const temFiltroAtivo = (f: Filtros) =>
+  f.faixa !== null || f.prontos || f.afastados || f.categoria !== null
+
+// Aluno sem data_nascimento conta como adulto: a turma é majoritariamente
+// adulta e o cadastro costuma vir sem a data, então jogá-lo fora dos dois
+// grupos faria o filtro parecer quebrado. Preencher a data corrige sozinho.
+function ehInfantilAluno(aluno: any): boolean {
+  return aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
+}
+
+function aplicarFiltros(alunos: any[], f: Filtros): any[] {
+  return alunos.filter(a => {
+    if (f.faixa && a.faixa !== f.faixa) return false
+    if (f.prontos && alertaGraduacao(a, a.ultima_graduacao_data ?? null) === null) return false
+    if (f.afastados && !estaAfastado(a)) return false
+    if (f.categoria === 'infantil' && !ehInfantilAluno(a)) return false
+    if (f.categoria === 'adulto'   &&  ehInfantilAluno(a)) return false
+    return true
+  })
+}
+
+function Chip({ label, ativo, onClick, cores, t }: {
+  label: string; ativo: boolean; onClick: () => void
+  cores?: { bg: string; text: string }; t: Theme
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '6px 10px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
+        fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 0.5,
+        whiteSpace: 'nowrap',
+        background: ativo ? (cores?.bg ?? t.accentBg) : t.surface2,
+        color:      ativo ? (cores?.text ?? t.accent) : t.textSub,
+        border: `1px solid ${ativo ? (cores?.bg ?? t.accent) : t.border}`,
+        fontWeight: ativo ? 700 : 400,
+        transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+// setFiltros recebe atualização funcional de propósito: dois toques dentro do
+// mesmo frame leem o mesmo `filtros` do closure e o segundo apagaria o
+// primeiro. Com prev => ... cada toque parte do estado já atualizado.
+function BarraFiltros({ alunos, filtros, setFiltros, totalVisivel, t }: {
+  alunos: any[]; filtros: Filtros; setFiltros: React.Dispatch<React.SetStateAction<Filtros>>
+  totalVisivel: number; t: Theme
+}) {
+  // Só as faixas que existem na turma. A lista completa são 17 faixas contando
+  // as infantis, e um chip para faixa vazia é ruído puro. A ordem é a da
+  // progressão (adultas e depois as infantis que não se repetem), senão as
+  // infantis caem no começo por não estarem em FAIXAS_ADULTAS.
+  const faixasPresentes = Array.from(new Set(alunos.map(a => a.faixa as Faixa)))
+    .sort((a, b) => ORDEM_FAIXAS.indexOf(a) - ORDEM_FAIXAS.indexOf(b))
+
+  const alterna = <K extends keyof Filtros>(chave: K, valor: Filtros[K]) =>
+    setFiltros(prev => ({ ...prev, [chave]: prev[chave] === valor ? FILTROS_VAZIOS[chave] : valor }))
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+        {faixasPresentes.map(fx => (
+          <Chip
+            key={fx} label={NOMES_FAIXA[fx]} ativo={filtros.faixa === fx}
+            onClick={() => alterna('faixa', fx)}
+            cores={filtros.faixa === fx ? BELT_COLORS[fx] : undefined}
+            t={t}
+          />
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Chip label="Prontos"  ativo={filtros.prontos}   onClick={() => setFiltros(prev => ({ ...prev, prontos: !prev.prontos }))} t={t} />
+        <Chip label="Afastados" ativo={filtros.afastados} onClick={() => setFiltros(prev => ({ ...prev, afastados: !prev.afastados }))} t={t} />
+        <Chip label="Infantil" ativo={filtros.categoria === 'infantil'} onClick={() => alterna('categoria', 'infantil')} t={t} />
+        <Chip label="Adulto"   ativo={filtros.categoria === 'adulto'}   onClick={() => alterna('categoria', 'adulto')} t={t} />
+
+        {temFiltroAtivo(filtros) && (
+          <button
+            onClick={() => setFiltros(FILTROS_VAZIOS)}
+            style={{
+              marginLeft: 'auto', background: 'none', border: 'none', color: t.textMute,
+              fontSize: 11, fontFamily: 'monospace', textDecoration: 'underline',
+              cursor: 'pointer', padding: 4, whiteSpace: 'nowrap',
+            }}
+          >
+            Ver todos ({alunos.length})
+          </button>
+        )}
+      </div>
+
+      {temFiltroAtivo(filtros) && (
+        <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace' }}>
+          {totalVisivel} de {alunos.length} alunos
+        </div>
+      )}
     </div>
   )
 }
@@ -486,7 +625,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
 
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
 function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGraduacao, t, podeEditar = true }: {
-  aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[] };
+  aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[]; ultima_presenca_data?: string | null };
   professor: ProfessorPerfil | null;
   onClose: () => void; onSave: (a: Aluno) => void; onDelete: (id: string) => void;
   // avisa o AppShell que algo entrou na lixeira, para o badge da aba recontar
@@ -697,6 +836,35 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
               <Field label="Instagram" value={form.instagram ?? ''} onChange={v => set('instagram', v)} t={t} />
               <Field label="Foto URL" value={form.foto_url ?? ''} onChange={v => set('foto_url', v)} placeholder="https://..." t={t} />
               <Field label="Início no jiu-jítsu" value={form.inicio} onChange={v => set('inicio', v)} type="date" t={t} />
+
+              {/* Três estados numa tela só: o toggle liga/desliga o override, e
+                  o link ao lado devolve a decisão para o cálculo automático. */}
+              <div>
+                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+                  Situação
+                </div>
+                <Toggle
+                  label="Afastado"
+                  checked={form.afastado_manual ?? estaAfastado({ ...form, ultima_presenca_data: aluno.ultima_presenca_data })}
+                  onChange={v => set('afastado_manual', v)}
+                  t={t}
+                />
+                <div style={{ color: t.textMute, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                  {form.afastado_manual === null || form.afastado_manual === undefined
+                    ? `Automático: ${motivoAfastamento({ ...form, ultima_presenca_data: aluno.ultima_presenca_data }) ?? `presença nos últimos ${DIAS_PARA_AFASTADO} dias`}.`
+                    : (
+                      <>
+                        Definido manualmente como {form.afastado_manual ? 'afastado' : 'ativo'}.{' '}
+                        <button
+                          onClick={() => set('afastado_manual', null)}
+                          style={{ background: 'none', border: 'none', color: t.accent, fontSize: 11, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                        >
+                          Voltar ao automático
+                        </button>
+                      </>
+                    )}
+                </div>
+              </div>
 
               <div>
                 <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
@@ -1527,6 +1695,9 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
   const [modalProfessor, setModalProfessor] = useState(false)
   const [erroAula, setErroAula] = useState<string | null>(null)
   const [naLixeira, setNaLixeira] = useState(0)
+  const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
+
+  const alunosVisiveis = aplicarFiltros(alunos, filtros)
 
   // Rebusca as listagens ativas com os mesmos filtros da carga inicial. Usado
   // depois de apagar/restaurar: router.refresh() sozinho não resolveria, porque
@@ -1616,11 +1787,26 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
 
         {/* Grade de crachás circulares */}
         {tab === 'alunos' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-            {alunos.map((a: any) => (
-              <AlunoCard key={a.id} aluno={a} onClick={() => setAlunoSel(a)} t={t} />
-            ))}
-          </div>
+          <>
+            <BarraFiltros
+              alunos={alunos} filtros={filtros} setFiltros={setFiltros}
+              totalVisivel={alunosVisiveis.length} t={t}
+            />
+            {alunosVisiveis.length === 0 ? (
+              <div style={{
+                padding: 24, textAlign: 'center', background: t.surface,
+                border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSub, fontSize: 13,
+              }}>
+                Nenhum aluno com esses filtros.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                {alunosVisiveis.map((a: any) => (
+                  <AlunoCard key={a.id} aluno={a} onClick={() => setAlunoSel(a)} t={t} />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {/* Lista de aulas */}

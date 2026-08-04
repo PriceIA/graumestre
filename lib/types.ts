@@ -37,6 +37,9 @@ export interface Aluno {
   curso_primeiros_socorros: boolean
   curso_regras_data: string | null
 
+  // null = segue o cálculo automático por frequência · true/false = override do professor
+  afastado_manual: boolean | null
+
   created_at: string
   deleted_at: string | null        // null = ativo · preenchido = na lixeira
 }
