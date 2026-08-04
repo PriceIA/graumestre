@@ -12,6 +12,7 @@ import {
   anosNaFaixaAtual, prontoParaProximaFaixa, podeProximoGrauPreta,
 } from '@/lib/regras-ibjjf'
 import { alertaGraduacao } from '@/lib/alertas-graduacao'
+import { carregarDados } from '@/lib/carregar-dados'
 import DashboardProfessor from '@/components/DashboardProfessor'
 
 // ─── Tema (paleta GrauMestre — preto/vermelho, fixa) ──────────────────────────
@@ -79,6 +80,44 @@ function payloadAluno(form: Aluno): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const coluna of COLUNAS_ALUNO) out[coluna] = form[coluna]
   return out
+}
+
+// ─── Soft delete / lixeira ───────────────────────────────────────────────────
+// Nada aqui apaga linha do banco: "apagar" só carimba deleted_at, e restaurar
+// zera de volta. Os payloads são literais explícitos — nunca espalhe o objeto
+// de estado num update, foi exatamente assim que a edição de aluno quebrou
+// (campo derivado vazando no payload → PGRST204).
+//
+// ⚠ A purga física (DELETE definitivo após os 7 dias) NÃO está automatizada.
+// DIAS_LIXEIRA é só um filtro de exibição: passado o prazo o item some da aba
+// Lixeira, mas a linha continua no banco. Ver 005_soft_delete.sql.
+const DIAS_LIXEIRA = 7
+
+type TabelaComLixeira = 'alunos' | 'aulas' | 'graduacoes'
+
+function mandarParaLixeira(tabela: TabelaComLixeira, id: string) {
+  return supabase.from(tabela).update({ deleted_at: new Date().toISOString() }).eq('id', id)
+}
+
+function restaurarDaLixeira(tabela: TabelaComLixeira, id: string) {
+  return supabase.from(tabela).update({ deleted_at: null }).eq('id', id)
+}
+
+// Instante a partir do qual um item ainda é recuperável.
+function limiteLixeira(): string {
+  return new Date(Date.now() - DIAS_LIXEIRA * 86400000).toISOString()
+}
+
+function diasNaLixeira(deletedAt: string): number {
+  return Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000)
+}
+
+function textoPrazo(deletedAt: string): string {
+  const dias = diasNaLixeira(deletedAt)
+  const restantes = Math.max(0, DIAS_LIXEIRA - dias)
+  const apagado = dias === 0 ? 'hoje' : dias === 1 ? 'há 1 dia' : `há ${dias} dias`
+  const some = restantes === 0 ? 'some hoje' : restantes === 1 ? 'some em 1 dia' : `some em ${restantes} dias`
+  return `Apagado ${apagado} · ${some}`
 }
 
 // ─── Validação do formulário do aluno ────────────────────────────────────────
@@ -446,10 +485,12 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
 }
 
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
-function ModalAluno({ aluno, professor, onClose, onSave, t, podeEditar = true }: {
+function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGraduacao, t, podeEditar = true }: {
   aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[] };
   professor: ProfessorPerfil | null;
-  onClose: () => void; onSave: (a: Aluno) => void; t: Theme;
+  onClose: () => void; onSave: (a: Aluno) => void; onDelete: (id: string) => void;
+  // avisa o AppShell que algo entrou na lixeira, para o badge da aba recontar
+  onDeleteGraduacao: () => void; t: Theme;
   // Hoje é sempre true (app single-user, só o professor usa). Fica preparado
   // para quando o aluno puder logar e ver o próprio perfil em modo leitura.
   podeEditar?: boolean;
@@ -459,6 +500,8 @@ function ModalAluno({ aluno, professor, onClose, onSave, t, podeEditar = true }:
   const [saving, setSaving] = useState(false)
   const [erro, setErro]   = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
+  // cópia local do histórico para o ✕ sumir na hora, sem esperar recarga
+  const [historico, setHistorico] = useState<Graduacao[]>(aluno.historico_graduacoes ?? [])
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
   const tabs = ['perfil', 'frequência', 'notas', 'graduação']
 
@@ -487,6 +530,35 @@ function ModalAluno({ aluno, professor, onClose, onSave, t, podeEditar = true }:
   const handleClose = () => {
     setVisible(false)
     setTimeout(onClose, 220)
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm(
+      `Apagar ${aluno.nome}? O aluno vai para a lixeira e pode ser restaurado por ${DIAS_LIXEIRA} dias.`
+    )) return
+    setSaving(true)
+    const { error } = await mandarParaLixeira('alunos', aluno.id)
+    if (error) {
+      setErro(`Não foi possível apagar o aluno: ${error.message}`)
+      setSaving(false)
+      return
+    }
+    onDelete(aluno.id)
+    handleClose()
+  }
+
+  const handleDeleteGraduacao = async (g: Graduacao) => {
+    if (!window.confirm(
+      `Apagar esta graduação do histórico? Ela vai para a lixeira e pode ser restaurada por ${DIAS_LIXEIRA} dias.`
+    )) return
+    const { error } = await mandarParaLixeira('graduacoes', g.id)
+    if (error) {
+      setErro(`Não foi possível apagar a graduação: ${error.message}`)
+      return
+    }
+    setErro(null)
+    setHistorico(prev => prev.filter(h => h.id !== g.id))
+    onDeleteGraduacao()
   }
 
   const handleSave = async () => {
@@ -630,17 +702,29 @@ function ModalAluno({ aluno, professor, onClose, onSave, t, podeEditar = true }:
                 <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
                   Histórico de graduações
                 </div>
-                {(aluno.historico_graduacoes ?? []).length === 0 ? (
+                {historico.length === 0 ? (
                   <div style={{ color: t.textSub, fontSize: 12, fontStyle: 'italic' }}>Nenhuma graduação registrada ainda.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {(aluno.historico_graduacoes ?? []).map(g => (
+                    {historico.map(g => (
                       <div key={g.id} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                           <span style={{ color: t.text, fontSize: 13, fontWeight: 700 }}>
                             {nomeFaixaExibicao(g.faixa_anterior, g.graus_anterior)} → {nomeFaixaExibicao(g.faixa_nova, g.graus_novo)}
                           </span>
-                          <span style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', flexShrink: 0 }}>{g.data}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                            <span style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace' }}>{g.data}</span>
+                            <button
+                              onClick={() => handleDeleteGraduacao(g)}
+                              title="Apagar graduação"
+                              style={{
+                                background: 'none', border: 'none', color: t.textMute,
+                                fontSize: 13, cursor: 'pointer', padding: '0 2px', lineHeight: 1,
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
                         <div style={{ color: t.textSub, fontSize: 11, fontFamily: 'monospace' }}>
                           {g.graus_anterior}º → {g.graus_novo}º grau
@@ -827,6 +911,21 @@ function ModalAluno({ aluno, professor, onClose, onSave, t, podeEditar = true }:
             </button>
           )}
         </div>
+
+        {podeEditar && (
+          <div style={{ padding: '0 20px 16px', display: 'flex', justifyContent: 'center' }}>
+            <button
+              onClick={handleDelete} disabled={saving}
+              style={{
+                background: 'none', border: 'none', color: t.textMute,
+                fontSize: 12, cursor: saving ? 'not-allowed' : 'pointer',
+                textDecoration: 'underline', padding: 4,
+              }}
+            >
+              Apagar aluno
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -964,6 +1063,136 @@ function ModalNovaAula({ alunos, onClose, onSaved, t }: { alunos: Aluno[]; onClo
   )
 }
 
+// ─── Lixeira ─────────────────────────────────────────────────────────────────
+type ItemLixeira = {
+  tabela: TabelaComLixeira
+  id: string
+  deleted_at: string
+  titulo: string
+  detalhe: string
+  rotulo: string
+}
+
+function Lixeira({ t, onRestaurado }: { t: Theme; onRestaurado: () => Promise<void> }) {
+  const [itens, setItens]   = useState<ItemLixeira[] | null>(null)   // null = carregando
+  const [erro, setErro]     = useState<string | null>(null)
+  const [ocupado, setOcupado] = useState<string | null>(null)
+
+  const carregar = async () => {
+    // gte(limite) já descarta no banco o que passou dos 7 dias — expirado não
+    // aparece, mesmo com a linha ainda existindo fisicamente
+    const limite = limiteLixeira()
+    const naLixeira = (q: any) => q.not('deleted_at', 'is', null).gte('deleted_at', limite)
+
+    const [ra, rau, rg] = await Promise.all([
+      naLixeira(supabase.from('alunos').select('id,nome,faixa,graus,deleted_at')),
+      naLixeira(supabase.from('aulas').select('id,data,tecnica,posicao,deleted_at')),
+      naLixeira(supabase.from('graduacoes').select('id,data,faixa_anterior,faixa_nova,graus_anterior,graus_novo,deleted_at,alunos(nome)')),
+    ])
+
+    const falha = ra.error ?? rau.error ?? rg.error
+    if (falha) { setErro(`Não foi possível carregar a lixeira: ${falha.message}`); setItens([]); return }
+    setErro(null)
+
+    const lista: ItemLixeira[] = [
+      ...(ra.data ?? []).map((a: any) => ({
+        tabela: 'alunos' as const, id: a.id, deleted_at: a.deleted_at, rotulo: 'Aluno',
+        titulo: a.nome, detalhe: nomeFaixaExibicao(a.faixa, a.graus),
+      })),
+      ...(rau.data ?? []).map((a: any) => ({
+        tabela: 'aulas' as const, id: a.id, deleted_at: a.deleted_at, rotulo: 'Aula',
+        titulo: a.tecnica || 'Aula sem técnica', detalhe: [a.data, a.posicao].filter(Boolean).join(' · '),
+      })),
+      ...(rg.data ?? []).map((g: any) => ({
+        tabela: 'graduacoes' as const, id: g.id, deleted_at: g.deleted_at, rotulo: 'Graduação',
+        titulo: `${nomeFaixaExibicao(g.faixa_anterior, g.graus_anterior)} → ${nomeFaixaExibicao(g.faixa_nova, g.graus_novo)}`,
+        detalhe: [g.alunos?.nome, g.data].filter(Boolean).join(' · '),
+      })),
+    ].sort((a, b) => b.deleted_at.localeCompare(a.deleted_at))   // mais recente primeiro
+
+    setItens(lista)
+  }
+
+  useEffect(() => { carregar() }, [])
+
+  const restaurar = async (item: ItemLixeira) => {
+    setOcupado(item.id)
+    const { error } = await restaurarDaLixeira(item.tabela, item.id)
+    if (error) {
+      setErro(`Não foi possível restaurar "${item.titulo}": ${error.message}`)
+      setOcupado(null)
+      return
+    }
+    setErro(null)
+    setItens(prev => (prev ?? []).filter(i => i.id !== item.id))
+    await onRestaurado()
+    setOcupado(null)
+  }
+
+  if (itens === null) {
+    return <div style={{ color: t.textMute, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Carregando…</div>
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', lineHeight: 1.6 }}>
+        Itens apagados ficam aqui por {DIAS_LIXEIRA} dias e podem ser restaurados.
+        Depois disso somem desta tela.
+      </div>
+
+      {erro && (
+        <div style={{
+          padding: 12, borderRadius: 8, background: t.accentBg,
+          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+        }}>
+          ⚠ {erro}
+        </div>
+      )}
+
+      {itens.length === 0 ? (
+        <div style={{
+          padding: 24, textAlign: 'center', background: t.surface,
+          border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSub, fontSize: 13,
+        }}>
+          A lixeira está vazia.
+        </div>
+      ) : itens.map(item => (
+        <div key={`${item.tabela}-${item.id}`} style={{
+          background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10,
+          padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              color: t.textMute, fontSize: 9, fontFamily: 'monospace',
+              textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4,
+            }}>
+              {item.rotulo}
+            </div>
+            <div style={{ color: t.text, fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{item.titulo}</div>
+            {item.detalhe && (
+              <div style={{ color: t.textSub, fontSize: 12, marginBottom: 4 }}>{item.detalhe}</div>
+            )}
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace' }}>
+              {textoPrazo(item.deleted_at)}
+            </div>
+          </div>
+          <button
+            onClick={() => restaurar(item)} disabled={ocupado === item.id}
+            style={{
+              flexShrink: 0, padding: '9px 14px', borderRadius: 8,
+              border: `1px solid ${t.accent}`, background: t.accentBg, color: t.accent,
+              fontWeight: 700, fontSize: 12, cursor: ocupado === item.id ? 'not-allowed' : 'pointer',
+              opacity: ocupado === item.id ? 0.5 : 1, transition: 'opacity 0.15s',
+            }}
+          >
+            {ocupado === item.id ? '…' : 'Restaurar'}
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── AppShell ────────────────────────────────────────────────────────────────
 export default function AppShell({ alunosIniciais, aulasIniciais, professorInicial }: {
   alunosIniciais: any[]; aulasIniciais: any[]; professorInicial: ProfessorPerfil | null
@@ -973,12 +1202,46 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
   const t = theme
 
   const [alunos, setAlunos] = useState<any[]>(alunosIniciais)
-  const [aulas]             = useState<any[]>(aulasIniciais)
-  const [tab, setTab]       = useState<'alunos' | 'aulas'>('alunos')
+  const [aulas, setAulas]   = useState<any[]>(aulasIniciais)
+  const [tab, setTab]       = useState<'alunos' | 'aulas' | 'lixeira'>('alunos')
   const [alunoSel, setAlunoSel]   = useState<any | null>(null)
   const [modalAula, setModalAula] = useState(false)
   const [professor, setProfessor] = useState<ProfessorPerfil | null>(professorInicial)
   const [modalProfessor, setModalProfessor] = useState(false)
+  const [erroAula, setErroAula] = useState<string | null>(null)
+  const [naLixeira, setNaLixeira] = useState(0)
+
+  // Rebusca as listagens ativas com os mesmos filtros da carga inicial. Usado
+  // depois de apagar/restaurar: router.refresh() sozinho não resolveria, porque
+  // o useState acima só lê as props na montagem e ignora props novas.
+  const recarregar = async () => {
+    const { alunos: a, aulas: au } = await carregarDados()
+    setAlunos(a)
+    setAulas(au)
+    startTransition(() => router.refresh())
+  }
+
+  // Conta o que está na lixeira para o badge da aba. Contagem real em vez de
+  // incrementar/decrementar na mão, que dessincroniza na primeira falha.
+  const contarLixeira = async () => {
+    const limite = limiteLixeira()
+    const contar = (tabela: TabelaComLixeira) =>
+      supabase.from(tabela).select('id', { count: 'exact', head: true })
+        .not('deleted_at', 'is', null).gte('deleted_at', limite)
+    const rs = await Promise.all([contar('alunos'), contar('aulas'), contar('graduacoes')])
+    setNaLixeira(rs.reduce((soma, r) => soma + (r.count ?? 0), 0))
+  }
+
+  useEffect(() => { contarLixeira() }, [])
+
+  const apagarAula = async (aula: any) => {
+    if (!window.confirm(`Apagar a aula de ${aula.data}? Ela vai para a lixeira e pode ser restaurada por ${DIAS_LIXEIRA} dias.`)) return
+    const { error } = await mandarParaLixeira('aulas', aula.id)
+    if (error) { setErroAula(`Não foi possível apagar a aula: ${error.message}`); return }
+    setErroAula(null)
+    setAulas(prev => prev.filter(a => a.id !== aula.id))
+    contarLixeira()
+  }
 
   const novoAluno = async () => {
     const { data, error } = await supabase
@@ -1007,24 +1270,28 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}` }}>
-        {(['alunos', 'aulas'] as const).map(tb => (
-          <button
-            key={tb} onClick={() => setTab(tb)}
-            style={{
-              flex: 1, padding: 14, border: 'none', background: 'none', cursor: 'pointer',
-              color: tab === tb ? t.accent : t.textMute,
-              borderBottom: tab === tb ? `2px solid ${t.accent}` : '2px solid transparent',
-              fontFamily: 'monospace', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1,
-            }}
-          >
-            {tb}
-            {tb === 'alunos' && (
-              <span style={{ marginLeft: 6, fontSize: 11, color: tab === tb ? t.accent : t.textMute, opacity: 0.7 }}>
-                {alunos.length}
-              </span>
-            )}
-          </button>
-        ))}
+        {(['alunos', 'aulas', 'lixeira'] as const).map(tb => {
+          // contador só na aba de alunos e na lixeira (esta, só quando tem algo)
+          const contagem = tb === 'alunos' ? alunos.length : tb === 'lixeira' ? naLixeira : 0
+          return (
+            <button
+              key={tb} onClick={() => setTab(tb)}
+              style={{
+                flex: 1, padding: 14, border: 'none', background: 'none', cursor: 'pointer',
+                color: tab === tb ? t.accent : t.textMute,
+                borderBottom: tab === tb ? `2px solid ${t.accent}` : '2px solid transparent',
+                fontFamily: 'monospace', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1,
+              }}
+            >
+              {tb}
+              {contagem > 0 && (
+                <span style={{ marginLeft: 6, fontSize: 11, color: tab === tb ? t.accent : t.textMute, opacity: 0.7 }}>
+                  {contagem}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Conteúdo */}
@@ -1042,11 +1309,31 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
         {/* Lista de aulas */}
         {tab === 'aulas' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {erroAula && (
+              <div style={{
+                padding: 12, borderRadius: 8, background: t.accentBg,
+                border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+              }}>
+                ⚠ {erroAula}
+              </div>
+            )}
             {aulas.map((a: any) => (
               <div key={a.id} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
                   <div style={{ color: t.text, fontWeight: 700 }}>{a.tecnica || 'Aula'}</div>
-                  <div style={{ color: t.textMute, fontSize: 12, fontFamily: 'monospace' }}>{a.data}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <div style={{ color: t.textMute, fontSize: 12, fontFamily: 'monospace' }}>{a.data}</div>
+                    <button
+                      onClick={() => apagarAula(a)}
+                      title="Apagar aula"
+                      style={{
+                        background: 'none', border: 'none', color: t.textMute,
+                        fontSize: 15, cursor: 'pointer', padding: '0 2px', lineHeight: 1,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
                 {a.posicao && (
                   <div style={{ color: t.accent, fontSize: 12, fontFamily: 'monospace', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -1063,19 +1350,29 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
             ))}
           </div>
         )}
+
+        {/* Lixeira */}
+        {tab === 'lixeira' && (
+          <Lixeira
+            t={t}
+            onRestaurado={async () => { await recarregar(); await contarLixeira() }}
+          />
+        )}
       </div>
 
-      {/* FAB */}
-      <div style={{
-        position: 'fixed', bottom: 24, right: '50%', transform: 'translateX(50%)',
-        maxWidth: 480, width: '100%', padding: '0 16px', boxSizing: 'border-box',
-        display: 'flex', justifyContent: 'flex-end',
-      }}>
-        <FabButton
-          onClick={tab === 'alunos' ? novoAluno : () => setModalAula(true)}
-          t={t}
-        />
-      </div>
+      {/* FAB — não faz sentido na lixeira */}
+      {tab !== 'lixeira' && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: '50%', transform: 'translateX(50%)',
+          maxWidth: 480, width: '100%', padding: '0 16px', boxSizing: 'border-box',
+          display: 'flex', justifyContent: 'flex-end',
+        }}>
+          <FabButton
+            onClick={tab === 'alunos' ? novoAluno : () => setModalAula(true)}
+            t={t}
+          />
+        </div>
+      )}
 
       {/* Modais */}
       {alunoSel && (
@@ -1087,6 +1384,11 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
             setAlunos(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
             startTransition(() => router.refresh())
           }}
+          onDelete={id => {
+            setAlunos(prev => prev.filter(a => a.id !== id))
+            contarLixeira()
+          }}
+          onDeleteGraduacao={contarLixeira}
           t={t}
         />
       )}

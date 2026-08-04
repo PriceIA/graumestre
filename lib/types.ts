@@ -38,6 +38,7 @@ export interface Aluno {
   curso_regras_data: string | null
 
   created_at: string
+  deleted_at: string | null        // null = ativo · preenchido = na lixeira
 }
 
 export interface ProfessorPerfil {
@@ -55,6 +56,7 @@ export interface Aula {
   posicao: string | null
   notas: string | null
   created_at: string
+  deleted_at: string | null        // null = ativo · preenchido = na lixeira
 }
 
 export interface Presenca {
@@ -73,4 +75,5 @@ export interface Graduacao {
   graus_novo: number
   data: string
   notas: string | null
+  deleted_at: string | null        // null = ativo · preenchido = na lixeira
 }
