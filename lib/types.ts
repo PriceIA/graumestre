@@ -55,6 +55,7 @@ export interface Aula {
   tecnica: string | null
   posicao: string | null
   notas: string | null
+  link_youtube: string | null      // gravação da aula; chega depois do lançamento
   created_at: string
   deleted_at: string | null        // null = ativo · preenchido = na lixeira
 }

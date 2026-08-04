@@ -931,13 +931,53 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
   )
 }
 
-// ─── Modal Nova Aula ─────────────────────────────────────────────────────────
-// Só os dados da aula. A chamada não vive mais aqui: o botão cria a aula e
-// entrega o registro pronto para o AppShell abrir a <Chamada />. Sem aula
+// ─── Validação do link da gravação ───────────────────────────────────────────
+// Campo opcional: vazio nunca é erro, porque o link só existe depois que o
+// professor grava e sobe o vídeo. Preenchido, exige uma URL http(s) de um
+// domínio do YouTube — errar o link é pior do que não ter link, já que o card
+// passa a exibir um "Assistir aula" que não leva a lugar nenhum.
+const HOSTS_YOUTUBE = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'studio.youtube.com']
+
+function validarLinkYoutube(valor: string): string | null {
+  const limpo = valor.trim()
+  if (!limpo) return null
+
+  let url: URL
+  try {
+    url = new URL(limpo)
+  } catch {
+    return 'O link precisa ser uma URL completa, começando com https://'
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return 'O link precisa começar com http:// ou https://'
+  }
+  if (!HOSTS_YOUTUBE.includes(url.hostname.toLowerCase())) {
+    return 'O link precisa ser do YouTube (youtube.com ou youtu.be).'
+  }
+  return null
+}
+
+// ─── Modal Aula (criar e editar) ─────────────────────────────────────────────
+// Só os dados da aula. A chamada não vive aqui: ao criar, o botão grava a aula
+// e entrega o registro pronto para o AppShell abrir a <Chamada />. Sem aula
 // gravada não existe aula_id, e sem aula_id a presença não teria onde ser
 // salva a cada toque.
-function ModalNovaAula({ onClose, onCriada, t }: { onClose: () => void; onCriada: (aula: any) => void; t: Theme }) {
-  const [form, setForm]   = useState({ data: new Date().toISOString().split('T')[0], tecnica: '', posicao: '', notas: '' })
+//
+// Com `aula` preenchida vira edição: mesmos campos, update em vez de insert, e
+// nenhuma presença é tocada. É o caminho para cadastrar o link do YouTube
+// depois, que é como acontece na prática — grava a aula, sobe o vídeo, e só
+// então tem link para colar.
+function ModalAula({ aula, onClose, onCriada, onEditada, t }: {
+  aula?: any; onClose: () => void; onCriada: (aula: any) => void; onEditada: (aula: any) => void; t: Theme
+}) {
+  const editando = !!aula
+  const [form, setForm]   = useState({
+    data:         aula?.data         ?? new Date().toISOString().split('T')[0],
+    tecnica:      aula?.tecnica      ?? '',
+    posicao:      aula?.posicao      ?? '',
+    notas:        aula?.notas        ?? '',
+    link_youtube: aula?.link_youtube ?? '',
+  })
   const [saving, setSaving] = useState(false)
   const [erro, setErro]   = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
@@ -954,26 +994,35 @@ function ModalNovaAula({ onClose, onCriada, t }: { onClose: () => void; onCriada
   }
 
   const handleSave = async () => {
+    const linkInvalido = validarLinkYoutube(form.link_youtube)
+    if (linkInvalido) {
+      setErro(linkInvalido)
+      return
+    }
     setSaving(true)
+
     // Whitelist explícita das colunas de `aulas` — mesmo motivo da edição de
-    // aluno: campo que não é coluna derruba a request inteira (PGRST204).
-    const { data: aula, error } = await supabase
-      .from('aulas')
-      .insert({
-        data:    form.data,
-        tecnica: form.tecnica || null,
-        posicao: form.posicao || null,
-        notas:   form.notas   || null,
-      })
-      .select()
-      .single()
+    // aluno: campo que não é coluna derruba a request inteira (PGRST204). Vale
+    // dobrado aqui, porque o objeto da aula que vem da listagem carrega
+    // `presencas` embutido, que não é coluna.
+    const payload = {
+      data:         form.data,
+      tecnica:      form.tecnica || null,
+      posicao:      form.posicao || null,
+      notas:        form.notas   || null,
+      link_youtube: form.link_youtube.trim() || null,
+    }
+
+    const { data: salva, error } = editando
+      ? await supabase.from('aulas').update(payload).eq('id', aula.id).select().single()
+      : await supabase.from('aulas').insert(payload).select().single()
 
     if (error) {
-      setErro(`Não foi possível criar a aula: ${error.message}`)
+      setErro(`Não foi possível ${editando ? 'salvar' : 'criar'} a aula: ${error.message}`)
       setSaving(false)
       return
     }
-    onCriada(aula)
+    editando ? onEditada(salva) : onCriada(salva)
     handleClose()
   }
 
@@ -999,7 +1048,7 @@ function ModalNovaAula({ onClose, onCriada, t }: { onClose: () => void; onCriada
         }}
       >
         <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>Registrar Aula</div>
+          <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>{editando ? 'Editar Aula' : 'Registrar Aula'}</div>
           <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
 
@@ -1017,6 +1066,20 @@ function ModalNovaAula({ onClose, onCriada, t }: { onClose: () => void; onCriada
                   border: form.posicao === p ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
                 }}>{p}</button>
               ))}
+            </div>
+          </div>
+          <div>
+            <Field
+              label="Link do YouTube (opcional)"
+              value={form.link_youtube}
+              onChange={v => set('link_youtube', v)}
+              type="url"
+              placeholder="https://youtu.be/..."
+              t={t}
+            />
+            <div style={{ color: t.textMute, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+              Para quem faltou assistir depois. Pode deixar vazio agora e colar o link
+              aqui quando a gravação subir.
             </div>
           </div>
           <div>
@@ -1049,7 +1112,9 @@ function ModalNovaAula({ onClose, onCriada, t }: { onClose: () => void; onCriada
               onClick={handleSave} disabled={saving}
               style={{ flex: 2, padding: 12, borderRadius: 8, border: 'none', background: t.accent, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
             >
-              {saving ? 'Criando…' : 'Iniciar chamada →'}
+              {editando
+                ? (saving ? 'Salvando…' : 'Salvar alterações')
+                : (saving ? 'Criando…'  : 'Iniciar chamada →')}
             </button>
           </div>
         </div>
@@ -1456,6 +1521,8 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
   const [modalAula, setModalAula] = useState(false)
   // aula cuja chamada está aberta — recém-criada pelo modal ou reaberta pelo card
   const [chamadaAula, setChamadaAula] = useState<any | null>(null)
+  // aula aberta no modal de edição pelo ✎ do card
+  const [aulaEdicao, setAulaEdicao] = useState<any | null>(null)
   const [professor, setProfessor] = useState<ProfessorPerfil | null>(professorInicial)
   const [modalProfessor, setModalProfessor] = useState(false)
   const [erroAula, setErroAula] = useState<string | null>(null)
@@ -1578,7 +1645,18 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                     <div style={{ color: t.textMute, fontSize: 12, fontFamily: 'monospace' }}>{a.data}</div>
                     <button
-                      // sem o stopPropagation, apagar a aula abriria a chamada dela junto
+                      // stopPropagation em todos os controles do card: o toque no
+                      // card em si segue reservado para abrir a chamada
+                      onClick={e => { e.stopPropagation(); setAulaEdicao(a) }}
+                      title="Editar aula"
+                      style={{
+                        background: 'none', border: 'none', color: t.textMute,
+                        fontSize: 14, cursor: 'pointer', padding: '0 2px', lineHeight: 1,
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button
                       onClick={e => { e.stopPropagation(); apagarAula(a) }}
                       title="Apagar aula"
                       style={{
@@ -1595,10 +1673,24 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
                     {a.posicao}
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ background: t.surface2, border: `1px solid ${t.border}`, borderRadius: 4, padding: '3px 8px', fontSize: 12, color: t.textSub }}>
                     {(a.presencas ?? []).filter((p: any) => p.presente).length} presentes
                   </span>
+                  {/* sem gravação, nada ocupa este espaço — nada de "link indisponível" */}
+                  {a.link_youtube && (
+                    <a
+                      href={a.link_youtube} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        background: t.accentBg, border: `1px solid ${t.accent}`, borderRadius: 4,
+                        padding: '3px 8px', fontSize: 12, color: t.accent, fontWeight: 700,
+                        textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      ▶ Assistir aula
+                    </a>
+                  )}
                 </div>
                 {a.notas && <div style={{ marginTop: 8, color: t.textSub, fontSize: 12, fontStyle: 'italic' }}>{a.notas}</div>}
               </div>
@@ -1648,10 +1740,25 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
         />
       )}
       {modalAula && (
-        <ModalNovaAula
+        <ModalAula
           onClose={() => setModalAula(false)}
           // aula criada: o modal sai e a chamada dela entra, sem passo intermediário
           onCriada={aula => { setModalAula(false); setChamadaAula(aula) }}
+          onEditada={() => {}}
+          t={t}
+        />
+      )}
+      {aulaEdicao && (
+        <ModalAula
+          aula={aulaEdicao}
+          onClose={() => setAulaEdicao(null)}
+          onCriada={() => {}}
+          onEditada={atualizada => {
+            // preserva `presencas`, que vem do join da listagem e não volta no update
+            setAulas(prev => prev.map(a => a.id === atualizada.id ? { ...a, ...atualizada } : a))
+            setAulaEdicao(null)
+            startTransition(() => router.refresh())
+          }}
           t={t}
         />
       )}
