@@ -59,6 +59,50 @@ const POSITIONS = [
   'Costas', 'Raspagem', 'Finalização', 'Defesa', 'Leg Locks', 'Berimbolo',
 ]
 
+// ─── Colunas graváveis de `alunos` ───────────────────────────────────────────
+// O objeto do aluno carrega campos derivados que NÃO são colunas da tabela:
+// total_presencas/total_aulas vêm da view alunos_frequencia, e
+// ultima_graduacao_data/historico_graduacoes são montados em app/page.tsx.
+// Mandar qualquer um deles no update faz o PostgREST rejeitar a request inteira
+// (PGRST204) e trava a edição do aluno por completo — inclusive quando o valor
+// é um array vazio, porque a validação é feita sobre as chaves do payload, não
+// sobre os valores. Whitelist em vez de descartar campo a campo: assim um campo
+// derivado novo não volta a quebrar o save silenciosamente.
+const COLUNAS_ALUNO = [
+  'nome', 'faixa', 'graus', 'inicio', 'data_nascimento', 'foto_url', 'instagram', 'notas',
+  'campeao_mundial_azul', 'campeao_mundial_roxa', 'campeao_mundial_marrom',
+  'veio_de_faixa_juvenil', 'status_graduacao', 'provisorio_desde',
+  'curso_primeiros_socorros', 'curso_regras_data',
+] as const satisfies readonly (keyof Aluno)[]
+
+function payloadAluno(form: Aluno): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const coluna of COLUNAS_ALUNO) out[coluna] = form[coluna]
+  return out
+}
+
+// ─── Validação do formulário do aluno ────────────────────────────────────────
+// Retorna a mensagem de erro, ou null quando está tudo certo.
+function validarAluno(form: Aluno): string | null {
+  if (!form.nome.trim()) return 'O nome do aluno não pode ficar vazio.'
+
+  if (form.data_nascimento) {
+    // T00:00:00 força interpretação em horário local — sem isso a string ISO
+    // pura é lida como UTC e um nascimento de hoje pode cair no "futuro".
+    const nascimento = new Date(`${form.data_nascimento}T00:00:00`)
+    if (Number.isNaN(nascimento.getTime())) {
+      return 'A data de nascimento não é uma data válida.'
+    }
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
+    if (nascimento > hoje) {
+      return 'A data de nascimento não pode estar no futuro.'
+    }
+  }
+
+  return null
+}
+
 // ─── Diamantes de grau (rotate-45, vermelho quando preenchido) ────────────────
 function Diamonds({ faixa, graus, size = 8, t }: { faixa: Faixa; graus: number; size?: number; t: Theme }) {
   const max = grausMaximos(faixa)
@@ -402,14 +446,18 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
 }
 
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
-function ModalAluno({ aluno, professor, onClose, onSave, t }: {
+function ModalAluno({ aluno, professor, onClose, onSave, t, podeEditar = true }: {
   aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[] };
   professor: ProfessorPerfil | null;
-  onClose: () => void; onSave: (a: Aluno) => void; t: Theme
+  onClose: () => void; onSave: (a: Aluno) => void; t: Theme;
+  // Hoje é sempre true (app single-user, só o professor usa). Fica preparado
+  // para quando o aluno puder logar e ver o próprio perfil em modo leitura.
+  podeEditar?: boolean;
 }) {
   const [form, setForm]   = useState({ ...aluno })
   const [tab, setTab]     = useState('perfil')
   const [saving, setSaving] = useState(false)
+  const [erro, setErro]   = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
   const tabs = ['perfil', 'frequência', 'notas', 'graduação']
@@ -442,6 +490,14 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
   }
 
   const handleSave = async () => {
+    const invalido = validarAluno(form)
+    if (invalido) {
+      setErro(invalido)
+      setTab('perfil')   // todos os campos validados vivem nessa aba
+      return
+    }
+    setErro(null)
+
     // Tempo mínimo é sugestão, nunca bloqueio (art. 3.1.3 / 4.1.5) — avisa e
     // deixa o professor decidir, ao contrário do grau de assinatura (bloqueio).
     if (faixaAlterada && aluno.faixa !== 'preta' && !prontoParaProximaFaixa(aluno, ultimaGraduacaoData)) {
@@ -462,22 +518,22 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
     }
 
     setSaving(true)
-    const { id, created_at, total_presencas, total_aulas, ultima_graduacao_data, ...data } =
-      form as typeof form & { created_at?: string; total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null }
-    const { error } = await supabase.from('alunos').update(data).eq('id', id)
+    const payload = { ...payloadAluno(form), nome: form.nome.trim() }
+    const { error } = await supabase.from('alunos').update(payload).eq('id', aluno.id)
     if (error) {
-      alert(`Não foi possível salvar as alterações: ${error.message}`)
+      // Modal continua aberto de propósito: o professor não perde o que digitou.
+      setErro(`Não foi possível salvar as alterações: ${error.message}`)
       setSaving(false)
       return
     }
 
     // Registra o histórico sempre que faixa ou grau mudam (mesmo grau dentro
     // da mesma faixa), para dataInicioFaixaAtual() ter uma data real a usar.
-    let novaUltimaGraduacao = ultima_graduacao_data ?? null
+    let novaUltimaGraduacao = ultimaGraduacaoData
     if (form.faixa !== aluno.faixa || form.graus !== aluno.graus) {
       const hoje = new Date().toISOString().split('T')[0]
       const { error: gradErr } = await supabase.from('graduacoes').insert({
-        aluno_id: id,
+        aluno_id: aluno.id,
         faixa_anterior: aluno.faixa,
         faixa_nova: form.faixa,
         graus_anterior: aluno.graus,
@@ -485,13 +541,17 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
         data: hoje,
       })
       if (gradErr) {
-        alert(`As alterações foram salvas, mas não foi possível registrar o histórico de graduação: ${gradErr.message}`)
-      } else {
-        novaUltimaGraduacao = hoje
+        // Os dados do aluno já foram salvos — reflete isso na lista, mas mantém
+        // o modal aberto para o professor poder tentar o histórico de novo.
+        onSave({ ...form, nome: payload.nome as string, ultima_graduacao_data: novaUltimaGraduacao } as Aluno)
+        setErro(`Os dados do aluno foram salvos, mas não foi possível registrar o histórico de graduação: ${gradErr.message}. Tente salvar novamente.`)
+        setSaving(false)
+        return
       }
+      novaUltimaGraduacao = hoje
     }
 
-    onSave({ ...form, ultima_graduacao_data: novaUltimaGraduacao } as Aluno)
+    onSave({ ...form, nome: payload.nome as string, ultima_graduacao_data: novaUltimaGraduacao } as Aluno)
     handleClose()
   }
 
@@ -537,7 +597,12 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
           </div>
         </div>
 
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
+        {/* fieldset desabilita de uma vez todos os inputs/selects/botões que
+            estiverem dentro dele — as abas ficam de fora e continuam navegáveis */}
+        <fieldset
+          disabled={!podeEditar}
+          style={{ padding: 20, overflowY: 'auto', flex: 1, border: 'none', margin: 0, minWidth: 0 }}
+        >
           {tab === 'perfil' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <Field label="Nome" value={form.nome} onChange={v => set('nome', v)} t={t} />
@@ -728,27 +793,39 @@ function ModalAluno({ aluno, professor, onClose, onSave, t }: {
               )}
             </div>
           )}
-        </div>
+        </fieldset>
+
+        {erro && (
+          <div style={{
+            margin: '0 20px', padding: 12, borderRadius: 8,
+            background: t.accentBg, border: `1px solid ${t.accent}`,
+            color: t.accent, fontSize: 12, lineHeight: 1.5,
+          }}>
+            ⚠ {erro}
+          </div>
+        )}
 
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', gap: 10 }}>
           <button
             onClick={handleClose}
             style={{ flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${t.border}`, background: 'none', color: t.textSub, cursor: 'pointer', fontSize: 14 }}
           >
-            Cancelar
+            {podeEditar ? 'Cancelar' : 'Fechar'}
           </button>
-          <button
-            onClick={handleSave} disabled={saving || (faixaAlterada && !aprovacao.ok)}
-            style={{
-              flex: 2, padding: 12, borderRadius: 8, border: 'none',
-              background: t.accent, color: '#fff', fontWeight: 800, fontSize: 14,
-              cursor: saving || (faixaAlterada && !aprovacao.ok) ? 'not-allowed' : 'pointer',
-              opacity: saving || (faixaAlterada && !aprovacao.ok) ? 0.5 : 1,
-              transition: 'opacity 0.15s',
-            }}
-          >
-            {saving ? 'Salvando…' : faixaAlterada && !aprovacao.ok ? 'Grau insuficiente p/ assinar' : 'Salvar alterações'}
-          </button>
+          {podeEditar && (
+            <button
+              onClick={handleSave} disabled={saving || (faixaAlterada && !aprovacao.ok)}
+              style={{
+                flex: 2, padding: 12, borderRadius: 8, border: 'none',
+                background: t.accent, color: '#fff', fontWeight: 800, fontSize: 14,
+                cursor: saving || (faixaAlterada && !aprovacao.ok) ? 'not-allowed' : 'pointer',
+                opacity: saving || (faixaAlterada && !aprovacao.ok) ? 0.5 : 1,
+                transition: 'opacity 0.15s',
+              }}
+            >
+              {saving ? 'Salvando…' : faixaAlterada && !aprovacao.ok ? 'Grau insuficiente p/ assinar' : 'Salvar alterações'}
+            </button>
+          )}
         </div>
       </div>
     </div>
