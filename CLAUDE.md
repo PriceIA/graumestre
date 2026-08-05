@@ -14,7 +14,9 @@ App de gestão de alunos e aulas de jiu-jítsu, para **um professor faixa preta*
 - **Supabase client-side direto, sem rotas de API.** O app fala com o PostgREST do browser. Não crie `app/api/*` para funcionalidade nova.
   *Pendência:* sobraram dois arquivos órfãos, `app/api/alunos/route.ts` e `app/api/graduacoes/route.ts` — código morto, zero referências no app. O terceiro (`api/aulas`) já foi removido.
 - **`components/AppShell.tsx` usa inline styles, não classes Tailwind.** É o componente principal e concentra quase toda a UI. Siga o padrão dele ao editá-lo — não misture `className` do Tailwind lá dentro. O Tailwind é usado no `DashboardProfessor` e nos `components/ui/*` (shadcn), que são outra geração de código.
-- **RLS ligado, mas com policies liberando tudo para `anon`** (migration 002). O efeito prático é o de RLS desligado. É consciente e temporário: sem login, toda request chega como `anon`.
+- **Login via Supabase Auth, client-side.** `LoginGate` no topo do `app/page.tsx`: sem sessão, nada do app é montado. A tela pede **apelido e senha**, não e-mail — o `LoginGate` monta `apelido@graumestre.app` antes de chamar `signInWithPassword`, porque é o apelido que o professor lembra e digita rápido no celular. **A conta em Authentication > Users tem que ser criada exatamente nesse formato.** O domínio não precisa existir nem receber e-mail; é só identificador. Não há cadastro público nem "esqueci a senha". O client usa `persistSession: true` e `autoRefreshToken: true`; sem isso a sessão morre a cada reload.
+- **RLS exige `authenticated`** nas 5 tabelas e na view (migration 009). `anon` não lê nem escreve nada. A chave pública no `.env` é esperada e correta — ela só identifica o projeto; quem protege é a policy.
+- **A carga de dados é client-side.** O `app/page.tsx` é um server component fino que só monta o gate e o `AppShell`; quem busca é o `AppShell` ao montar, já com sessão. Buscar no servidor voltaria vazio — o token vive no browser.
 
 ## Padrão obrigatório: whitelist explícita de colunas
 
@@ -47,10 +49,10 @@ Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a li
 
 ## Pendências conhecidas
 
-1. **"Perfil do professor não encontrado"** na aba de graduação — trava a validação de quem pode assinar (art. 6° IBJJF). A tabela `professor_perfil` existe e a migration 004 insere uma linha, então é bug de leitura no app, não de dado ausente.
-2. **`GET /manifest.json` retorna 404** — `app/layout.tsx` referencia o manifest, mas o arquivo não existe em `public/`. PWA ainda não implementado.
-3. **Segurança do PIN** — `NEXT_PUBLIC_PROFESSOR_PIN` está no `.env`, exposto no bundle. Hoje o risco é teórico: **nenhum código lê essa variável**, não existe tela de PIN. Aceitável enquanto for demo de um professor só.
-4. **RLS efetivamente desligado** — policies liberam tudo para `anon`. Precisa ser resolvido antes do login de aluno.
+1. **`GET /manifest.json` retorna 404** — `app/layout.tsx` referencia o manifest, mas o arquivo não existe em `public/`. PWA ainda não implementado.
+2. **Dois arquivos órfãos em `app/api/`** — `alunos/route.ts` e `graduacoes/route.ts`, sem nenhuma referência no app. Podem ser removidos.
+
+Resolvidas na migration 009: RLS aberta para `anon`, PIN morto no `.env`, e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura).
 
 ## Onde as coisas moram
 
@@ -62,5 +64,7 @@ Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a li
 | `lib/regras-ibjjf.ts` | Faixas, categoria etária, tempo mínimo, quem pode assinar |
 | `lib/alertas-graduacao.ts` | `alertaGraduacao()` — fonte única do "pronto para graduar" |
 | `lib/afastamento.ts` | `DIAS_PARA_AFASTADO` e a regra de afastado (automático + override) |
+| `lib/auth.ts` | `useSessao()` e `sair()` — estado da sessão do professor |
+| `components/LoginGate.tsx` | Tela de login e gate no topo do app |
 | `supabase/migrations/` | Fonte da verdade do schema, numeradas |
 | `docs/schema.sql` | Retrato consolidado do banco, para leitura |

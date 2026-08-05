@@ -13,6 +13,7 @@ import {
 } from '@/lib/regras-ibjjf'
 import { alertaGraduacao } from '@/lib/alertas-graduacao'
 import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
+import { sair } from '@/lib/auth'
 import { carregarDados } from '@/lib/carregar-dados'
 import DashboardProfessor from '@/components/DashboardProfessor'
 
@@ -530,11 +531,28 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
   const [graus, setGraus] = useState(professor.graus)
   const [saving, setSaving] = useState(false)
   const [visible, setVisible] = useState(false)
+  const [saindo, setSaindo] = useState(false)
+  const [email, setEmail] = useState<string | null>(null)
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
     return () => clearTimeout(id)
   }, [])
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user.email ?? null))
+  }, [])
+
+  // Não precisa fechar o modal nem trocar de tela na mão: o onAuthStateChange
+  // do LoginGate derruba o app inteiro e monta a tela de login.
+  const handleSair = async () => {
+    setSaindo(true)
+    const { error } = await sair()
+    if (error) {
+      alert(`Não foi possível sair: ${error.message}`)
+      setSaindo(false)
+    }
+  }
 
   const handleClose = () => {
     setVisible(false)
@@ -601,6 +619,30 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
             <div style={{ marginTop: 10, color: t.textSub, fontSize: 12, fontFamily: 'monospace' }}>
               7º = Vermelha e Preta · 8º = Vermelha e Branca · 9º = Vermelha
             </div>
+          </div>
+
+          {/* Sessão fica aqui porque é a tela "do professor" — é onde ele já
+              vem mexer nos próprios dados. */}
+          <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+              Sessão
+            </div>
+            {email && (
+              <div style={{ color: t.textSub, fontSize: 13, marginBottom: 10 }}>
+                Conectado como <span style={{ color: t.text }}>{email}</span>
+              </div>
+            )}
+            <button
+              onClick={handleSair} disabled={saindo}
+              style={{
+                width: '100%', padding: 12, borderRadius: 8,
+                border: `1px solid ${t.border2}`, background: 'none', color: t.textSub,
+                fontSize: 14, cursor: saindo ? 'not-allowed' : 'pointer',
+                opacity: saindo ? 0.6 : 1, transition: 'opacity 0.15s',
+              }}
+            >
+              {saindo ? 'Saindo…' : 'Sair da conta'}
+            </button>
           </div>
         </div>
 
@@ -1675,15 +1717,19 @@ function Lixeira({ t, onRestaurado }: { t: Theme; onRestaurado: () => Promise<vo
 }
 
 // ─── AppShell ────────────────────────────────────────────────────────────────
-export default function AppShell({ alunosIniciais, aulasIniciais, professorInicial }: {
-  alunosIniciais: any[]; aulasIniciais: any[]; professorInicial: ProfessorPerfil | null
-}) {
+// Sem props de dados: a carga inteira acontece aqui, no cliente, ao montar.
+// Antes vinha pronta do server component, mas com a RLS exigindo
+// `authenticated` o servidor busca sem sessão e recebe vazio — o token do
+// professor vive no browser. Ver app/page.tsx e 009_rls_authenticated.sql.
+export default function AppShell() {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const t = theme
 
-  const [alunos, setAlunos] = useState<any[]>(alunosIniciais)
-  const [aulas, setAulas]   = useState<any[]>(aulasIniciais)
+  const [alunos, setAlunos] = useState<any[]>([])
+  const [aulas, setAulas]   = useState<any[]>([])
+  const [carregandoDados, setCarregandoDados] = useState(true)
+  const [erroCarga, setErroCarga] = useState<string | null>(null)
   const [tab, setTab]       = useState<'alunos' | 'aulas' | 'lixeira'>('alunos')
   const [alunoSel, setAlunoSel]   = useState<any | null>(null)
   const [modalAula, setModalAula] = useState(false)
@@ -1691,7 +1737,7 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
   const [chamadaAula, setChamadaAula] = useState<any | null>(null)
   // aula aberta no modal de edição pelo ✎ do card
   const [aulaEdicao, setAulaEdicao] = useState<any | null>(null)
-  const [professor, setProfessor] = useState<ProfessorPerfil | null>(professorInicial)
+  const [professor, setProfessor] = useState<ProfessorPerfil | null>(null)
   const [modalProfessor, setModalProfessor] = useState(false)
   const [erroAula, setErroAula] = useState<string | null>(null)
   const [naLixeira, setNaLixeira] = useState(0)
@@ -1700,14 +1746,35 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
   const alunosVisiveis = aplicarFiltros(alunos, filtros)
 
   // Rebusca as listagens ativas com os mesmos filtros da carga inicial. Usado
-  // depois de apagar/restaurar: router.refresh() sozinho não resolveria, porque
-  // o useState acima só lê as props na montagem e ignora props novas.
+  // depois de apagar/restaurar e na montagem.
   const recarregar = async () => {
     const { alunos: a, aulas: au } = await carregarDados()
     setAlunos(a)
     setAulas(au)
     startTransition(() => router.refresh())
   }
+
+  // Carga inicial. Só roda dentro do LoginGate, então a sessão já existe e as
+  // policies deixam passar. O professor vem junto: é ele que valida quem pode
+  // assinar graduação.
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      const [{ alunos: a, aulas: au }, perfil] = await Promise.all([
+        carregarDados(),
+        supabase.from('professor_perfil').select('*').single(),
+      ])
+      if (!vivo) return
+      setAlunos(a)
+      setAulas(au)
+      setProfessor(perfil.data ?? null)
+      // Perfil ausente não impede usar o app — só a validação de assinatura
+      // depende dele —, então o erro é informativo e não bloqueia a tela.
+      setErroCarga(perfil.error ? `Não foi possível carregar o perfil do professor: ${perfil.error.message}` : null)
+      setCarregandoDados(false)
+    })()
+    return () => { vivo = false }
+  }, [])
 
   // Conta o que está na lixeira para o badge da aba. Contagem real em vez de
   // incrementar/decrementar na mão, que dessincroniza na primeira falha.
@@ -1743,11 +1810,34 @@ export default function AppShell({ alunosIniciais, aulasIniciais, professorInici
 
   const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(new Date().toISOString().slice(0, 7))).length
 
+  // Sem isto o dashboard pisca com 0 alunos e 0% de frequência antes da carga
+  // chegar, o que parece uma academia vazia em vez de uma tela carregando.
+  if (carregandoDados) {
+    return (
+      <div style={{
+        background: t.bg, minHeight: '100vh', color: t.textMute,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'monospace', fontSize: 13,
+      }}>
+        Carregando…
+      </div>
+    )
+  }
+
   return (
     <div style={{ background: t.bg, minHeight: '100vh', fontFamily: 'var(--font-body), system-ui, sans-serif', color: t.text, maxWidth: 480, margin: '0 auto' }}>
 
       {/* Dashboard do Professor */}
       <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} onSelectAluno={setAlunoSel} />
+
+      {erroCarga && (
+        <div style={{
+          margin: '14px 16px 0', padding: 12, borderRadius: 8, background: t.accentBg,
+          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+        }}>
+          ⚠ {erroCarga}
+        </div>
+      )}
 
       {/* Perfil do professor responsável — sempre visível */}
       {professor && (

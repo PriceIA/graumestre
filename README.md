@@ -24,21 +24,28 @@ Se o projeto já está linkado na Vercel:
 vercel env pull .env.local
 ```
 
-Senão, duplique o `.env.example` como `.env.local` e preencha à mão. São duas variáveis em uso, as duas em **Supabase > Settings > API**:
+Senão, duplique o `.env.example` como `.env.local` e preencha à mão. São duas variáveis, as duas em **Supabase > Settings > API**:
 
 | Variável | O que é |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL do Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave pública (`anon` legada ou `publishable` nova) |
-| `NEXT_PUBLIC_PROFESSOR_PIN` | Reservada — nenhum código lê hoje, ver `.env.example` |
 
-### 3. Subir
+A chave pública ir para o browser é esperado e correto — ela só identifica o projeto. Quem protege os dados são as policies de RLS, que exigem sessão autenticada.
+
+### 3. Criar a conta do professor
+
+O app **não tem cadastro público**. No painel do Supabase, vá em **Authentication → Users → Add user** e marque para confirmar o e-mail automaticamente.
+
+A tela de login pede **apelido**, não e-mail — ela monta `apelido@graumestre.app` por baixo. Então crie a conta exatamente nesse formato: para entrar como `pedrobenedetti`, o e-mail do usuário precisa ser `pedrobenedetti@graumestre.app`. O domínio não precisa existir nem receber e-mail, serve só como identificador.
+
+### 4. Subir
 
 ```bash
 npm run dev
 ```
 
-http://localhost:3000
+http://localhost:3000 — o app abre na tela de login.
 
 ---
 
@@ -48,7 +55,7 @@ http://localhost:3000
 
 1. Crie um projeto em [supabase.com](https://supabase.com)
 2. Vá em **SQL Editor**
-3. Rode as migrations de `supabase/migrations/` **na ordem numérica**, da `001` à `008` — uma de cada vez
+3. Rode as migrations de `supabase/migrations/` **na ordem numérica**, da `001` à `009` — uma de cada vez. A `009` fecha o acesso: rode-a só depois de criar a conta do professor, senão ninguém entra
 4. Pegue `Project URL` e a chave `anon public` em **Settings > API**
 
 O arquivo `docs/schema.sql` é o retrato consolidado do banco depois de todas as migrations. Serve para leitura e para recriar tudo de uma vez; a **fonte da verdade continua sendo as migrations numeradas**.

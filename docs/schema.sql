@@ -18,6 +18,7 @@
 --   006_presenca_autoria confirmado_por / confirmado_em em presencas
 --   007_link_youtube     link_youtube em aulas
 --   008_afastado_manual  afastado_manual em alunos
+--   009_rls_authenticated  RLS exigindo sessão autenticada
 -- ============================================================
 
 
@@ -187,33 +188,58 @@ group by a.id;
 
 
 -- ─── Permissões ─────────────────────────────────────────────────────────────
--- O app é single-user e não tem login: toda request chega como o papel `anon`.
--- RLS está LIGADO nas quatro tabelas, mas com policies que liberam tudo para
--- anon/authenticated — o efeito prático é o de RLS desligado. É uma decisão
--- consciente e temporária; quando o aluno tiver login, é aqui que a restrição
--- de "aluno só confirma a própria presença" vai morar.
-alter table alunos     enable row level security;
-alter table aulas      enable row level security;
-alter table presencas  enable row level security;
-alter table graduacoes enable row level security;
+-- O professor entra com e-mail e senha (Supabase Auth), e toda request do app
+-- carrega o JWT dele — papel `authenticated`. `anon` não lê nem escreve nada.
+--
+-- A chave pública no .env é esperada e correta: ela só identifica o projeto e
+-- vai no bundle do browser por design. Quem protege os dados é a policy.
+--
+-- Ainda é um app de um usuário só: quem está autenticado é o professor, e ele
+-- pode tudo. Quando o aluno tiver login, a distinção nasce no `using (true)`
+-- de `presencas`, que passa a comparar auth.uid() com o dono da linha.
+alter table alunos           enable row level security;
+alter table aulas            enable row level security;
+alter table presencas        enable row level security;
+alter table graduacoes       enable row level security;
+alter table professor_perfil enable row level security;
 
-drop policy if exists "alunos_all"     on alunos;
-drop policy if exists "aulas_all"      on aulas;
-drop policy if exists "presencas_all"  on presencas;
-drop policy if exists "graduacoes_all" on graduacoes;
+-- Uma policy por operação, e não `for all`: restringir só a escrita (ou só a
+-- leitura) no futuro vira editar uma linha, não reescrever o bloco.
+create policy "alunos_select" on alunos for select to authenticated using (true);
+create policy "alunos_insert" on alunos for insert to authenticated with check (true);
+create policy "alunos_update" on alunos for update to authenticated using (true) with check (true);
+create policy "alunos_delete" on alunos for delete to authenticated using (true);
 
-create policy "alunos_all"     on alunos     for all to anon, authenticated using (true) with check (true);
-create policy "aulas_all"      on aulas      for all to anon, authenticated using (true) with check (true);
-create policy "presencas_all"  on presencas  for all to anon, authenticated using (true) with check (true);
-create policy "graduacoes_all" on graduacoes for all to anon, authenticated using (true) with check (true);
+create policy "aulas_select" on aulas for select to authenticated using (true);
+create policy "aulas_insert" on aulas for insert to authenticated with check (true);
+create policy "aulas_update" on aulas for update to authenticated using (true) with check (true);
+create policy "aulas_delete" on aulas for delete to authenticated using (true);
 
--- "permission denied for table alunos" é erro de GRANT, não de RLS: acontece
--- mesmo com RLS desligado, e trocar de chave (anon JWT vs. publishable key)
--- não resolve — as duas mapeiam para o mesmo papel `anon`.
+create policy "presencas_select" on presencas for select to authenticated using (true);
+create policy "presencas_insert" on presencas for insert to authenticated with check (true);
+create policy "presencas_update" on presencas for update to authenticated using (true) with check (true);
+create policy "presencas_delete" on presencas for delete to authenticated using (true);
+
+create policy "graduacoes_select" on graduacoes for select to authenticated using (true);
+create policy "graduacoes_insert" on graduacoes for insert to authenticated with check (true);
+create policy "graduacoes_update" on graduacoes for update to authenticated using (true) with check (true);
+create policy "graduacoes_delete" on graduacoes for delete to authenticated using (true);
+
+-- sem delete: apagar o perfil do dono do app não é operação de interface
+create policy "professor_perfil_select" on professor_perfil for select to authenticated using (true);
+create policy "professor_perfil_insert" on professor_perfil for insert to authenticated with check (true);
+create policy "professor_perfil_update" on professor_perfil for update to authenticated using (true) with check (true);
+
+-- GRANT e RLS são camadas independentes: sem o privilégio de tabela o
+-- PostgREST devolve 42501 antes mesmo de olhar a policy. Foi exatamente o que
+-- aconteceu com professor_perfil, que nasceu na 004 — depois da 002 e da 003 —
+-- e ficou sem grant até a 009.
 grant usage on schema public to anon, authenticated;
 
 grant select, insert, update, delete
   on alunos, aulas, presencas, graduacoes
-  to anon, authenticated;
+  to authenticated;
 
-grant select on alunos_frequencia to anon, authenticated;
+grant select, insert, update on professor_perfil to authenticated;
+
+grant select on alunos_frequencia to authenticated;

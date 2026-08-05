@@ -8,6 +8,13 @@ entrada corresponde a um commit na `main`.
 
 ---
 
+## Não lançado
+
+- **Login real via Supabase Auth e RLS travada** — o app passa a exigir e-mail e senha (`signInWithPassword`), com a sessão persistindo entre aberturas do navegador. As policies deixam de liberar tudo para `anon` e passam a exigir usuário autenticado nas 5 tabelas e na view; `anon` perde até o `select`. Migration `009_rls_authenticated`.
+  - **`NEXT_PUBLIC_PROFESSOR_PIN` removido.** Era uma variável morta — nenhum código a lia, e nenhuma tela de PIN chegou a existir, então não protegia nada. O papel dela foi assumido por autenticação de verdade.
+  - Corrige de passagem a pendência **"perfil do professor não encontrado"**: a tabela `professor_perfil` nasceu na migration 004, depois da 002 e da 003, e nunca recebeu policy nem `grant` — o erro real era `42501 permission denied`, não dado ausente.
+  - A carga inicial de dados saiu do server component para o cliente: com a RLS exigindo sessão, buscar no servidor voltaria vazio, porque o token vive no browser.
+
 ## 2026-08-04
 
 - **Filtros de aluno** (`1453ef2`) — barra de chips na lista: faixa, prontos para graduar, afastados e categoria de idade, combináveis em AND. Afastado tem cálculo automático por 21 dias sem presença (`lib/afastamento.ts`) com override manual do professor. Migration `008_afastado_manual`.
