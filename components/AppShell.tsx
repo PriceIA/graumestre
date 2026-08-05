@@ -16,6 +16,7 @@ import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afast
 import { sair } from '@/lib/auth'
 import { carregarDados } from '@/lib/carregar-dados'
 import DashboardProfessor from '@/components/DashboardProfessor'
+import BannerInstalar from '@/components/BannerInstalar'
 
 // ─── Tema (paleta GrauMestre — preto/vermelho, fixa) ──────────────────────────
 // Paleta única (sem alternância claro/escuro), conforme design schema do
@@ -1826,6 +1827,10 @@ export default function AppShell() {
 
   return (
     <div style={{ background: t.bg, minHeight: '100vh', fontFamily: 'var(--font-body), system-ui, sans-serif', color: t.text, maxWidth: 480, margin: '0 auto' }}>
+
+      {/* Convite para instalar. É position:fixed, então a posição aqui na
+          árvore não importa — fica no topo só para não se perder no meio. */}
+      <BannerInstalar />
 
       {/* Dashboard do Professor */}
       <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} onSelectAluno={setAlunoSel} />

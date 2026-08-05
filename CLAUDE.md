@@ -46,11 +46,23 @@ Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a li
 
 `presencas.confirmado_por` (`'professor' | 'aluno'`) já foi desenhado para isso: hoje é sempre `'professor'`, e quando o aluno logar só esse literal muda no upsert. A decisão de *quem pode gravar* fica fora da coluna — é RLS/papel. Não modele nada novo que amanhã obrigue a reescrever essa lógica de permissão.
 
+## PWA: o app é instalável
+
+`public/manifest.json`, `public/sw.js` e os PNGs de `public/icons/`. Ícones gerados do logo real da academia por `scripts/gerar-icones.mjs` (roda na mão, `node scripts/gerar-icones.mjs`; os PNGs são commitados). A fonte é `public/icons/source-logo.jpg.jpeg` — extensão dupla mesmo, é como o arquivo foi salvo. Não há SVG: a origem é raster.
+
+Três decisões que parecem descuido e não são:
+
+- **O service worker é mínimo de propósito e não tem cache.** Ele existe só porque o Chrome exige um SW registrado *com handler de `fetch`* para considerar o app instalável. Cachear resposta do Supabase por engano faria o professor ver chamada e presença desatualizadas no tatame — que é exatamente o erro que este app não pode cometer. Offline é etapa própria, e precisa decidir invalidação antes de escrever uma linha.
+- **Ícones só com `purpose: "any"`, sem variante maskable.** Maskable exige recorte circular com padding seguro, que clipparia o "Life Style" do logo.
+- **A captura do `beforeinstallprompt` mora em `lib/instalacao.ts`, não dentro do banner.** O evento dispara logo no carregamento e o banner só monta depois do login: com o listener dentro dele, o evento disparava enquanto o professor digitava a senha, sem ninguém escutando, e como não dispara de novo o banner nunca apareceria. Quem escuta é o layout, cedo; o banner só lê o que já foi capturado. Se um dia o banner mudar de lugar, essa separação continua sendo o que faz ele aparecer.
+
+O banner é dispensável e grava em `sessionStorage` (não `localStorage`): o pedido é não incomodar de novo na *mesma sessão*; numa aba nova o convite volta. iOS não recebe banner — Safari não implementa `beforeinstallprompt`, e sem evento o componente não renderiza nada, sem farejar user-agent.
+
 ## Pendências conhecidas
 
-1. **`GET /manifest.json` retorna 404** — `app/layout.tsx` referencia o manifest, mas o arquivo não existe em `public/`. PWA ainda não implementado.
+1. **Passo 6 — geração de PDF: pausado em 2026-08-04.** Sem prazo definido; outro projeto teve prioridade. Nada foi commitado e nada ficou pela metade na árvore — a pausa foi antes de qualquer código. O escopo do Passo 6 não está registrado em lugar nenhum do repo; quem retomar precisa levantar isso com o usuário antes de planejar.
 
-Já resolvidas: RLS aberta para `anon`, PIN morto no `.env` e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura) — as três na migration 009. E os arquivos órfãos de `app/api/`, removidos.
+Já resolvidas: `GET /manifest.json` 404 (o `metadata` do layout referenciava um manifest que nunca existiu — resolvido junto com o PWA acima). RLS aberta para `anon`, PIN morto no `.env` e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura) — as três na migration 009. E os arquivos órfãos de `app/api/`, removidos.
 
 ## Onde as coisas moram
 
@@ -64,5 +76,9 @@ Já resolvidas: RLS aberta para `anon`, PIN morto no `.env` e o "perfil do profe
 | `lib/afastamento.ts` | `DIAS_PARA_AFASTADO` e a regra de afastado (automático + override) |
 | `lib/auth.ts` | `useSessao()` e `sair()` — estado da sessão do professor |
 | `components/LoginGate.tsx` | Tela de login e gate no topo do app |
+| `lib/instalacao.ts` | Captura global do `beforeinstallprompt` (começa no layout, cedo) |
+| `components/BannerInstalar.tsx` | Convite "instale no celular" — montado no `AppShell`, pós-login |
+| `components/RegistroServiceWorker.tsx` | Registra `sw.js` e liga a captura. Monta no layout, fora do login |
+| `scripts/gerar-icones.mjs` | Gera os PNGs de `public/icons/` a partir do logo (roda na mão) |
 | `supabase/migrations/` | Fonte da verdade do schema, numeradas |
 | `docs/schema.sql` | Retrato consolidado do banco, para leitura |
