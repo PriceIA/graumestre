@@ -85,19 +85,18 @@ Coluna nova entra como **migration numerada nova**, aplicada manualmente no SQL 
 graumestre/
 ├── app/
 │   ├── layout.tsx              # Layout raiz + splash
-│   ├── page.tsx                # Server component: carga inicial
-│   ├── globals.css
-│   └── api/                    # ⚠ código morto (ver CLAUDE.md)
-│       ├── alunos/route.ts
-│       └── graduacoes/route.ts
+│   ├── page.tsx                # Server component fino: gate + AppShell
+│   └── globals.css
 ├── components/
 │   ├── AppShell.tsx            # UI principal — inline styles, não Tailwind
+│   ├── LoginGate.tsx           # Tela de login e gate de sessão
 │   ├── DashboardProfessor.tsx  # Home (Tailwind + shadcn)
 │   ├── SplashGate.tsx
 │   ├── SplashScreen.tsx
 │   └── ui/                     # shadcn: avatar, badge, button, card
 ├── lib/
 │   ├── supabase.ts             # Cliente Supabase
+│   ├── auth.ts                 # useSessao() e sair()
 │   ├── carregar-dados.ts       # Carga das listagens ativas + derivados
 │   ├── types.ts
 │   ├── regras-ibjjf.ts         # Faixas, categoria etária, tempo mínimo
@@ -107,10 +106,10 @@ graumestre/
 ├── docs/
 │   └── schema.sql              # Schema consolidado
 └── supabase/
-    └── migrations/             # 001 … 008 — fonte da verdade
+    └── migrations/             # 001 … 009 — fonte da verdade
 ```
 
-O app conversa com o Supabase **direto do cliente**, sem rotas de API. As duas rotas em `app/api/` são resquício e não são chamadas por nada.
+O app conversa com o Supabase **direto do cliente**, sem rotas de API — não existe `app/api/`.
 
 ---
 

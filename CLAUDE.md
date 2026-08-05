@@ -11,8 +11,7 @@ App de gestão de alunos e aulas de jiu-jítsu, para **um professor faixa preta*
 ## Stack e decisões conscientes
 
 - **Next.js 14 (App Router) + Supabase + Tailwind**, deploy na Vercel a partir da `main` (`PriceIA/graumestre`).
-- **Supabase client-side direto, sem rotas de API.** O app fala com o PostgREST do browser. Não crie `app/api/*` para funcionalidade nova.
-  *Pendência:* sobraram dois arquivos órfãos, `app/api/alunos/route.ts` e `app/api/graduacoes/route.ts` — código morto, zero referências no app. O terceiro (`api/aulas`) já foi removido.
+- **Supabase client-side direto, sem rotas de API.** O app fala com o PostgREST do browser. Não crie `app/api/*` para funcionalidade nova — a pasta não existe mais, e não deve voltar.
 - **`components/AppShell.tsx` usa inline styles, não classes Tailwind.** É o componente principal e concentra quase toda a UI. Siga o padrão dele ao editá-lo — não misture `className` do Tailwind lá dentro. O Tailwind é usado no `DashboardProfessor` e nos `components/ui/*` (shadcn), que são outra geração de código.
 - **Login via Supabase Auth, client-side.** `LoginGate` no topo do `app/page.tsx`: sem sessão, nada do app é montado. A tela pede **apelido e senha**, não e-mail — o `LoginGate` monta `apelido@graumestre.app` antes de chamar `signInWithPassword`, porque é o apelido que o professor lembra e digita rápido no celular. **A conta em Authentication > Users tem que ser criada exatamente nesse formato.** O domínio não precisa existir nem receber e-mail; é só identificador. Não há cadastro público nem "esqueci a senha". O client usa `persistSession: true` e `autoRefreshToken: true`; sem isso a sessão morre a cada reload.
 - **RLS exige `authenticated`** nas 5 tabelas e na view (migration 009). `anon` não lê nem escreve nada. A chave pública no `.env` é esperada e correta — ela só identifica o projeto; quem protege é a policy.
@@ -50,9 +49,8 @@ Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a li
 ## Pendências conhecidas
 
 1. **`GET /manifest.json` retorna 404** — `app/layout.tsx` referencia o manifest, mas o arquivo não existe em `public/`. PWA ainda não implementado.
-2. **Dois arquivos órfãos em `app/api/`** — `alunos/route.ts` e `graduacoes/route.ts`, sem nenhuma referência no app. Podem ser removidos.
 
-Resolvidas na migration 009: RLS aberta para `anon`, PIN morto no `.env`, e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura).
+Já resolvidas: RLS aberta para `anon`, PIN morto no `.env` e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura) — as três na migration 009. E os arquivos órfãos de `app/api/`, removidos.
 
 ## Onde as coisas moram
 
