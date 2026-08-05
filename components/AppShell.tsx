@@ -14,7 +14,7 @@ import {
 import { alertaGraduacao } from '@/lib/alertas-graduacao'
 import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
 import { sair } from '@/lib/auth'
-import { carregarDados } from '@/lib/carregar-dados'
+import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
 import DashboardProfessor from '@/components/DashboardProfessor'
 import BannerInstalar from '@/components/BannerInstalar'
 
@@ -1730,7 +1730,13 @@ export default function AppShell() {
   const [alunos, setAlunos] = useState<any[]>([])
   const [aulas, setAulas]   = useState<any[]>([])
   const [carregandoDados, setCarregandoDados] = useState(true)
+  // Dois erros separados porque têm consequências diferentes: o de dados
+  // significa "a lista pode estar velha", o de perfil significa "a validação de
+  // quem pode assinar graduação está fora do ar". Juntar os dois numa string só
+  // faria um sumir quando o outro aparecesse.
   const [erroCarga, setErroCarga] = useState<string | null>(null)
+  const [erroPerfil, setErroPerfil] = useState<string | null>(null)
+  const [retentando, setRetentando] = useState(false)
   const [tab, setTab]       = useState<'alunos' | 'aulas' | 'lixeira'>('alunos')
   const [alunoSel, setAlunoSel]   = useState<any | null>(null)
   const [modalAula, setModalAula] = useState(false)
@@ -1746,12 +1752,33 @@ export default function AppShell() {
 
   const alunosVisiveis = aplicarFiltros(alunos, filtros)
 
+  // Aplica uma carga na tela.
+  //
+  // A regra que importa está no ramo de erro: o que já está na tela FICA. Uma
+  // rede instável no tatame não pode transformar a turma inteira em "nenhum
+  // aluno" — visualmente isso é idêntico a uma exclusão em massa, e o professor
+  // não tem como saber a diferença. Melhor dado velho com aviso do que tela
+  // vazia sem aviso.
+  //
+  // A exceção é a primeira carga, quando não há nada a preservar: aí vale
+  // mostrar o que veio, que pode ser parcial — as três queries são
+  // independentes e uma pode ter passado enquanto as outras falhavam.
+  const aplicarCarga = (carga: CargaDados) => {
+    if (!carga.erro) {
+      setAlunos(carga.alunos)
+      setAulas(carga.aulas)
+      setErroCarga(null)
+      return
+    }
+    setAlunos(prev => (prev.length > 0 ? prev : carga.alunos))
+    setAulas(prev => (prev.length > 0 ? prev : carga.aulas))
+    setErroCarga(carga.erro)
+  }
+
   // Rebusca as listagens ativas com os mesmos filtros da carga inicial. Usado
   // depois de apagar/restaurar e na montagem.
   const recarregar = async () => {
-    const { alunos: a, aulas: au } = await carregarDados()
-    setAlunos(a)
-    setAulas(au)
+    aplicarCarga(await carregarDados())
     startTransition(() => router.refresh())
   }
 
@@ -1761,17 +1788,16 @@ export default function AppShell() {
   useEffect(() => {
     let vivo = true
     ;(async () => {
-      const [{ alunos: a, aulas: au }, perfil] = await Promise.all([
+      const [carga, perfil] = await Promise.all([
         carregarDados(),
         supabase.from('professor_perfil').select('*').single(),
       ])
       if (!vivo) return
-      setAlunos(a)
-      setAulas(au)
+      aplicarCarga(carga)
       setProfessor(perfil.data ?? null)
       // Perfil ausente não impede usar o app — só a validação de assinatura
       // depende dele —, então o erro é informativo e não bloqueia a tela.
-      setErroCarga(perfil.error ? `Não foi possível carregar o perfil do professor: ${perfil.error.message}` : null)
+      setErroPerfil(perfil.error ? `Não foi possível carregar o perfil do professor: ${perfil.error.message}` : null)
       setCarregandoDados(false)
     })()
     return () => { vivo = false }
@@ -1835,12 +1861,42 @@ export default function AppShell() {
       {/* Dashboard do Professor */}
       <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} onSelectAluno={setAlunoSel} />
 
+      {/* Falha de carga: o aviso é obrigatório justamente porque a lista
+          continua na tela. Sem ele o professor veria dado velho achando que é
+          o atual. Com "Tentar de novo" à mão, porque a causa mais comum é
+          rede que já voltou. */}
       {erroCarga && (
         <div style={{
           margin: '14px 16px 0', padding: 12, borderRadius: 8, background: t.accentBg,
           border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
         }}>
-          ⚠ {erroCarga}
+          <div style={{ flex: 1, minWidth: 0 }}>⚠ {erroCarga}</div>
+          <button
+            onClick={async () => {
+              setRetentando(true)
+              await recarregar()
+              setRetentando(false)
+            }}
+            disabled={retentando}
+            style={{
+              flexShrink: 0, padding: '6px 10px', borderRadius: 6,
+              border: `1px solid ${t.accent}`, background: 'transparent',
+              color: t.accent, fontSize: 11, fontWeight: 700,
+              cursor: retentando ? 'not-allowed' : 'pointer', opacity: retentando ? 0.6 : 1,
+            }}
+          >
+            {retentando ? 'Tentando…' : 'Tentar de novo'}
+          </button>
+        </div>
+      )}
+
+      {erroPerfil && (
+        <div style={{
+          margin: '14px 16px 0', padding: 12, borderRadius: 8, background: t.accentBg,
+          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+        }}>
+          ⚠ {erroPerfil}
         </div>
       )}
 

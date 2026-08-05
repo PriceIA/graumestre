@@ -2,7 +2,7 @@
 -- GrauMestre — Schema completo e atual do banco
 --
 -- Este arquivo é o retrato consolidado do estado do banco depois de
--- aplicadas as 8 migrations de supabase/migrations/. Ele existe para
+-- aplicadas as 10 migrations de supabase/migrations/. Ele existe para
 -- leitura e para recriar o banco do zero num projeto Supabase novo.
 --
 -- ⚠ A fonte da verdade continua sendo supabase/migrations/. Uma coluna
@@ -19,6 +19,7 @@
 --   007_link_youtube     link_youtube em aulas
 --   008_afastado_manual  afastado_manual em alunos
 --   009_rls_authenticated  RLS exigindo sessão autenticada
+--   010_frequencia_por_aulas  frequência conta aulas reais, não linhas de presença
 -- ============================================================
 
 
@@ -175,16 +176,45 @@ where not exists (select 1 from professor_perfil);
 -- `create or replace view` não resolve: com o a.* re-expandido a posição das
 -- colunas muda, e o Postgres se recusa a renomear coluna de view existente.
 -- Por isso é drop + create, e o grant tem que ser refeito junto.
+--
+-- 010: `total_aulas` conta AULAS QUE ACONTECERAM, não linhas de `presencas`.
+-- A versão antiga (`count(p.id)` sobre um left join com presencas) contava
+-- registros de presença — e como falta não gera registro, numerador e
+-- denominador eram quase o mesmo número e a frequência dava ~100% para todo
+-- mundo. As duas contagens agora passam por `aulas` com `deleted_at is null`,
+-- que é também o que faz o crachá e o selo AFASTADO pararem de divergir.
+--
+-- Subquery correlacionada em vez de join: `join aulas` + `group by` produziria
+-- produto cartesiano entre presenças e aulas, inflando as duas contagens.
+--
+-- O denominador é por aluno (`au.data >= a.inicio`): sem esse corte, quem
+-- entrou semana passada apareceria com 4% e cairia em "Precisa atenção" no
+-- primeiro dia de aula.
 drop view if exists alunos_frequencia;
 
 create view alunos_frequencia as
 select
   a.*,
-  count(p.id) filter (where p.presente = true) as total_presencas,
-  count(p.id)                                  as total_aulas
-from alunos a
-left join presencas p on p.aluno_id = a.id
-group by a.id;
+  (
+    select count(*)
+    from presencas p
+    join aulas au on au.id = p.aula_id
+    where p.aluno_id = a.id
+      and p.presente = true
+      and au.deleted_at is null
+      and au.data >= a.inicio
+  ) as total_presencas,
+  (
+    select count(*)
+    from aulas au
+    where au.deleted_at is null
+      and au.data >= a.inicio
+  ) as total_aulas
+from alunos a;
+
+create index if not exists idx_aulas_ativas_data
+  on aulas (data)
+  where deleted_at is null;
 
 
 -- ─── Permissões ─────────────────────────────────────────────────────────────
