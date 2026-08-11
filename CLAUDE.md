@@ -39,6 +39,24 @@ Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a li
 4. `npx tsc --noEmit` limpo e `npm run dev` subindo.
 5. **Testar manualmente e reportar teste por teste, antes de commitar.** Verificar no banco, não só na tela. Se um teste falha, reportar e parar — não commitar por cima.
 6. Dado de teste criado durante a verificação é limpo no fim, e o estado do banco conferido contra a linha de base.
+7. **Atualizar este arquivo e o `CHANGELOG.md` antes do commit final — não é opcional, faz parte de "pronto".** A documentação deixou de ser mantida à mão fora do código: ela vive no repositório e se atualiza sessão a sessão, junto com a mudança que a tornou verdadeira. Documentação que envelhece em silêncio é pior do que documentação nenhuma, porque a sessão seguinte confia nela.
+
+## A lixeira apaga de verdade (migration 011)
+
+Até a 010 o soft delete só carimbava `deleted_at` e escondia da tela: passados os 7 dias o item sumia da aba Lixeira, mas a linha ficava no banco para sempre. A interface prometia restauração "por 7 dias", o que promete também que depois disso some — e não sumia.
+
+`purgar_lixeira()` roda todo dia às **04:00 UTC** (≈01:00 em Brasília) via `pg_cron`, apagando fisicamente `alunos`, `aulas` e `graduacoes` com `deleted_at` mais velho que 7 dias.
+
+Duas coisas para não esquecer:
+
+- **O prazo está escrito duas vezes**: `DIAS_LIXEIRA` no `AppShell.tsx` (o que o professor vê) e `interval '7 days'` na função (o que o banco apaga). Mexeu num, mexa no outro.
+- **Aqui o `on delete cascade` finalmente dispara.** O app nunca apagava linha, então as FKs da 001 estavam dormentes. Purgar um **aluno** leva junto todas as presenças e **todo o histórico de graduações dele — inclusive graduações que nunca foram para a lixeira**. É o certo, mas não é óbvio lendo só o app, onde apagar aluno e apagar graduação são ações separadas.
+
+A função é `revoke`ada de `anon`/`authenticated` de propósito: toda função em `public` nasce executável por PUBLIC e o PostgREST a publicaria como RPC — exclusão definitiva a um `fetch` de distância. Só o dono (`postgres`, que é quem o cron usa) executa.
+
+## Foto do aluno: URL externa, com `referrerPolicy`
+
+`foto_url` é uma URL colada à mão — não há Storage no projeto. Todo `<img>` que renderiza foto de aluno leva `referrerPolicy="no-referrer"`, senão o host da imagem recebe o endereço do app a cada carregamento. São **três** pontos: o card da lista e a linha da chamada (`AppShell.tsx`) e o `AvatarImage` do "Prontos para graduar" (`DashboardProfessor.tsx`). O `<img>` do hero fica de fora conscientemente: é asset local, não há terceiro para vazar. Ponto novo que renderize foto nasce com o atributo.
 
 ## Arquitetura futura que já está no dado
 
@@ -61,8 +79,10 @@ O banner é dispensável e grava em `sessionStorage` (não `localStorage`): o pe
 ## Pendências conhecidas
 
 1. **Passo 6 — geração de PDF: pausado em 2026-08-04.** Sem prazo definido; outro projeto teve prioridade. Nada foi commitado e nada ficou pela metade na árvore — a pausa foi antes de qualquer código. O escopo do Passo 6 não está registrado em lugar nenhum do repo; quem retomar precisa levantar isso com o usuário antes de planejar.
+2. **Foto por upload real (Supabase Storage).** A `referrerPolicy` acima é o remendo de curto prazo, não a solução: a foto continua sendo uma URL que o professor tem que hospedar em algum lugar e colar à mão — no celular, no tatame. O certo é bucket + policy de upload + captura pela câmera, e isso é sessão própria. **Ficou fora do lote 3 de propósito.**
+3. **Fila offline da chamada.** Achado da mesma auditoria, maior que este lote: hoje um toque na chamada com a rede caída se perde. Ligado à decisão de cache que o service worker adiou de propósito (ver a seção de PWA) — offline precisa de invalidação decidida antes da primeira linha de código. **Ficou fora do lote 3 de propósito.**
 
-Já resolvidas: `GET /manifest.json` 404 (o `metadata` do layout referenciava um manifest que nunca existiu — resolvido junto com o PWA acima). RLS aberta para `anon`, PIN morto no `.env` e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura) — as três na migration 009. E os arquivos órfãos de `app/api/`, removidos.
+Já resolvidas: a **purga física da lixeira** (era pendência explícita desde a 005 — ver a seção acima). `GET /manifest.json` 404 (o `metadata` do layout referenciava um manifest que nunca existiu — resolvido junto com o PWA acima). RLS aberta para `anon`, PIN morto no `.env` e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura) — as três na migration 009. E os arquivos órfãos de `app/api/`, removidos.
 
 ## Onde as coisas moram
 
@@ -80,5 +100,6 @@ Já resolvidas: `GET /manifest.json` 404 (o `metadata` do layout referenciava um
 | `components/BannerInstalar.tsx` | Convite "instale no celular" — montado no `AppShell`, pós-login |
 | `components/RegistroServiceWorker.tsx` | Registra `sw.js` e liga a captura. Monta no layout, fora do login |
 | `scripts/gerar-icones.mjs` | Gera os PNGs de `public/icons/` a partir do logo (roda na mão) |
+| `lib/types.ts` | Tipos do modelo + `TabAluno` (aba inicial do modal do aluno) |
 | `supabase/migrations/` | Fonte da verdade do schema, numeradas |
 | `docs/schema.sql` | Retrato consolidado do banco, para leitura |

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Bell, ChevronRight, Menu } from 'lucide-react'
-import type { Faixa } from '@/lib/types'
+import type { Faixa, TabAluno } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -168,7 +168,7 @@ function PainelProfessor({ perto, atencao, onSelect }: {
 }
 
 // ─── Prontos para graduar ────────────────────────────────────────────────────
-function ProntosParaGraduar({ itens, onSelect }: { itens: { aluno: any; msg: string }[]; onSelect: (aluno: any) => void }) {
+function ProntosParaGraduar({ itens, onSelect }: { itens: { aluno: any; msg: string }[]; onSelect: (aluno: any, tabInicial?: TabAluno) => void }) {
   if (itens.length === 0) return null
 
   return (
@@ -180,12 +180,16 @@ function ProntosParaGraduar({ itens, onSelect }: { itens: { aluno: any; msg: str
         {itens.map(({ aluno, msg }, i) => (
           <div
             key={aluno.id}
-            onClick={() => onSelect(aluno)}
+            // já abre na aba de graduação: quem chega por este card veio para
+            // graduar, e passar pelo perfil primeiro é toque desperdiçado
+            onClick={() => onSelect(aluno, 'graduação')}
             className="animate-fade-slide-up flex cursor-pointer items-center gap-3 overflow-hidden rounded-xl border-l-[3px] border-accent bg-surface py-3 pl-3 pr-4 transition-colors hover:bg-surface-hover"
             style={{ animationDelay: `${i * 40}ms` }}
           >
             <Avatar>
-              <AvatarImage src={aluno.foto_url ?? undefined} alt="" />
+              {/* referrerPolicy: foto é URL externa colada à mão — sem isto o host
+                  dela recebe o endereço do app a cada carregamento */}
+              <AvatarImage src={aluno.foto_url ?? undefined} alt="" referrerPolicy="no-referrer" />
               <AvatarFallback>{iniciais(aluno.nome)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
@@ -203,7 +207,7 @@ function ProntosParaGraduar({ itens, onSelect }: { itens: { aluno: any; msg: str
 
 // ─── Dashboard do Professor ──────────────────────────────────────────────────
 export default function DashboardProfessor({ alunos, aulasEsseMes, onSelectAluno }: {
-  alunos: any[]; aulasEsseMes: number; onSelectAluno: (aluno: any) => void
+  alunos: any[]; aulasEsseMes: number; onSelectAluno: (aluno: any, tabInicial?: TabAluno) => void
 }) {
   const comFrequencia = alunos.filter(a => (a.total_aulas ?? 0) > 0)
   const freqMedia = comFrequencia.length

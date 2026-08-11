@@ -44,6 +44,12 @@ export interface Aluno {
   deleted_at: string | null        // null = ativo · preenchido = na lixeira
 }
 
+// Abas do modal do aluno. Mora aqui, e não no componente, porque quem ABRE o
+// modal (DashboardProfessor) e quem o RENDERIZA (AppShell) precisam do mesmo
+// literal — e o AppShell já importa o DashboardProfessor, então o caminho
+// inverso fecharia um ciclo de import.
+export type TabAluno = 'perfil' | 'frequência' | 'notas' | 'graduação'
+
 export interface ProfessorPerfil {
   id: string
   nome: string

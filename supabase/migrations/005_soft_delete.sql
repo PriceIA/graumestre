@@ -5,12 +5,15 @@
 --   deleted_at IS NULL  -> registro ativo, aparece normalmente
 --   deleted_at = <data>  -> está na lixeira desde essa data
 --
--- ⚠ A PURGA FÍSICA NÃO ESTÁ AUTOMATIZADA.
+-- ⚠ A PURGA FÍSICA NÃO ESTÁ AUTOMATIZADA. [RESOLVIDO NA 011]
 -- Nem este arquivo nem o app apagam linha nenhuma do banco. Os 7
 -- dias são, hoje, apenas um filtro de EXIBIÇÃO na aba Lixeira:
 -- passado o prazo o item some da tela, mas a linha continua no
 -- banco até alguém apagar à mão. Se um dia for preciso limpar de
 -- verdade, isso vira um cron/job separado — ainda não existe.
+--
+-- Esse cron passou a existir: 011_purga_lixeira.sql. O aviso acima
+-- fica como registro do que valia entre a 005 e a 011.
 -- ============================================================
 
 -- 1) A coluna em si — só ADD COLUMN, nenhuma tabela é recriada.

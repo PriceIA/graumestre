@@ -2,7 +2,7 @@
 -- GrauMestre — Schema completo e atual do banco
 --
 -- Este arquivo é o retrato consolidado do estado do banco depois de
--- aplicadas as 10 migrations de supabase/migrations/. Ele existe para
+-- aplicadas as 11 migrations de supabase/migrations/. Ele existe para
 -- leitura e para recriar o banco do zero num projeto Supabase novo.
 --
 -- ⚠ A fonte da verdade continua sendo supabase/migrations/. Uma coluna
@@ -20,6 +20,7 @@
 --   008_afastado_manual  afastado_manual em alunos
 --   009_rls_authenticated  RLS exigindo sessão autenticada
 --   010_frequencia_por_aulas  frequência conta aulas reais, não linhas de presença
+--   011_purga_lixeira    pg_cron apaga de vez o que passou dos 7 dias
 -- ============================================================
 
 
@@ -273,3 +274,46 @@ grant select, insert, update, delete
 grant select, insert, update on professor_perfil to authenticated;
 
 grant select on alunos_frequencia to authenticated;
+
+
+-- ─── Purga da lixeira (011) ─────────────────────────────────────────────────
+-- O app só carimba `deleted_at`; quem apaga de verdade é este job, todo dia às
+-- 04:00 UTC (≈01:00 em Brasília). Os 7 dias aqui são os mesmos de DIAS_LIXEIRA
+-- em components/AppShell.tsx — um decide o que o professor vê, o outro o que o
+-- banco guarda.
+--
+-- ⚠ Aqui o DELETE é físico, então os `on delete cascade` declarados lá em cima
+-- finalmente disparam: purgar um ALUNO apaga junto todas as presenças e todo o
+-- histórico de graduações dele, inclusive graduações que nunca foram para a
+-- lixeira. Purgar uma AULA apaga as presenças daquele dia.
+create extension if not exists pg_cron;
+
+create or replace function purgar_lixeira()
+returns table (tabela text, apagados bigint)
+language plpgsql
+set search_path = public
+as $$
+declare
+  limite timestamptz := now() - interval '7 days';
+begin
+  return query
+    with d as (delete from aulas where deleted_at < limite returning 1)
+    select 'aulas'::text, count(*)::bigint from d;
+
+  return query
+    with d as (delete from graduacoes where deleted_at < limite returning 1)
+    select 'graduacoes'::text, count(*)::bigint from d;
+
+  return query
+    with d as (delete from alunos where deleted_at < limite returning 1)
+    select 'alunos'::text, count(*)::bigint from d;
+end;
+$$;
+
+-- Toda função em `public` nasce executável por PUBLIC, e o PostgREST a
+-- publicaria como RPC — exclusão definitiva a um fetch de distância. Só o dono
+-- (`postgres`, que é quem o cron usa) executa.
+revoke all on function purgar_lixeira() from public;
+revoke all on function purgar_lixeira() from anon, authenticated;
+
+select cron.schedule('purgar-lixeira', '0 4 * * *', $$select purgar_lixeira()$$);

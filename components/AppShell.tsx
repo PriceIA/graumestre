@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { Aluno, Faixa, Graduacao, ProfessorPerfil } from '@/lib/types'
+import type { Aluno, Faixa, Graduacao, ProfessorPerfil, TabAluno } from '@/lib/types'
 import {
   professorPodeAssinar, tipoAprovacaoGraduacao,
   calcularIdade, calcularCategoria, ehInfantil,
@@ -91,9 +91,10 @@ function payloadAluno(form: Aluno): Record<string, unknown> {
 // de estado num update, foi exatamente assim que a edição de aluno quebrou
 // (campo derivado vazando no payload → PGRST204).
 //
-// ⚠ A purga física (DELETE definitivo após os 7 dias) NÃO está automatizada.
-// DIAS_LIXEIRA é só um filtro de exibição: passado o prazo o item some da aba
-// Lixeira, mas a linha continua no banco. Ver 005_soft_delete.sql.
+// ⚠ Este 7 existe DUAS VEZES: aqui, decidindo o que o professor vê na aba
+// Lixeira, e como `interval '7 days'` na função purgar_lixeira() da migration
+// 011, decidindo o que o banco apaga de verdade na madrugada. Mexeu num, mexa no
+// outro — senão o item some da tela dias antes (ou depois) de ser apagado.
 const DIAS_LIXEIRA = 7
 
 type TabelaComLixeira = 'alunos' | 'aulas' | 'graduacoes'
@@ -291,8 +292,10 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: `2px solid ${t.border}`,
         }}>
+          {/* referrerPolicy: a foto é URL externa colada à mão, e sem isto o host
+              dela recebe o endereço do app a cada carregamento */}
           {aluno.foto_url
-            ? <img src={aluno.foto_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <img src={aluno.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <span style={{ fontSize: 26, fontWeight: 900, color: t.accent, fontFamily: 'monospace' }}>{aluno.nome[0]}</span>
           }
         </div>
@@ -667,7 +670,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
 }
 
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
-function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGraduacao, t, podeEditar = true }: {
+function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGraduacao, t, podeEditar = true, tabInicial = 'perfil' }: {
   aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[]; ultima_presenca_data?: string | null };
   professor: ProfessorPerfil | null;
   onClose: () => void; onSave: (a: Aluno) => void; onDelete: (id: string) => void;
@@ -676,16 +679,19 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
   // Hoje é sempre true (app single-user, só o professor usa). Fica preparado
   // para quando o aluno puder logar e ver o próprio perfil em modo leitura.
   podeEditar?: boolean;
+  // Aba já aberta ao montar. Quem chega pelo card "Prontos para graduar" vem
+  // para graduar — passar pelo perfil primeiro seria toque desperdiçado.
+  tabInicial?: TabAluno;
 }) {
   const [form, setForm]   = useState({ ...aluno })
-  const [tab, setTab]     = useState('perfil')
+  const [tab, setTab]     = useState<TabAluno>(tabInicial)
   const [saving, setSaving] = useState(false)
   const [erro, setErro]   = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
   // cópia local do histórico para o ✕ sumir na hora, sem esperar recarga
   const [historico, setHistorico] = useState<Graduacao[]>(aluno.historico_graduacoes ?? [])
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
-  const tabs = ['perfil', 'frequência', 'notas', 'graduação']
+  const tabs: TabAluno[] = ['perfil', 'frequência', 'notas', 'graduação']
 
   // Validação de quem pode assinar (art. 6°, 7.3, 7.4, 7.4.1) — só entra em
   // jogo quando a faixa está de fato mudando nesta edição.
@@ -1559,7 +1565,7 @@ function Chamada({ aula, alunos, onClose, t }: {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {a.foto_url
-                  ? <img src={a.foto_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ? <img src={a.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <span style={{ fontSize: 16, fontWeight: 900, color: t.accent, fontFamily: 'monospace' }}>{a.nome[0]}</span>
                 }
               </div>
@@ -1739,6 +1745,8 @@ export default function AppShell() {
   const [retentando, setRetentando] = useState(false)
   const [tab, setTab]       = useState<'alunos' | 'aulas' | 'lixeira'>('alunos')
   const [alunoSel, setAlunoSel]   = useState<any | null>(null)
+  // aba em que o modal do aluno abre — só o card "Prontos para graduar" muda isso
+  const [abaAluno, setAbaAluno]   = useState<TabAluno>('perfil')
   const [modalAula, setModalAula] = useState(false)
   // aula cuja chamada está aberta — recém-criada pelo modal ou reaberta pelo card
   const [chamadaAula, setChamadaAula] = useState<any | null>(null)
@@ -1816,6 +1824,14 @@ export default function AppShell() {
 
   useEffect(() => { contarLixeira() }, [])
 
+  // Ponto único de abertura do modal do aluno: quem não pede aba cai em
+  // 'perfil'. Sem isso a aba escolhida por uma abertura anterior sobreviveria
+  // para a próxima, porque `abaAluno` é estado do AppShell, não do modal.
+  const abrirAluno = (aluno: any, aba: TabAluno = 'perfil') => {
+    setAbaAluno(aba)
+    setAlunoSel(aluno)
+  }
+
   const apagarAula = async (aula: any) => {
     if (!window.confirm(`Apagar a aula de ${aula.data}? Ela vai para a lixeira e pode ser restaurada por ${DIAS_LIXEIRA} dias.`)) return
     const { error } = await mandarParaLixeira('aulas', aula.id)
@@ -1859,7 +1875,7 @@ export default function AppShell() {
       <BannerInstalar />
 
       {/* Dashboard do Professor */}
-      <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} onSelectAluno={setAlunoSel} />
+      <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} onSelectAluno={abrirAluno} />
 
       {/* Falha de carga: o aviso é obrigatório justamente porque a lista
           continua na tela. Sem ele o professor veria dado velho achando que é
@@ -1953,7 +1969,7 @@ export default function AppShell() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                 {alunosVisiveis.map((a: any) => (
-                  <AlunoCard key={a.id} aluno={a} onClick={() => setAlunoSel(a)} t={t} />
+                  <AlunoCard key={a.id} aluno={a} onClick={() => abrirAluno(a)} t={t} />
                 ))}
               </div>
             )}
@@ -1993,12 +2009,22 @@ export default function AppShell() {
                     >
                       ✎
                     </button>
+                    {/* Alvo de 44×44 (mínimo de toque), mas com margens negativas:
+                        a área cresce para dentro do padding do card — que é
+                        espaço morto — em vez de aumentar a altura da linha. O
+                        glifo continua do mesmo tamanho e na mesma posição.
+                        marginLeft afasta do ✎; o resto do card abre a chamada, e
+                        errar o toque aqui já apagou aula em teste real. */}
                     <button
                       onClick={e => { e.stopPropagation(); apagarAula(a) }}
                       title="Apagar aula"
                       style={{
                         background: 'none', border: 'none', color: t.textMute,
-                        fontSize: 15, cursor: 'pointer', padding: '0 2px', lineHeight: 1,
+                        fontSize: 15, cursor: 'pointer', padding: 0, lineHeight: 1,
+                        width: 44, height: 44,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                        marginTop: -14, marginBottom: -14, marginRight: -10, marginLeft: 4,
                       }}
                     >
                       ✕
@@ -2073,6 +2099,7 @@ export default function AppShell() {
             contarLixeira()
           }}
           onDeleteGraduacao={contarLixeira}
+          tabInicial={abaAluno}
           t={t}
         />
       )}
