@@ -54,6 +54,21 @@ Duas coisas para não esquecer:
 
 A função é `revoke`ada de `anon`/`authenticated` de propósito: toda função em `public` nasce executável por PUBLIC e o PostgREST a publicaria como RPC — exclusão definitiva a um `fetch` de distância. Só o dono (`postgres`, que é quem o cron usa) executa.
 
+## Foto da aula: upload real, bucket privado (migration 012)
+
+Uma foto por aula, tirada com a turma, enviada do celular. **Não confunda com a foto do aluno** (seção seguinte): lá é URL externa colada à mão, aqui é arquivo nosso.
+
+- **O bucket `aulas-fotos` é privado**, e isso decide o resto. A escolha foi por privacidade, não por custo: são fotos de uma turma que inclui crianças, e bucket público seria obscuridade (URL inadivinhável), não proteção. O volume é irrelevante — uma foto por aula, ~10 MB/ano.
+- **A coluna se chama `foto_path`, não `foto_url`, porque guarda caminho e não URL.** Com bucket privado não existe URL estável para guardar: ela é assinada na leitura e vence em 1h. `foto_url` é **campo derivado**, montado em `lib/carregar-dados.ts` como `ultima_graduacao_data` — e, como todo derivado, **nunca pode entrar em payload de update** (é o PGRST204 de sempre).
+- **As URLs são assinadas em lote.** A listagem traz até 50 aulas; `assinarUrls()` faz uma chamada só — 1 request extra no carregamento, com 1 ou com 50 fotos, e nenhum quando não há foto alguma.
+- **A URL vence em 1h, e o componente `FotoAula` se recupera disso sozinho.** A imagem já pintada sobrevive ao vencimento (o que expira é o direito de baixar de novo), mas se o browser descartar o cache com o app aberto, o próximo pedido leva 403. O `onError` reassina e repõe. **O anti-loop é o par `onError`/`onLoad`**: uma tentativa por exibição bem-sucedida, rearmada só no `onLoad`. Objeto apagado do bucket erra, tenta uma vez, erra de novo e para — nunca dispara `onLoad`, então nunca rearma. Rearmar quando a prop muda, em vez do `onLoad`, seria exatamente o ciclo infinito.
+- **O modal ramifica por `foto_path`, nunca por `foto_url`.** A URL é derivada e pode falhar sozinha; ramificar por ela faria uma aula com foto aparecer como "adicionar foto" num tropeço de assinatura, e deixaria o botão Remover inalcançável justo aí.
+- **A foto grava na hora do upload, não no "Salvar alterações"** — mesma razão da chamada rápida: o professor sai da tela no meio. Por isso o modal tem `onFotoAlterada`, separado de `onEditada`: o segundo desmonta o modal, e quem acabou de escolher uma foto ainda está editando.
+- **A compressão é obrigatória e roda no client** (`lib/comprimir-imagem.ts`): canvas nativo, 1200px na maior dimensão, JPEG 0.75, alvo 150-300 KB. Sem lib nova — o `sharp` do projeto é devDependency e roda no Node, não no browser. `createImageBitmap(..., { imageOrientation: 'from-image' })` aplica a orientação EXIF; sem isso a foto tirada em pé sobe deitada. O bucket ainda tem `file_size_limit` de 2 MB e `allowed_mime_types` só de JPEG, como rede de segurança do lado do servidor.
+- **O input de arquivo não usa `capture`** de propósito: com ele o Android abre direto a câmera e tira a galeria da jogada, e subir foto de uma aula de semana passada deixa de funcionar.
+- **HEIC do iPhone tem três desfechos, e nenhum é silencioso.** (1) O iOS converte para JPEG no próprio `<input>` — **é o que acontece no aparelho do professor, verificado em 2026-08-11**; (2) o browser decodifica HEIC e o nosso `toBlob` reencoda para JPEG; (3) o browser não decodifica, o `createImageBitmap` rejeita e o professor vê *"Não foi possível ler esta imagem (formato não suportado pelo navegador). Tente tirar uma foto nova ou salvar como JPEG."* — **nada sobe e nada é gravado**, porque o upload só acontece depois de a compressão retornar. Como o `toBlob` sempre produz JPEG e o upload fixa `contentType: 'image/jpeg'`, o formato de entrada nunca viola o `allowed_mime_types` do bucket. A mensagem **não** sugere trocar câmera por galeria: não está confirmado que o caminho de escolha muda o resultado, e mandar repetir o que já falhou é pior do que não sugerir nada.
+- **A coluna é em `aulas`, então a view `alunos_frequencia` NÃO precisou ser recriada.** Confirmado no DDL antes de codar, não presumido: a armadilha do `select a.*` vale para colunas em `alunos`; a view só toca `aulas` dentro de subqueries com `count(*)` e colunas nomeadas, nunca `au.*`.
+
 ## Foto do aluno: URL externa, com `referrerPolicy`
 
 `foto_url` é uma URL colada à mão — não há Storage no projeto. Todo `<img>` que renderiza foto de aluno leva `referrerPolicy="no-referrer"`, senão o host da imagem recebe o endereço do app a cada carregamento. São **três** pontos: o card da lista e a linha da chamada (`AppShell.tsx`) e o `AvatarImage` do "Prontos para graduar" (`DashboardProfessor.tsx`). O `<img>` do hero fica de fora conscientemente: é asset local, não há terceiro para vazar. Ponto novo que renderize foto nasce com o atributo.
@@ -80,7 +95,8 @@ O banner é dispensável e grava em `sessionStorage` (não `localStorage`): o pe
 
 1. **Passo 6 — geração de PDF: pausado em 2026-08-04.** Sem prazo definido; outro projeto teve prioridade. Nada foi commitado e nada ficou pela metade na árvore — a pausa foi antes de qualquer código. O escopo do Passo 6 não está registrado em lugar nenhum do repo; quem retomar precisa levantar isso com o usuário antes de planejar.
 2. **Foto por upload real (Supabase Storage).** A `referrerPolicy` acima é o remendo de curto prazo, não a solução: a foto continua sendo uma URL que o professor tem que hospedar em algum lugar e colar à mão — no celular, no tatame. O certo é bucket + policy de upload + captura pela câmera, e isso é sessão própria. **Ficou fora do lote 3 de propósito.**
-3. **Fila offline da chamada.** Achado da mesma auditoria, maior que este lote: hoje um toque na chamada com a rede caída se perde. Ligado à decisão de cache que o service worker adiou de propósito (ver a seção de PWA) — offline precisa de invalidação decidida antes da primeira linha de código. **Ficou fora do lote 3 de propósito.**
+3. **A purga da lixeira não apaga o arquivo no Storage.** A `011` apaga a linha da aula; o cascade do Postgres não alcança o bucket, então a foto daquela aula fica órfã. É pouco (uma por aula) e não vaza — o bucket é privado —, mas cresce devagar para sempre. Resolver exige varrer o bucket contra as linhas existentes, o que é trabalho próprio.
+4. **Fila offline da chamada.** Achado da mesma auditoria, maior que este lote: hoje um toque na chamada com a rede caída se perde. Ligado à decisão de cache que o service worker adiou de propósito (ver a seção de PWA) — offline precisa de invalidação decidida antes da primeira linha de código. **Ficou fora do lote 3 de propósito.**
 
 Já resolvidas: a **purga física da lixeira** (era pendência explícita desde a 005 — ver a seção acima). `GET /manifest.json` 404 (o `metadata` do layout referenciava um manifest que nunca existiu — resolvido junto com o PWA acima). RLS aberta para `anon`, PIN morto no `.env` e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura) — as três na migration 009. E os arquivos órfãos de `app/api/`, removidos.
 
@@ -100,6 +116,8 @@ Já resolvidas: a **purga física da lixeira** (era pendência explícita desde 
 | `components/BannerInstalar.tsx` | Convite "instale no celular" — montado no `AppShell`, pós-login |
 | `components/RegistroServiceWorker.tsx` | Registra `sw.js` e liga a captura. Monta no layout, fora do login |
 | `scripts/gerar-icones.mjs` | Gera os PNGs de `public/icons/` a partir do logo (roda na mão) |
+| `lib/comprimir-imagem.ts` | Resize + reencode JPEG no browser, antes do upload |
+| `lib/foto-aula.ts` | Upload/troca/remoção da foto da aula e assinatura das URLs |
 | `lib/types.ts` | Tipos do modelo + `TabAluno` (aba inicial do modal do aluno) |
 | `supabase/migrations/` | Fonte da verdade do schema, numeradas |
 | `docs/schema.sql` | Retrato consolidado do banco, para leitura |

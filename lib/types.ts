@@ -65,6 +65,11 @@ export interface Aula {
   posicao: string | null
   notas: string | null
   link_youtube: string | null      // gravação da aula; chega depois do lançamento
+
+  // Caminho no bucket privado `aulas-fotos` (<aula_id>/<uuid>.jpg), NÃO uma
+  // URL: a URL é assinada na leitura e vence. Ver lib/foto-aula.ts.
+  foto_path: string | null
+
   created_at: string
   deleted_at: string | null        // null = ativo · preenchido = na lixeira
 }

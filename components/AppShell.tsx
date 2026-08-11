@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Aluno, Faixa, Graduacao, ProfessorPerfil, TabAluno } from '@/lib/types'
@@ -15,6 +15,7 @@ import { alertaGraduacao } from '@/lib/alertas-graduacao'
 import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
 import { sair } from '@/lib/auth'
 import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
+import { subirFotoAula, removerFotoAula, assinarUrl } from '@/lib/foto-aula'
 import DashboardProfessor from '@/components/DashboardProfessor'
 import BannerInstalar from '@/components/BannerInstalar'
 
@@ -1174,6 +1175,63 @@ function validarLinkYoutube(valor: string): string | null {
   return null
 }
 
+// ─── Foto da aula (com reassinatura) ─────────────────────────────────────────
+// A URL assinada vence em 1h (VALIDADE_URL_SEGUNDOS). A imagem já pintada
+// continua na tela depois disso — o que expira é o direito de baixar de novo —,
+// mas se o app ficar aberto e o browser descartar a imagem do cache, o próximo
+// pedido leva 403 e a foto some sem explicação. Aqui o `onError` assina de novo
+// e repõe.
+//
+// O anti-loop é o par onError/onLoad: uma tentativa por exibição bem-sucedida.
+// Objeto que sumiu de vez do bucket erra, tenta uma vez, erra de novo e para —
+// nunca dispara onLoad, então nunca rearma. Rearmar no onLoad, e não quando a
+// prop muda, é o que evita o ciclo em que a URL renovada realimenta a tentativa.
+function FotoAula({ path, url, onUrlRenovada, style, t }: {
+  path: string | null
+  url: string | null
+  onUrlRenovada?: (url: string) => void
+  style: React.CSSProperties
+  t: Theme
+}) {
+  const [src, setSrc] = useState(url)
+  const [falhou, setFalhou] = useState(false)
+  const jaTentou = useRef(false)
+
+  useEffect(() => { setSrc(url); setFalhou(false) }, [url])
+
+  const renovar = async () => {
+    if (jaTentou.current || !path) { setFalhou(true); return }
+    jaTentou.current = true
+    const nova = await assinarUrl(path)
+    if (!nova) { setFalhou(true); return }
+    setSrc(nova)
+    onUrlRenovada?.(nova)
+  }
+
+  // Caixa no lugar da imagem em vez de ícone quebrado: some a dúvida entre
+  // "esta aula não tem foto" e "a foto não carregou agora".
+  if (falhou || !src) {
+    return (
+      <div style={{
+        ...style,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: t.surface2, color: t.textMute, fontSize: 11, textAlign: 'center',
+        padding: 8, boxSizing: 'border-box',
+      }}>
+        Não foi possível carregar a foto agora.
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={src} alt="" referrerPolicy="no-referrer" style={style}
+      onError={renovar}
+      onLoad={() => { jaTentou.current = false }}
+    />
+  )
+}
+
 // ─── Modal Aula (criar e editar) ─────────────────────────────────────────────
 // Só os dados da aula. A chamada não vive aqui: ao criar, o botão grava a aula
 // e entrega o registro pronto para o AppShell abrir a <Chamada />. Sem aula
@@ -1184,8 +1242,13 @@ function validarLinkYoutube(valor: string): string | null {
 // nenhuma presença é tocada. É o caminho para cadastrar o link do YouTube
 // depois, que é como acontece na prática — grava a aula, sobe o vídeo, e só
 // então tem link para colar.
-function ModalAula({ aula, onClose, onCriada, onEditada, t }: {
-  aula?: any; onClose: () => void; onCriada: (aula: any) => void; onEditada: (aula: any) => void; t: Theme
+function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
+  aula?: any; onClose: () => void; onCriada: (aula: any) => void; onEditada: (aula: any) => void;
+  // Avisa a lista que a foto mudou, SEM fechar o modal. Não dá para reusar
+  // onEditada aqui: ela desmonta o modal, e o professor que acabou de escolher
+  // uma foto ainda está no meio da edição.
+  onFotoAlterada?: (aulaId: string, fotoPath: string | null, fotoUrl: string | null) => void;
+  t: Theme
 }) {
   const editando = !!aula
   const [form, setForm]   = useState({
@@ -1199,6 +1262,51 @@ function ModalAula({ aula, onClose, onCriada, onEditada, t }: {
   const [erro, setErro]   = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
   const set    = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  // Foto vive fora de `form` de propósito: ela é gravada na hora do upload, não
+  // no "Salvar alterações". Misturá-la ao form sugeriria que ela espera o botão.
+  const [fotoPath, setFotoPath] = useState<string | null>(aula?.foto_path ?? null)
+  const [fotoUrl, setFotoUrl]   = useState<string | null>(aula?.foto_url ?? null)
+  const [fotoOcupada, setFotoOcupada] = useState(false)
+  const [erroFoto, setErroFoto] = useState<string | null>(null)
+  const inputFoto = useRef<HTMLInputElement>(null)
+
+  const escolherFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = e.target.files?.[0]
+    // Zera o input no fim: sem isso, escolher o MESMO arquivo de novo depois de
+    // um erro não dispara change, e a tela parece travada.
+    e.target.value = ''
+    if (!arquivo || !aula) return
+
+    setFotoOcupada(true)
+    setErroFoto(null)
+    try {
+      const r = await subirFotoAula(aula.id, arquivo, fotoPath)
+      setFotoPath(r.foto_path)
+      setFotoUrl(r.foto_url)
+      onFotoAlterada?.(aula.id, r.foto_path, r.foto_url)
+    } catch (err) {
+      setErroFoto(err instanceof Error ? err.message : String(err))
+    }
+    setFotoOcupada(false)
+  }
+
+  const apagarFoto = async () => {
+    if (!aula || !fotoPath) return
+    if (!window.confirm('Remover a foto desta aula? Isso não tem lixeira — o arquivo é apagado de vez.')) return
+
+    setFotoOcupada(true)
+    setErroFoto(null)
+    try {
+      await removerFotoAula(aula.id, fotoPath)
+      setFotoPath(null)
+      setFotoUrl(null)
+      onFotoAlterada?.(aula.id, null, null)
+    } catch (err) {
+      setErroFoto(err instanceof Error ? err.message : String(err))
+    }
+    setFotoOcupada(false)
+  }
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
@@ -1228,6 +1336,12 @@ function ModalAula({ aula, onClose, onCriada, onEditada, t }: {
       posicao:      form.posicao || null,
       notas:        form.notas   || null,
       link_youtube: form.link_youtube.trim() || null,
+      // O caminho, nunca a URL: `foto_url` é derivada (assinada no
+      // carregamento) e mandá-la aqui derrubaria a request com PGRST204.
+      // Redundante com o update que o upload já fez — de propósito, para o
+      // payload continuar sendo a lista completa das colunas que este modal
+      // controla, e não uma lista que esconde uma exceção.
+      foto_path:    fotoPath,
     }
 
     const { data: salva, error } = editando
@@ -1239,7 +1353,9 @@ function ModalAula({ aula, onClose, onCriada, onEditada, t }: {
       setSaving(false)
       return
     }
-    editando ? onEditada(salva) : onCriada(salva)
+    // foto_url não volta do banco (é derivada), então vai junto daqui — senão a
+    // lista perderia a URL assinada e o card ficaria sem miniatura até recarregar.
+    editando ? onEditada({ ...salva, foto_url: fotoUrl }) : onCriada(salva)
     handleClose()
   }
 
@@ -1299,6 +1415,90 @@ function ModalAula({ aula, onClose, onCriada, onEditada, t }: {
               aqui quando a gravação subir.
             </div>
           </div>
+
+          {/* Foto da aula — só depois que a aula existe, porque o arquivo é
+              guardado numa pasta com o id dela. Mesma lógica do link do
+              YouTube: registra a aula agora, sobe a foto quando der, sem prazo. */}
+          {editando && (
+            <div>
+              <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+                Foto da aula
+              </div>
+
+              {/* Sem `capture`: com ele o Android abre direto a câmera e tira a
+                  galeria da jogada. Sem ele o próprio sistema oferece as duas,
+                  que é o que o professor precisa para subir foto de outro dia. */}
+              <input
+                ref={inputFoto} type="file" accept="image/*"
+                onChange={escolherFoto} style={{ display: 'none' }}
+              />
+
+              {/* A condição é `fotoPath`, não `fotoUrl`: a URL é derivada e pode
+                  falhar sozinha. Ramificar por ela faria uma aula COM foto
+                  aparecer como "adicionar foto" num tropeço de assinatura — e
+                  deixaria o botão Remover inalcançável justamente aí. */}
+              {fotoPath ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FotoAula
+                    path={fotoPath} url={fotoUrl} onUrlRenovada={setFotoUrl} t={t}
+                    style={{
+                      width: '100%', height: 220, objectFit: 'cover',
+                      borderRadius: 10, border: `1px solid ${t.border}`,
+                      opacity: fotoOcupada ? 0.5 : 1, transition: 'opacity 0.15s',
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => inputFoto.current?.click()} disabled={fotoOcupada}
+                      style={{
+                        flex: 1, padding: '10px 12px', borderRadius: 8, fontSize: 13,
+                        background: t.surface2, color: t.textSub,
+                        border: `1px solid ${t.border}`, cursor: fotoOcupada ? 'default' : 'pointer',
+                      }}
+                    >
+                      {fotoOcupada ? 'Enviando…' : 'Trocar foto'}
+                    </button>
+                    <button
+                      onClick={apagarFoto} disabled={fotoOcupada}
+                      style={{
+                        padding: '10px 12px', borderRadius: 8, fontSize: 13,
+                        background: 'none', color: t.accent,
+                        border: `1px solid ${t.accent}`, cursor: fotoOcupada ? 'default' : 'pointer',
+                      }}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => inputFoto.current?.click()} disabled={fotoOcupada}
+                  style={{
+                    width: '100%', padding: '22px 12px', borderRadius: 10,
+                    background: t.surface, color: fotoOcupada ? t.textMute : t.textSub,
+                    border: `1px dashed ${t.border2}`, cursor: fotoOcupada ? 'default' : 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  {fotoOcupada ? 'Enviando…' : '＋ Adicionar foto da turma'}
+                </button>
+              )}
+
+              {erroFoto && (
+                <div style={{
+                  marginTop: 8, padding: 10, borderRadius: 8, background: t.accentBg,
+                  border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+                }}>
+                  ⚠ {erroFoto}
+                </div>
+              )}
+
+              <div style={{ color: t.textMute, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                Uma foto por aula. Sobe na hora ou dias depois, sem prazo — e é salva
+                assim que você escolhe, sem esperar o botão abaixo.
+              </div>
+            </div>
+          )}
           <div>
             <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Observações</div>
             <textarea
@@ -2055,6 +2255,24 @@ export default function AppShell() {
                     </a>
                   )}
                 </div>
+                {/* Miniatura: é o que faz reconhecer a aula de relance, mais que
+                    a técnica escrita. Só aparece quando há foto — aula sem foto
+                    não ganha placeholder ocupando altura à toa. */}
+                {a.foto_path && (
+                  <FotoAula
+                    path={a.foto_path} url={a.foto_url} t={t}
+                    // guarda a URL renovada na lista: sem isto o próximo render
+                    // do card voltaria à URL vencida e erraria de novo
+                    onUrlRenovada={nova =>
+                      setAulas(prev => prev.map(x => x.id === a.id ? { ...x, foto_url: nova } : x))
+                    }
+                    style={{
+                      width: '100%', height: 110, objectFit: 'cover',
+                      borderRadius: 8, border: `1px solid ${t.border}`,
+                      marginTop: 10, display: 'block',
+                    }}
+                  />
+                )}
                 {a.notas && <div style={{ marginTop: 8, color: t.textSub, fontSize: 12, fontStyle: 'italic' }}>{a.notas}</div>}
               </div>
             ))}
@@ -2122,6 +2340,11 @@ export default function AppShell() {
             setAulas(prev => prev.map(a => a.id === atualizada.id ? { ...a, ...atualizada } : a))
             setAulaEdicao(null)
             startTransition(() => router.refresh())
+          }}
+          // A foto é gravada no momento do upload, então a lista precisa
+          // acompanhar sem esperar o "Salvar alterações" — e sem fechar o modal.
+          onFotoAlterada={(id, foto_path, foto_url) => {
+            setAulas(prev => prev.map(a => a.id === id ? { ...a, foto_path, foto_url } : a))
           }}
           t={t}
         />

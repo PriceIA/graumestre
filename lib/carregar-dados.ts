@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { assinarUrls } from '@/lib/foto-aula'
 
 // Carrega as listagens ATIVAS — o que está na lixeira (deleted_at preenchido)
 // fica de fora de tudo, inclusive das graduações que alimentam
@@ -106,9 +107,23 @@ export async function carregarDados(): Promise<CargaDados> {
       ultima_presenca_data: ultimaPresencaPorAluno[a.id] ?? null,
     }))
 
+    // foto_url da aula é campo DERIVADO, como ultima_graduacao_data acima: o
+    // banco guarda só o caminho no bucket, e a URL assinada vence. Uma chamada
+    // em lote para todas as aulas com foto, em vez de uma por aula.
+    //
+    // ⚠ Derivado significa que ele NÃO pode entrar em payload de update — é
+    // exatamente o tipo de campo que já derrubou a edição de aluno com
+    // PGRST204. Por isso o ModalAula monta o payload por whitelist.
+    const comFoto = (aulas ?? []).filter(a => a.foto_path)
+    const urls = await assinarUrls(comFoto.map(a => a.foto_path as string))
+    const aulasComFoto = (aulas ?? []).map(a => ({
+      ...a,
+      foto_url: a.foto_path ? urls[a.foto_path] ?? null : null,
+    }))
+
     return {
       alunos: alunosComGraduacao,
-      aulas: aulas ?? [],
+      aulas: aulasComFoto,
       erro: montarErro(falhas),
     }
   } catch (e) {
