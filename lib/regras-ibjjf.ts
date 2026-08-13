@@ -76,11 +76,43 @@ export function nomeFaixaExibicao(faixa: Faixa, graus: number): string {
   return NOMES_FAIXA[faixa]
 }
 
-/** Grau máximo permitido para a faixa (infantil sugerido: 3 — Anexo I) */
+/**
+ * Grau máximo permitido para a faixa (infantil sugerido: 3 — Anexo I).
+ *
+ * Branca, azul, roxa e marrom são "faixa lisa + 4 graus" (art. 4.1.2 I): o 4º
+ * é o teto, e o que vem depois dele é a promoção para a próxima COR, não um 5º
+ * grau — que não existe para nenhuma dessas quatro. A preta é o caso à parte
+ * do art. 4.1.2 II, e o teste dela vem primeiro justamente porque ela também
+ * está em FAIXAS_ADULTAS.
+ */
 export function grausMaximos(faixa: Faixa): number {
   if (faixa === 'preta') return 9
   if (FAIXAS_ADULTAS.includes(faixa)) return 4
   return 3
+}
+
+/**
+ * Próxima faixa na progressão de cor (art. 4.1.2) — para quem já está no teto
+ * de graus, é o passo seguinte de verdade.
+ *
+ * `infantil` é obrigatório porque **`branca` está nas duas listas**: a próxima
+ * de uma branca infantil é cinza-e-branca, a de uma branca adulta é azul.
+ * Deduzir isso da faixa sozinha daria a resposta errada justamente na faixa
+ * mais comum do app. Quem chama já sabe — é o mesmo `ehInfantil()` que decide
+ * quais faixas o seletor mostra.
+ *
+ * `null` na preta: ali não existe próxima cor. Vermelha-Preta / Vermelha-Branca
+ * / Vermelha são o 7º/8º/9º grau da própria preta (ver nomeFaixaExibicao), e o
+ * 10º é honorário, não solicitável (art. 4.1.5.X). Também `null` no fim da
+ * progressão infantil (verde-e-preta), onde a continuação é a migração para as
+ * faixas adultas por idade, não a próxima cor da mesma lista.
+ */
+export function proximaFaixa(faixa: Faixa, infantil: boolean): Faixa | null {
+  if (faixa === 'preta') return null
+  const lista = infantil ? FAIXAS_INFANTIS : FAIXAS_ADULTAS
+  const i = lista.indexOf(faixa)
+  if (i === -1 || i === lista.length - 1) return null
+  return lista[i + 1]
 }
 
 // ─── Idade mínima por faixa (art. 2°) ──────────────────────────────────────

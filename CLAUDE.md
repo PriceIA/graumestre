@@ -69,6 +69,44 @@ Uma foto por aula, tirada com a turma, enviada do celular. **Não confunda com a
 - **HEIC do iPhone tem três desfechos, e nenhum é silencioso.** (1) O iOS converte para JPEG no próprio `<input>` — **é o que acontece no aparelho do professor, verificado em 2026-08-11**; (2) o browser decodifica HEIC e o nosso `toBlob` reencoda para JPEG; (3) o browser não decodifica, o `createImageBitmap` rejeita e o professor vê *"Não foi possível ler esta imagem (formato não suportado pelo navegador). Tente tirar uma foto nova ou salvar como JPEG."* — **nada sobe e nada é gravado**, porque o upload só acontece depois de a compressão retornar. Como o `toBlob` sempre produz JPEG e o upload fixa `contentType: 'image/jpeg'`, o formato de entrada nunca viola o `allowed_mime_types` do bucket. A mensagem **não** sugere trocar câmera por galeria: não está confirmado que o caminho de escolha muda o resultado, e mandar repetir o que já falhou é pior do que não sugerir nada.
 - **A coluna é em `aulas`, então a view `alunos_frequencia` NÃO precisou ser recriada.** Confirmado no DDL antes de codar, não presumido: a armadilha do `select a.*` vale para colunas em `alunos`; a view só toca `aulas` dentro de subqueries com `count(*)` e colunas nomeadas, nunca `au.*`.
 
+## Graus: o teto do art. 4.1.2 e o ritmo do professor (migration 013)
+
+Duas coisas que **parecem a mesma** e não são. Confundi-las é o erro que esta seção existe para prevenir.
+
+### O teto de 4 graus sempre esteve certo — não reabra a suspeita
+
+Branca, azul, roxa e marrom são "faixa lisa + 4 graus" (art. 4.1.2 I): **não existe 5º grau** em nenhuma delas; o que vem depois do 4º é a promoção para a próxima cor. A preta é o caso à parte (art. 4.1.2 II), com o sistema de 1–9 em `GRAUS_PRETA`.
+
+`grausMaximos()` sempre devolveu isso corretamente, e o seletor de graus (`Array.from({ length: max + 1 })`) nunca renderizou um botão "5". Uma auditoria em 2026-08-12 procurou o bug e **não encontrou** — está registrado aqui para a próxima sessão não gastar a verificação de novo.
+
+**O buraco real era outro**: o botão de faixa chamava `set('faixa', fx)` sem tocar em `graus`, então rebaixar um preta 6º grau para marrom gravava "marrom 6º grau". Duas coisas conspiravam para esconder isso — o check do banco é `graus between 0 and 9`, **global e não por faixa**, então o Postgres aceitava; e os botões de grau re-renderizam 0–4, então nenhum ficava destacado e o valor inválido não aparecia em lugar nenhum da tela. Hoje faixa e graus são ajustados no mesmo `setForm`, com `Math.min(f.graus, grausMaximos(fx))`.
+
+**`proximaFaixa(faixa, infantil)` precisa do segundo argumento**, e não é preciosismo: **`branca` está em `FAIXAS_INFANTIS` e em `FAIXAS_ADULTAS`**. Deduzir a lista pela faixa sozinha (`FAIXAS_INFANTIS.includes(faixa)`) responderia "cinza e branca" para todo aluno branca adulto — errado justamente na faixa mais comum do app. Quem chama já sabe: é o mesmo `ehInfantil()` que decide quais faixas o seletor mostra.
+
+### O ritmo é sugestão do professor, e mora fora do motor da IBJJF
+
+`professor_perfil.meses_entre_graus` (default 5, editável no Perfil do Professor) é o **ritmo de trabalho dele**: de quantos em quantos meses costuma dar um grau. O art. 4.1.3 diz que, até a marrom, o sistema de graus fica a critério de cada Professor — é essa brecha que a coluna preenche.
+
+**Não é, e nunca pode virar, o tempo mínimo de permanência por faixa** (art. 3.1.3 — 2 anos para virar azul, etc.), que é exigência da federação e ninguém altera.
+
+A separação é **lógica antes de ser visual**, e é por isso que existe `lib/ritmo-graus.ts` separado de `lib/regras-ibjjf.ts`: se as duas morassem no mesmo arquivo, a próxima sessão trataria uma como a outra. Na tela o mesmo cuidado — o bloco de ritmo é tracejado e rotulado "SUGESTÃO SUA", e o bloco de exceções nomeia a IBJJF e o artigo. **Se mexer num, olhe o outro**: o valor do contraste é a única coisa que impede o professor de ler a sugestão como regra da federação.
+
+`sugestaoProximoGrau()` devolve `null` em dois casos, e ambos são decisão de produto, não falta de dado:
+
+- **Faixa preta.** Lá os intervalos são da IBJJF (3/5/7/10 anos). Sugerir "5 meses" ao lado disso contradiria a federação na cara do professor.
+- **Já no teto de graus.** No 4º grau o próximo passo é mudar de cor, e quem diz isso é o painel "Próximo passo" — não o cálculo de ritmo.
+
+A coluna é em `professor_perfil`, tabela que a view `alunos_frequencia` **nunca referencia** (confirmado no DDL da 010, não presumido), então a armadilha do `select a.*` não foi acionada e a view não precisou ser recriada. Se um dia o ritmo virar por aluno, aí sim a view entra na conta.
+
+### O ritmo NÃO alimenta "Prontos para graduar"
+
+Vale dizer explicitamente, porque a suposição contrária é natural: **mudar `meses_entre_graus` não muda quem aparece no card "Prontos para graduar"** da home. São dois circuitos sem contato nenhum.
+
+- O card usa `alertaGraduacao()` (`lib/alertas-graduacao.ts`), chamado no `DashboardProfessor.tsx`, que responde sobre o **tempo mínimo da IBJJF para a próxima FAIXA** (art. 3.1.3) — e, na preta, sobre o próximo grau por `GRAUS_PRETA`.
+- O ritmo usa `sugestaoProximoGrau()` (`lib/ritmo-graus.ts`), importado **em um único lugar**: `AppShell.tsx`, para o bloco tracejado do modal do aluno. Responde sobre o **próximo GRAU**, no ritmo do professor.
+
+Faixa contra grau, federação contra preferência. Se um dia alguém quiser que o ritmo influencie o card, isso é decisão de produto a tomar de propósito — não deve acontecer por acidente de import.
+
 ## Foto do aluno: URL externa, com `referrerPolicy`
 
 `foto_url` é uma URL colada à mão — não há Storage no projeto. Todo `<img>` que renderiza foto de aluno leva `referrerPolicy="no-referrer"`, senão o host da imagem recebe o endereço do app a cada carregamento. São **três** pontos: o card da lista e a linha da chamada (`AppShell.tsx`) e o `AvatarImage` do "Prontos para graduar" (`DashboardProfessor.tsx`). O `<img>` do hero fica de fora conscientemente: é asset local, não há terceiro para vazar. Ponto novo que renderize foto nasce com o atributo.
@@ -107,7 +145,8 @@ Já resolvidas: a **purga física da lixeira** (era pendência explícita desde 
 | `components/AppShell.tsx` | UI principal: lista e modal de aluno, aulas, chamada, lixeira, filtros |
 | `components/DashboardProfessor.tsx` | Home (Tailwind/shadcn): frequência geral, distribuição, prontos para graduar |
 | `lib/carregar-dados.ts` | Carga única das listagens ativas + campos derivados. Usada no server e no client |
-| `lib/regras-ibjjf.ts` | Faixas, categoria etária, tempo mínimo, quem pode assinar |
+| `lib/regras-ibjjf.ts` | Faixas, categoria etária, tempo mínimo, quem pode assinar — **só o que a IBJJF exige** |
+| `lib/ritmo-graus.ts` | Ritmo de graus do professor — **sugestão dele**, separado do motor da IBJJF de propósito |
 | `lib/alertas-graduacao.ts` | `alertaGraduacao()` — fonte única do "pronto para graduar" |
 | `lib/afastamento.ts` | `DIAS_PARA_AFASTADO` e a regra de afastado (automático + override) |
 | `lib/auth.ts` | `useSessao()` e `sair()` — estado da sessão do professor |

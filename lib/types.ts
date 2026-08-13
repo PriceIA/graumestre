@@ -55,6 +55,14 @@ export interface ProfessorPerfil {
   nome: string
   faixa: 'preta'
   graus: number            // grau do próprio professor — valida quem pode assinar
+
+  // Ritmo de trabalho DESTE professor: meses sugeridos entre um grau e o
+  // próximo. Preferência editável, NÃO regra da IBJJF — o art. 4.1.3 deixa o
+  // sistema de graus a critério do Professor até a faixa marrom. Não confundir
+  // com o tempo mínimo de permanência por faixa (art. 3.1.3), que é exigência
+  // da federação e vive em lib/regras-ibjjf.ts. Ver lib/ritmo-graus.ts.
+  meses_entre_graus: number
+
   created_at: string
 }
 

@@ -8,10 +8,11 @@ import {
   professorPodeAssinar, tipoAprovacaoGraduacao,
   calcularIdade, calcularCategoria, ehInfantil,
   FAIXAS_INFANTIS, FAIXAS_ADULTAS, NOMES_FAIXA,
-  grausMaximos, nomeFaixaExibicao, diasRestantesProvisorio,
+  grausMaximos, proximaFaixa, nomeFaixaExibicao, diasRestantesProvisorio,
   anosNaFaixaAtual, prontoParaProximaFaixa, podeProximoGrauPreta,
 } from '@/lib/regras-ibjjf'
 import { alertaGraduacao } from '@/lib/alertas-graduacao'
+import { sugestaoProximoGrau, MESES_ENTRE_GRAUS_PADRAO } from '@/lib/ritmo-graus'
 import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
 import { sair } from '@/lib/auth'
 import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
@@ -534,6 +535,9 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
   professor: ProfessorPerfil; onClose: () => void; onSave: (p: ProfessorPerfil) => void; t: Theme
 }) {
   const [graus, setGraus] = useState(professor.graus)
+  const [mesesEntreGraus, setMesesEntreGraus] = useState(
+    professor.meses_entre_graus ?? MESES_ENTRE_GRAUS_PADRAO
+  )
   const [saving, setSaving] = useState(false)
   const [visible, setVisible] = useState(false)
   const [saindo, setSaindo] = useState(false)
@@ -566,13 +570,17 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
 
   const handleSave = async () => {
     setSaving(true)
-    const { error } = await supabase.from('professor_perfil').update({ graus }).eq('id', professor.id)
+    // Whitelist explícita de colunas, como em todo update do app.
+    const { error } = await supabase
+      .from('professor_perfil')
+      .update({ graus, meses_entre_graus: mesesEntreGraus })
+      .eq('id', professor.id)
     if (error) {
-      alert(`Não foi possível salvar o grau do professor: ${error.message}`)
+      alert(`Não foi possível salvar o perfil do professor: ${error.message}`)
       setSaving(false)
       return
     }
-    onSave({ ...professor, graus })
+    onSave({ ...professor, graus, meses_entre_graus: mesesEntreGraus })
     handleClose()
   }
 
@@ -623,6 +631,42 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
             </div>
             <div style={{ marginTop: 10, color: t.textSub, fontSize: 12, fontFamily: 'monospace' }}>
               7º = Vermelha e Preta · 8º = Vermelha e Branca · 9º = Vermelha
+            </div>
+          </div>
+
+          {/* ─── Ritmo de graus — preferência do professor, não regra IBJJF ────
+              Mora aqui porque é a tela "do professor", onde ele já vem mexer
+              nos próprios dados — o mesmo motivo da sessão logo abaixo. O valor
+              é global: é o ritmo de quem gradua, não uma propriedade de quem é
+              graduado. Ver lib/ritmo-graus.ts. */}
+          <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+              Ritmo de graus — sugestão sua
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input
+                type="number" min={1} max={60} inputMode="numeric"
+                value={mesesEntreGraus}
+                onChange={e => {
+                  // Deixa o campo vazio virar o padrão em vez de NaN: o teclado
+                  // numérico do celular apaga tudo antes de digitar o novo valor.
+                  const n = parseInt(e.target.value, 10)
+                  setMesesEntreGraus(Number.isNaN(n) ? MESES_ENTRE_GRAUS_PADRAO : Math.min(60, Math.max(1, n)))
+                }}
+                style={{
+                  width: 80, background: t.inputBg, border: `1px solid ${t.border2}`,
+                  borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 15,
+                  fontWeight: 700, textAlign: 'center', boxSizing: 'border-box',
+                }}
+              />
+              <span style={{ color: t.textSub, fontSize: 13 }}>meses entre um grau e o próximo</span>
+            </div>
+            <div style={{ marginTop: 10, color: t.textMute, fontSize: 11, lineHeight: 1.5 }}>
+              Só um lembrete de quando o próximo grau poderia sair, no seu ritmo. Não é
+              exigência da IBJJF: o art. 4.1.3 deixa o sistema de graus a critério do Professor
+              até a faixa marrom. <strong>Não altera</strong> os tempos mínimos de permanência
+              por faixa (art. 3.1.3), que são regra da federação. Não se aplica à faixa preta,
+              onde os intervalos entre graus são da IBJJF.
             </div>
           </div>
 
@@ -710,6 +754,16 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
   const faixasDisponiveis = infantilAluno ? FAIXAS_INFANTIS : FAIXAS_ADULTAS
   const maxGrausFaixa = grausMaximos(form.faixa)
   const ultimaGraduacaoData = aluno.ultima_graduacao_data ?? null
+
+  // Próxima COR — só faz sentido para quem já está no teto de graus. Depende de
+  // `infantilAluno` porque `branca` está nas duas progressões.
+  const proxFaixa = proximaFaixa(form.faixa, infantilAluno)
+
+  // Ritmo do professor: SUGESTÃO dele (art. 4.1.3), não exigência da IBJJF.
+  // Calculado sobre `form` e não sobre `aluno` para acompanhar a edição em
+  // curso — trocar a faixa na tela já muda o que a sugestão diz.
+  const mesesEntreGraus = professor?.meses_entre_graus ?? MESES_ENTRE_GRAUS_PADRAO
+  const ritmo = sugestaoProximoGrau(form, ultimaGraduacaoData, mesesEntreGraus)
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
@@ -985,7 +1039,16 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                 {faixasDisponiveis.map(fx => (
-                  <button key={fx} onClick={() => set('faixa', fx)} style={{
+                  // Ajusta faixa e graus JUNTOS: cada faixa tem seu teto (4 na
+                  // branca/azul/roxa/marrom, 9 na preta, 3 no infantil), e um
+                  // `set('faixa', ...)` sozinho deixaria um preta 6º grau virar
+                  // "marrom 6º grau" — grau que não existe (art. 4.1.2). O
+                  // banco aceitaria: o check é `graus between 0 and 9`, global,
+                  // não por faixa. E como os botões de grau re-renderizam 0–4,
+                  // nenhum ficaria destacado e o professor não veria o erro.
+                  <button key={fx} onClick={() => setForm(f => ({
+                    ...f, faixa: fx, graus: Math.min(f.graus, grausMaximos(fx)),
+                  }))} style={{
                     padding: '8px 14px', borderRadius: 6, cursor: 'pointer',
                     background: BELT_COLORS[fx].bg, color: BELT_COLORS[fx].text, fontWeight: 700, fontSize: 12,
                     border: form.faixa === fx ? `2px solid ${t.accent}` : '2px solid transparent',
@@ -1004,19 +1067,68 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                   }}>{g}</button>
                 ))}
               </div>
+              {/* Três desfechos, não dois. No teto de graus o passo seguinte é a
+                  próxima COR (art. 4.1.2) — dizer só "pronto para subir de faixa"
+                  não diz qual. E na preta com 9 graus não existe faixa nenhuma
+                  depois: o 10º é honorário (art. 4.1.5.X), então prometer "subir
+                  de faixa" ali era errado. */}
               <div style={{ marginTop: 16, padding: 14, background: t.surface, borderRadius: 8, border: `1px solid ${t.border}` }}>
                 <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', marginBottom: 6 }}>PRÓXIMO PASSO</div>
-                {form.graus < maxGrausFaixa
-                  ? <div style={{ color: t.accent, fontSize: 13 }}>+1 grau → {nomeFaixaExibicao(form.faixa, form.graus + 1)}</div>
-                  : <div style={{ color: t.accent, fontSize: 13 }}>Pronto para subir de faixa</div>
-                }
+                {form.graus < maxGrausFaixa ? (
+                  <div style={{ color: t.accent, fontSize: 13 }}>+1 grau → {nomeFaixaExibicao(form.faixa, form.graus + 1)}</div>
+                ) : proxFaixa ? (
+                  <div style={{ color: t.accent, fontSize: 13 }}>
+                    {maxGrausFaixa}º grau completo → promover para Faixa {NOMES_FAIXA[proxFaixa]}
+                  </div>
+                ) : (
+                  <div style={{ color: t.accent, fontSize: 13 }}>
+                    {form.faixa === 'preta'
+                      ? 'Topo da progressão de graus solicitáveis'
+                      : 'Pronto para subir de faixa'}
+                  </div>
+                )}
               </div>
+
+              {/* ─── Ritmo do professor — SUGESTÃO, não regra da federação ────────
+                  Bloco deliberadamente diferente dos blocos IBJJF logo abaixo:
+                  borda tracejada, sem o vermelho de "exigência", e o rótulo diz
+                  de quem é a regra. O pedido era que as duas coisas não se
+                  confundissem — o art. 4.1.3 deixa o sistema de graus a critério
+                  do Professor até a marrom, enquanto o tempo mínimo de
+                  permanência (art. 3.1.3) é da IBJJF e ninguém altera.
+                  Não renderiza na faixa preta nem no teto de graus: quem decide
+                  isso é sugestaoProximoGrau(), que devolve null. */}
+              {ritmo && (
+                <div style={{
+                  marginTop: 12, padding: 14, borderRadius: 8,
+                  background: 'transparent', border: `1px dashed ${t.border2}`,
+                }}>
+                  <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', marginBottom: 6 }}>
+                    RITMO DO PROFESSOR · SUGESTÃO SUA
+                  </div>
+                  <div style={{ color: t.text, fontSize: 13 }}>
+                    {ritmo.proximoGrau}º grau sugerido em <strong>{ritmo.dataFormatada}</strong>
+                  </div>
+                  <div style={{ color: ritmo.vencido ? t.accent : t.textSub, fontSize: 12, marginTop: 4 }}>
+                    {ritmo.vencido
+                      ? `Já passou ${Math.abs(ritmo.diasRestantes)} dia(s) do seu ritmo de ${mesesEntreGraus} meses por grau.`
+                      : `Faltam ${ritmo.diasRestantes} dia(s) — seu ritmo é de ${mesesEntreGraus} meses por grau.`}
+                  </div>
+                  <div style={{ color: t.textMute, fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+                    Ritmo definido por você no Perfil do Professor, editável a qualquer momento.
+                    Não é exigência da IBJJF — o art. 4.1.3 deixa o sistema de graus a critério
+                    do Professor até a faixa marrom.
+                  </div>
+                </div>
+              )}
 
               {/* Exceções de tempo mínimo (art. 3.1.3) — só a do campeonato da faixa atual */}
               {(aluno.faixa === 'azul' || aluno.faixa === 'roxa' || aluno.faixa === 'marrom') && (
                 <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* O rótulo nomeia a IBJJF de propósito: é o contraste que impede
+                      ler o bloco de ritmo acima como se fosse a mesma regra. */}
                   <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase' }}>
-                    Exceções de tempo mínimo
+                    Exceções de tempo mínimo · exigência IBJJF (art. 3.1.3)
                   </div>
                   {aluno.faixa === 'azul' && (
                     <Toggle label="Campeão mundial faixa azul" checked={form.campeao_mundial_azul} onChange={v => set('campeao_mundial_azul', v)} t={t} />
