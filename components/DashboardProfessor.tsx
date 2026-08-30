@@ -160,8 +160,9 @@ function PainelProfessor({ perto, atencao, onSelect }: {
 }
 
 // ─── Dashboard do Professor ──────────────────────────────────────────────────
-export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, onAbrirProntos, onSelectAluno }: {
-  alunos: any[]; aulasEsseMes: number; qtdProntos: number; onAbrirProntos: () => void
+export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, qtdLixeira, onAbrirProntos, onAbrirMenu, onSelectAluno }: {
+  alunos: any[]; aulasEsseMes: number; qtdProntos: number; qtdLixeira: number
+  onAbrirProntos: () => void; onAbrirMenu: () => void
   onSelectAluno: (aluno: any, tabInicial?: TabAluno) => void
 }) {
   const comFrequencia = alunos.filter(a => (a.total_aulas ?? 0) > 0)
@@ -181,12 +182,23 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, o
     <div className="bg-[radial-gradient(ellipse_at_top,#2a0505_0%,#0a0a0a_55%)]">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
-        <Menu size={22} className="text-white/60" />
-        <span className="font-display text-2xl uppercase tracking-wide text-white">GrauMestre</span>
         {/* Alvo de 44×44 (mínimo de toque) via margem negativa, mesmo princípio
             do ✕ de apagar aula no AppShell: a área cresce para dentro do
             padding do header (py-3/px-4), sem aumentar a altura da linha nem
             o tamanho visual do ícone. */}
+        <button
+          onClick={onAbrirMenu}
+          aria-label="Menu"
+          className="relative -my-3 -ml-3 flex h-11 w-11 items-center justify-center"
+        >
+          <Menu size={22} className="text-white/60" />
+          {qtdLixeira > 0 && (
+            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-body text-[10px] font-bold leading-none text-white">
+              {qtdLixeira}
+            </span>
+          )}
+        </button>
+        <span className="font-display text-2xl uppercase tracking-wide text-white">GrauMestre</span>
         <button
           onClick={onAbrirProntos}
           aria-label="Notificações de graduação"

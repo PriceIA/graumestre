@@ -10,6 +10,11 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **Hambúrguer vira menu de verdade; Perfil do Professor e Lixeira saem da home.**
+  - `<Menu>` do header ganha `onClick` e abre uma gaveta lateral (mesmo padrão de modal dos outros, entrando pela esquerda) com quatro itens: Perfil do Professor, Lixeira (com a contagem), Instalar no celular (só quando há prompt de instalação disponível) e Sair.
+  - `ProfessorCard` sai da home e é removido; as abas caem de três para duas (`ALUNOS`/`AULAS`). `tab` continua podendo valer `'lixeira'` — só a barra deixou de desenhar o terceiro botão — para reaproveitar toda a lógica de conteúdo e do FAB que já checava esse valor, sem duplicar em estado novo.
+  - **A lixeira ganhou cabeçalho próprio** ("‹ Lixeira", tocável, volta para Alunos): sem aba destacada, a tela não dizia mais onde o professor estava nem como sair de lá — achado durante o teste manual, corrigido antes de fechar a etapa.
+  - "Sair" sai do `ModalProfessor` — junto com o identificador da conta, que foi para o rodapé do menu, agora mostrando o apelido em vez do e-mail completo.
 - **Sininho vira painel de notificações; a lista "Prontos para graduar" sai da home.**
   - `<Bell>` do header, antes decorativo, ganha `onClick` e um badge (bolinha vermelha com a contagem, só quando há alguém pronto). O toque abre `PainelProntos`, listando foto, nome, faixa+graus, o motivo do alerta e uma linha de evidência ("X de Y presenças desde o último grau", ou "Tempo mínimo da faixa cumprido") — não é barra de progresso, é a justificativa de quem já está na lista.
   - **O painel mora no `AppShell.tsx`**, com os outros modais e o mesmo padrão de bottom sheet — não um padrão novo em Tailwind dentro do `DashboardProfessor`. A lista é computada uma vez no `AppShell`; o `DashboardProfessor` só recebe a contagem, para o badge e para a estatística do hero mostrarem o mesmo número.

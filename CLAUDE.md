@@ -192,7 +192,7 @@ de bug.
 
 ## Painel de prontos para graduar (sininho) — migration 014 completa a UI (Etapa 2, lote de agosto/2026)
 
-O `<Bell>` do header do `DashboardProfessor` virou `<button>` com badge — bolinha vermelha com a contagem, só quando `qtdProntos > 0` — e abre `PainelProntos`. O painel **mora no `AppShell.tsx`, não no `DashboardProfessor`**, pelo mesmo motivo de sempre: é um modal, e os 4 (agora 5) modais do app vivem todos no `AppShell` com inline styles e o mesmo padrão de bottom sheet (`visible`/`setTimeout(onClose, 220)`). Um painel em Tailwind dentro do `DashboardProfessor` seria um sexto padrão de modal — CLAUDE.md já pedia consistência, este é o precedente a seguir da próxima vez que um ícone de header ganhar comportamento (o `<Menu>` é o próximo candidato natural).
+O `<Bell>` do header do `DashboardProfessor` virou `<button>` com badge — bolinha vermelha com a contagem, só quando `qtdProntos > 0` — e abre `PainelProntos`. O painel **mora no `AppShell.tsx`, não no `DashboardProfessor`**, pelo mesmo motivo de sempre: é um modal, e os modais do app vivem todos no `AppShell` com inline styles e o mesmo padrão de bottom sheet (`visible`/`setTimeout(onClose, 220)`). Um painel em Tailwind dentro do `DashboardProfessor` seria um padrão de modal à parte — CLAUDE.md já pedia consistência, e foi o precedente seguido pelo `<Menu>` na Etapa 3 (ver seção abaixo).
 
 A lista de prontos é computada **uma vez**, no `AppShell` (mesma `alertaGraduacao()` de sempre). `DashboardProfessor` recebe só `qtdProntos` — usado no badge **e** na estatística "Prontos p/ graduar" do hero, de propósito o mesmo número nos dois lugares — e `onAbrirProntos`.
 
@@ -201,6 +201,20 @@ A lista de prontos é computada **uma vez**, no `AppShell` (mesma `alertaGraduac
 **O estado vazio é obrigatório, não ausência de UI.** Com a linha de base de 3 aulas no banco (ver a seção "Graus" acima), o painel fica vazio por meses — um sininho que abre e não mostra nada volta a parecer decoração, exatamente o problema que esta etapa existe para resolver. O texto nomeia o critério ao vivo: "Nenhum aluno com N presenças desde o último grau. O app conta a partir das aulas lançadas na chamada" (N = `presencas_por_grau`).
 
 Cada item da lista mostra, abaixo do motivo (`alerta.msg`), uma linha de evidência — não é barra de progresso, é a justificativa de quem já está ali: para alerta de **grau**, "X de Y presenças desde o último grau" (recalculado com `prontoParaProximoGrau()`); para alerta de **faixa**, "Tempo mínimo da faixa cumprido" (só chega ali com tempo IBJJF e idade já validados por `alertaGraduacao()`).
+
+## Menu lateral (hambúrguer) — Etapa 3, lote de agosto/2026
+
+O `<Menu>` do header ganhou `onClick` e abre `MenuLateral`, mesmo padrão de modal dos outros — `AppShell.tsx`, `visible`/`handleClose` com fade de 220ms — mas entra **pela esquerda**, não de baixo: é o lado do ícone que abriu. Quatro itens: Perfil do Professor, Lixeira, Instalar no celular (condicional) e Sair.
+
+**`tab` continua com o tipo `'alunos' | 'aulas' | 'lixeira'`** — não virou estado separado para a lixeira. A barra de abas só deixou de iterar o terceiro valor (`(['alunos', 'aulas'] as const).map(...)`); o item "Lixeira" do menu faz `setTab('lixeira')` como sempre fez o clique na aba. Toda a lógica que já checava `tab === 'lixeira'` — o conteúdo renderizado e o FAB escondido (`tab !== 'lixeira'`) — continuou correta sem precisar mudar uma linha. **Esse é o padrão a seguir**: quando um destino sai da barra de navegação visível mas o componente de destino continua existindo, prefira reaproveitar o estado que já o seleciona a duplicar em uma flag nova — a duplicação é como duas fontes de verdade nascem, e este projeto já pagou caro por isso (ver a migration 010 e a Etapa 3B).
+
+**A `Lixeira` precisou de cabeçalho próprio.** Sem aba destacada acima dela (a barra mostra só ALUNOS/AULAS, nenhum ativo), nada na tela dizia "você está na lixeira" nem como sair — um bug real, achado só ao abrir a tela, que `tsc` e a suíte de tipos não pegam porque não é erro de tipo. `Lixeira` ganhou `onVoltar` e uma linha "‹ Lixeira" tocável no topo (chama `setTab('alunos')`), presente também no estado de carregamento — não só depois da lista chegar.
+
+**"Instalar no celular" é um segundo consumidor de `lib/instalacao.ts`, independente do `BannerInstalar`.** `MenuLateral` assina `eventoAtual()`/`inscrever()` por conta própria, com o mesmo cuidado: só a captura mora cedo, no layout; cada exibição (banner, agora também o item de menu) lê o que já foi capturado, e cada uma decide sozinha se se mostra. O item some quando não há evento (iOS, ou já instalado) — mesma lógica do banner, código duplicado de propósito porque são exibições independentes, não uma reexportando a outra.
+
+**"Sair" e o identificador da conta saíram do `ModalProfessor`, foram embora juntos, para o rodapé do `MenuLateral`.** Era o único lugar do app que mostrava com qual conta o professor está logado — não podia simplesmente sumir junto com o botão. Mostra o **apelido**, não o e-mail inteiro (`email.split('@')[0]`): é o que o professor digita no login (`LoginGate` monta `apelido@graumestre.app`), e o domínio é só identificador, não recebe e-mail de verdade — mostrá-lo completo seria expor um detalhe de implementação sem utilidade para quem lê.
+
+`ProfessorCard` saiu da home e o componente foi removido do `AppShell.tsx` — ficou sem nenhum uso depois que o Perfil do Professor virou item de menu.
 
 ## Arquitetura futura que já está no dado
 
@@ -216,7 +230,7 @@ Três decisões que parecem descuido e não são:
 
 - **O service worker é mínimo de propósito e não tem cache.** Ele existe só porque o Chrome exige um SW registrado *com handler de `fetch`* para considerar o app instalável. Cachear resposta do Supabase por engano faria o professor ver chamada e presença desatualizadas no tatame — que é exatamente o erro que este app não pode cometer. Offline é etapa própria, e precisa decidir invalidação antes de escrever uma linha.
 - **Ícones só com `purpose: "any"`, sem variante maskable.** Maskable exige recorte circular com padding seguro, que clipparia o "Life Style" do logo.
-- **A captura do `beforeinstallprompt` mora em `lib/instalacao.ts`, não dentro do banner.** O evento dispara logo no carregamento e o banner só monta depois do login: com o listener dentro dele, o evento disparava enquanto o professor digitava a senha, sem ninguém escutando, e como não dispara de novo o banner nunca apareceria. Quem escuta é o layout, cedo; o banner só lê o que já foi capturado. Se um dia o banner mudar de lugar, essa separação continua sendo o que faz ele aparecer.
+- **A captura do `beforeinstallprompt` mora em `lib/instalacao.ts`, não dentro do banner.** O evento dispara logo no carregamento e o banner só monta depois do login: com o listener dentro dele, o evento disparava enquanto o professor digitava a senha, sem ninguém escutando, e como não dispara de novo o banner nunca apareceria. Quem escuta é o layout, cedo; o banner só lê o que já foi capturado. Se um dia o banner mudar de lugar, essa separação continua sendo o que faz ele aparecer. Desde a Etapa 3 há um segundo consumidor — o item "Instalar no celular" do `MenuLateral` — assinando `eventoAtual()`/`inscrever()` do mesmo jeito, independente do banner; a separação captura/exibição foi o que tornou isso possível sem duplicar o listener.
 
 O banner é dispensável e grava em `sessionStorage` (não `localStorage`): o pedido é não incomodar de novo na *mesma sessão*; numa aba nova o convite volta. iOS não recebe banner — Safari não implementa `beforeinstallprompt`, e sem evento o componente não renderiza nada, sem farejar user-agent.
 

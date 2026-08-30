@@ -15,6 +15,7 @@ import { alertaGraduacao, type Alerta } from '@/lib/alertas-graduacao'
 import { sugestaoProximoGrau, prontoParaProximoGrau, MESES_ENTRE_GRAUS_PADRAO, PRESENCAS_POR_GRAU_PADRAO } from '@/lib/ritmo-graus'
 import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
 import { sair } from '@/lib/auth'
+import { eventoAtual, inscrever, descartarEvento, type EventoInstalacao } from '@/lib/instalacao'
 import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
 import { subirFotoAula, removerFotoAula, assinarUrl } from '@/lib/foto-aula'
 import DashboardProfessor from '@/components/DashboardProfessor'
@@ -503,33 +504,6 @@ function Toggle({ label, checked, onChange, t }: { label: string; checked: boole
   )
 }
 
-// ─── Card do Professor ────────────────────────────────────────────────────────
-function ProfessorCard({ professor, onClick, t }: { professor: ProfessorPerfil; onClick: () => void; t: Theme }) {
-  return (
-    <div style={{ padding: '0 16px 14px' }}>
-      <div
-        onClick={onClick}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10,
-          padding: '12px 14px', cursor: 'pointer',
-        }}
-      >
-        <div>
-          <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>
-            Professor
-          </div>
-          <div style={{ color: t.text, fontWeight: 700, fontSize: 14 }}>{professor.nome}</div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <BeltBadge faixa={professor.faixa} graus={professor.graus} size="sm" t={t} />
-          <span style={{ color: t.accent, fontWeight: 800, fontSize: 12, fontFamily: 'monospace' }}>{professor.graus}º grau</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Modal Professor ─────────────────────────────────────────────────────────
 function ModalProfessor({ professor, onClose, onSave, t }: {
   professor: ProfessorPerfil; onClose: () => void; onSave: (p: ProfessorPerfil) => void; t: Theme
@@ -543,28 +517,11 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
   )
   const [saving, setSaving] = useState(false)
   const [visible, setVisible] = useState(false)
-  const [saindo, setSaindo] = useState(false)
-  const [email, setEmail] = useState<string | null>(null)
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
     return () => clearTimeout(id)
   }, [])
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user.email ?? null))
-  }, [])
-
-  // Não precisa fechar o modal nem trocar de tela na mão: o onAuthStateChange
-  // do LoginGate derruba o app inteiro e monta a tela de login.
-  const handleSair = async () => {
-    setSaindo(true)
-    const { error } = await sair()
-    if (error) {
-      alert(`Não foi possível sair: ${error.message}`)
-      setSaindo(false)
-    }
-  }
 
   const handleClose = () => {
     setVisible(false)
@@ -703,29 +660,6 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
             </div>
           </div>
 
-          {/* Sessão fica aqui porque é a tela "do professor" — é onde ele já
-              vem mexer nos próprios dados. */}
-          <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
-              Sessão
-            </div>
-            {email && (
-              <div style={{ color: t.textSub, fontSize: 13, marginBottom: 10 }}>
-                Conectado como <span style={{ color: t.text }}>{email}</span>
-              </div>
-            )}
-            <button
-              onClick={handleSair} disabled={saindo}
-              style={{
-                width: '100%', padding: 12, borderRadius: 8,
-                border: `1px solid ${t.border2}`, background: 'none', color: t.textSub,
-                fontSize: 14, cursor: saindo ? 'not-allowed' : 'pointer',
-                opacity: saindo ? 0.6 : 1, transition: 'opacity 0.15s',
-              }}
-            >
-              {saindo ? 'Saindo…' : 'Sair da conta'}
-            </button>
-          </div>
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', gap: 10 }}>
@@ -740,6 +674,150 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
             style={{ flex: 2, padding: 12, borderRadius: 8, border: 'none', background: t.accent, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
           >
             {saving ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Menu lateral (hambúrguer) ─────────────────────────────────────────────────
+// Mesmo padrão de modal dos outros — visible/handleClose com fade de 220ms —
+// mas entra pela esquerda (lado do ícone que abre), não de baixo.
+//
+// Perfil do Professor e Lixeira fecham o menu NA HORA (sem esperar o fade) e
+// abrem o próximo — mesmo padrão anti-empilhamento do PainelProntos. Instalar
+// e Sair não abrem outro overlay, então usam o handleClose normal (com fade).
+function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
+  naLixeira: number
+  onClose: () => void
+  onAbrirPerfil: () => void
+  onAbrirLixeira: () => void
+  t: Theme
+}) {
+  const [visible, setVisible] = useState(false)
+  const [eventoInstalar, setEventoInstalar] = useState<EventoInstalacao | null>(null)
+  const [saindo, setSaindo] = useState(false)
+  // Apelido, não o e-mail inteiro: é o que o professor digita no login
+  // (LoginGate monta apelido@graumestre.app) — o domínio é só identificador,
+  // não recebe e-mail de verdade.
+  const [apelido, setApelido] = useState<string | null>(null)
+
+  useEffect(() => {
+    const id = setTimeout(() => setVisible(true), 10)
+    return () => clearTimeout(id)
+  }, [])
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      const email = data.session?.user.email ?? null
+      setApelido(email ? email.split('@')[0] : null)
+    })
+  }, [])
+
+  // Mesmo padrão do BannerInstalar: assina lib/instalacao.ts por conta
+  // própria. A captura do beforeinstallprompt começa cedo, no layout — aqui
+  // só se lê o que já foi capturado (ver CLAUDE.md / lib/instalacao.ts).
+  useEffect(() => {
+    if (window.matchMedia('(display-mode: standalone)').matches) return
+    setEventoInstalar(eventoAtual())
+    return inscrever(setEventoInstalar)
+  }, [])
+
+  const handleClose = () => {
+    setVisible(false)
+    setTimeout(onClose, 220)
+  }
+
+  const instalarApp = async () => {
+    if (!eventoInstalar) return
+    await eventoInstalar.prompt()
+    await eventoInstalar.userChoice
+    descartarEvento()
+    handleClose()
+  }
+
+  // Não precisa fechar o menu nem trocar de tela na mão: o onAuthStateChange
+  // do LoginGate derruba o app inteiro e monta a tela de login.
+  const handleSair = async () => {
+    setSaindo(true)
+    const { error } = await sair()
+    if (error) {
+      alert(`Não foi possível sair: ${error.message}`)
+      setSaindo(false)
+    }
+  }
+
+  const ItemMenu = ({ label, badge, onClick }: { label: string; badge?: number; onClick: () => void }) => (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', padding: '14px 20px', background: 'none', border: 'none',
+        borderBottom: `1px solid ${t.border}`, color: t.text, fontSize: 14, fontWeight: 600,
+        cursor: 'pointer', textAlign: 'left',
+      }}
+    >
+      <span>{label}</span>
+      {!!badge && (
+        <span style={{
+          background: t.accent, color: '#fff', fontSize: 11, fontWeight: 800,
+          borderRadius: 999, padding: '2px 7px', minWidth: 18, textAlign: 'center',
+        }}>
+          {badge}
+        </span>
+      )}
+    </button>
+  )
+
+  return (
+    <div
+      onClick={handleClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        display: 'flex', alignItems: 'stretch', justifyContent: 'flex-start',
+        transition: 'background 0.22s',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: t.bg, width: 280, maxWidth: '80vw', height: '100%',
+          borderRight: `1px solid ${t.border}`,
+          display: 'flex', flexDirection: 'column',
+          transform: visible ? 'translateX(0)' : 'translateX(-100%)',
+          opacity: visible ? 1 : 0,
+          transition: 'transform 0.22s ease, opacity 0.22s ease',
+        }}
+      >
+        <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>Menu</div>
+          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <ItemMenu label="Perfil do Professor" onClick={() => { onClose(); onAbrirPerfil() }} />
+          <ItemMenu label="Lixeira" badge={naLixeira} onClick={() => { onClose(); onAbrirLixeira() }} />
+          {eventoInstalar && <ItemMenu label="Instalar no celular" onClick={instalarApp} />}
+        </div>
+
+        <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}` }}>
+          {apelido && (
+            <div style={{ color: t.textMute, fontSize: 12, marginBottom: 10 }}>
+              Conectado como <span style={{ color: t.textSub }}>{apelido}</span>
+            </div>
+          )}
+          <button
+            onClick={handleSair} disabled={saindo}
+            style={{
+              width: '100%', padding: 12, borderRadius: 8,
+              border: `1px solid ${t.border2}`, background: 'none', color: t.textSub,
+              fontSize: 14, cursor: saindo ? 'not-allowed' : 'pointer',
+              opacity: saindo ? 0.6 : 1, transition: 'opacity 0.15s',
+            }}
+          >
+            {saindo ? 'Saindo…' : 'Sair da conta'}
           </button>
         </div>
       </div>
@@ -2065,7 +2143,7 @@ type ItemLixeira = {
   rotulo: string
 }
 
-function Lixeira({ t, onRestaurado }: { t: Theme; onRestaurado: () => Promise<void> }) {
+function Lixeira({ t, onRestaurado, onVoltar }: { t: Theme; onRestaurado: () => Promise<void>; onVoltar: () => void }) {
   const [itens, setItens]   = useState<ItemLixeira[] | null>(null)   // null = carregando
   const [erro, setErro]     = useState<string | null>(null)
   const [ocupado, setOcupado] = useState<string | null>(null)
@@ -2121,12 +2199,28 @@ function Lixeira({ t, onRestaurado }: { t: Theme; onRestaurado: () => Promise<vo
     setOcupado(null)
   }
 
-  if (itens === null) {
-    return <div style={{ color: t.textMute, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Carregando…</div>
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Cabeçalho próprio: sem a aba destacada acima (a barra só mostra
+          ALUNOS/AULAS), nada mais na tela diria "você está na lixeira" nem
+          "como sair daqui". A linha inteira é tocável, mesmo peso do ✕ dos
+          modais — voltar para Alunos é o caminho óbvio. */}
+      <button
+        onClick={onVoltar}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'none', border: 'none', padding: '4px 0 8px', margin: 0,
+          color: t.text, fontWeight: 800, fontSize: 16, cursor: 'pointer',
+          textAlign: 'left', width: '100%',
+        }}
+      >
+        <span style={{ color: t.textMute, fontSize: 18 }}>‹</span> Lixeira
+      </button>
+
+      {itens === null ? (
+        <div style={{ color: t.textMute, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Carregando…</div>
+      ) : (
+        <>
       <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', lineHeight: 1.6 }}>
         Itens apagados ficam aqui por {DIAS_LIXEIRA} dias e podem ser restaurados.
         Depois disso somem desta tela.
@@ -2181,6 +2275,8 @@ function Lixeira({ t, onRestaurado }: { t: Theme; onRestaurado: () => Promise<vo
           </button>
         </div>
       ))}
+        </>
+      )}
     </div>
   )
 }
@@ -2217,6 +2313,7 @@ export default function AppShell() {
   const [professor, setProfessor] = useState<ProfessorPerfil | null>(null)
   const [modalProfessor, setModalProfessor] = useState(false)
   const [painelProntos, setPainelProntos] = useState(false)
+  const [menuAberto, setMenuAberto] = useState(false)
   const [erroAula, setErroAula] = useState<string | null>(null)
   const [naLixeira, setNaLixeira] = useState(0)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
@@ -2353,8 +2450,9 @@ export default function AppShell() {
 
       {/* Dashboard do Professor */}
       <DashboardProfessor
-        alunos={alunos} aulasEsseMes={aulasEsseMes} qtdProntos={prontos.length}
-        onAbrirProntos={() => setPainelProntos(true)} onSelectAluno={abrirAluno}
+        alunos={alunos} aulasEsseMes={aulasEsseMes} qtdProntos={prontos.length} qtdLixeira={naLixeira}
+        onAbrirProntos={() => setPainelProntos(true)} onAbrirMenu={() => setMenuAberto(true)}
+        onSelectAluno={abrirAluno}
       />
 
       {/* Falha de carga: o aviso é obrigatório justamente porque a lista
@@ -2396,18 +2494,13 @@ export default function AppShell() {
         </div>
       )}
 
-      {/* Perfil do professor responsável — sempre visível */}
-      {professor && (
-        <div style={{ paddingTop: 14 }}>
-          <ProfessorCard professor={professor} onClick={() => setModalProfessor(true)} t={t} />
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}` }}>
-        {(['alunos', 'aulas', 'lixeira'] as const).map(tb => {
-          // contador só na aba de alunos e na lixeira (esta, só quando tem algo)
-          const contagem = tb === 'alunos' ? alunos.length : tb === 'lixeira' ? naLixeira : 0
+      {/* Tabs — só duas: Lixeira saiu para o menu (Etapa 3). `tab` continua
+          podendo valer 'lixeira' (setado pelo item do menu); a barra só
+          deixa de desenhar o terceiro botão, então o resto do render que já
+          checa tab === 'lixeira' (conteúdo, FAB) não precisa mudar. */}
+      <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, marginTop: 14 }}>
+        {(['alunos', 'aulas'] as const).map(tb => {
+          const contagem = tb === 'alunos' ? alunos.length : 0
           return (
             <button
               key={tb} onClick={() => setTab(tb)}
@@ -2564,6 +2657,7 @@ export default function AppShell() {
           <Lixeira
             t={t}
             onRestaurado={async () => { await recarregar(); await contarLixeira() }}
+            onVoltar={() => setTab('alunos')}
           />
         )}
       </div>
@@ -2660,6 +2754,15 @@ export default function AppShell() {
           // Fecha o painel na hora e abre o modal na aba de graduação — sem
           // empilhar overlays, mesmo padrão do ModalAula → Chamada.
           onSelect={aluno => { setPainelProntos(false); abrirAluno(aluno, 'graduação') }}
+          t={t}
+        />
+      )}
+      {menuAberto && (
+        <MenuLateral
+          naLixeira={naLixeira}
+          onClose={() => setMenuAberto(false)}
+          onAbrirPerfil={() => { setMenuAberto(false); setModalProfessor(true) }}
+          onAbrirLixeira={() => { setMenuAberto(false); setTab('lixeira') }}
           t={t}
         />
       )}

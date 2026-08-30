@@ -279,24 +279,49 @@ está na lista.
 
 ---
 
-### ETAPA 3 — Hambúrguer com menu de verdade · `PENDENTE`
+### ETAPA 3 — Hambúrguer com menu de verdade · `CONCLUÍDA` (2026-08-30)
 
-`<Menu>` ganha `onClick` e abre uma gaveta lateral com o que hoje ocupa espaço
-na home ou está escondido numa aba:
+`<Menu>` ganhou `onClick` e abre `MenuLateral` — mesmo padrão de modal dos
+outros (`AppShell.tsx`, `visible`/`handleClose` com fade de 220ms), mas
+entra pela esquerda em vez de subir de baixo. Quatro itens: **Perfil do
+Professor**, **Lixeira** (com a contagem de `naLixeira` na própria linha),
+**Instalar no celular** (só aparece com um `beforeinstallprompt` capturado —
+o componente assina `lib/instalacao.ts` por conta própria, mesmo padrão do
+`BannerInstalar`) e **Sair** (rodapé da gaveta, com o apelido da sessão —
+`email.split('@')[0]` — em vez do e-mail inteiro).
 
-- **Perfil do Professor** (hoje é um card sempre visível na home)
-- **Lixeira** (hoje é a 3ª aba)
-- **Instalar no celular** (hoje só o banner dispensável)
-- **Sair**
+**Decisão sobre `tab`:** manteve o tipo `'alunos' | 'aulas' | 'lixeira'` —
+não virou estado separado. A barra de abas só deixou de iterar o terceiro
+botão (`['alunos', 'aulas']`); o item "Lixeira" do menu faz `setTab('lixeira')`.
+Todo o resto do render que já checava `tab === 'lixeira'` (conteúdo da aba,
+FAB escondido) continuou correto sem tocar em nada — era exatamente por
+reaproveitar essas duas condições que essa opção venceu a de duplicar em
+estado novo.
 
-Consequência boa: a home perde o card do professor e as abas caem de 3 para 2
-(`ALUNOS` / `AULAS`) — que é o "deixar a home menos poluída" já pedido.
+**Achado no meio do teste, corrigido antes de fechar a etapa:** com a
+lixeira fora da barra de abas, nenhum botão ficava destacado ao entrar
+nela — nada na tela dizia "você está na lixeira" nem como sair. `Lixeira`
+ganhou cabeçalho próprio, "‹ Lixeira" tocável, que chama `onVoltar` (→
+`setTab('alunos')`); aparece também no estado de carregamento, não só na
+lista carregada.
 
-> **Decisão do usuário antes de codar:** tirar a Lixeira das abas é bom ou é
-> perder um atalho? Perguntar, não decidir.
+`ProfessorCard` saiu da home e o componente foi removido (sem uso). O bloco
+"Sessão" saiu do `ModalProfessor` inteiro — e-mail e botão Sair moraram
+juntos, foram embora juntos, para o rodapé do `MenuLateral`.
 
-**Aceite:** menu abre/fecha; cada item leva ao lugar certo; badge de itens na
-lixeira continua visível em algum lugar; home mais curta.
+**Aceite (verificado em 2026-08-30, no localhost):**
+
+- [x] Menu abre e fecha — ✕, toque fora, com a lixeira vazia e cheia.
+- [x] Cada item leva ao lugar certo (Perfil, Lixeira, Instalar quando
+      disponível, Sair → tela de login).
+- [x] Badge de itens na lixeira visível em dois lugares: bolinha no
+      hambúrguer e contagem na linha "Lixeira" do menu — os dois lêem
+      `naLixeira`.
+- [x] Abas caem para duas; FAB continua certo em cada uma e some na lixeira
+      (`tab !== 'lixeira'`, sem mudança nessa condição).
+- [x] Home mais curta, sem o card do professor.
+- [x] "‹ Lixeira" leva de volta a Alunos.
+- [x] Rodapé do menu mostra o apelido (não o e-mail inteiro) e Sair funciona.
 
 ---
 
