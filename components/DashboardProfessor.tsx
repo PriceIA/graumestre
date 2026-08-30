@@ -1,13 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, ChevronRight, Menu } from 'lucide-react'
+import { Bell, Menu } from 'lucide-react'
 import type { Faixa, TabAluno } from '@/lib/types'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import { alertaGraduacao } from '@/lib/alertas-graduacao'
 
 const FAIXAS_CHART: { key: Faixa; label: string }[] = [
   { key: 'branca', label: 'BR' },
@@ -16,11 +13,6 @@ const FAIXAS_CHART: { key: Faixa; label: string }[] = [
   { key: 'marrom', label: 'MR' },
   { key: 'preta',  label: 'PT' },
 ]
-
-function iniciais(nome: string) {
-  const partes = nome.trim().split(/\s+/)
-  return (partes[0]?.[0] ?? '') + (partes.length > 1 ? partes[partes.length - 1][0] : '')
-}
 
 // ─── Anel de progresso (donut) ─────────────────────────────────────────────
 function DonutProgress({ value }: { value: number }) {
@@ -167,47 +159,10 @@ function PainelProfessor({ perto, atencao, onSelect }: {
   )
 }
 
-// ─── Prontos para graduar ────────────────────────────────────────────────────
-function ProntosParaGraduar({ itens, onSelect }: { itens: { aluno: any; msg: string }[]; onSelect: (aluno: any, tabInicial?: TabAluno) => void }) {
-  if (itens.length === 0) return null
-
-  return (
-    <div className="px-4 pb-4">
-      <div className="mb-3 font-body text-[11px] font-semibold uppercase tracking-wide text-white/60">
-        Prontos para graduar
-      </div>
-      <div className="flex flex-col gap-2">
-        {itens.map(({ aluno, msg }, i) => (
-          <div
-            key={aluno.id}
-            // já abre na aba de graduação: quem chega por este card veio para
-            // graduar, e passar pelo perfil primeiro é toque desperdiçado
-            onClick={() => onSelect(aluno, 'graduação')}
-            className="animate-fade-slide-up flex cursor-pointer items-center gap-3 overflow-hidden rounded-xl border-l-[3px] border-accent bg-surface py-3 pl-3 pr-4 transition-colors hover:bg-surface-hover"
-            style={{ animationDelay: `${i * 40}ms` }}
-          >
-            <Avatar>
-              {/* referrerPolicy: foto é URL externa colada à mão — sem isto o host
-                  dela recebe o endereço do app a cada carregamento */}
-              <AvatarImage src={aluno.foto_url ?? undefined} alt="" referrerPolicy="no-referrer" />
-              <AvatarFallback>{iniciais(aluno.nome)}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-body text-sm font-bold text-white">{aluno.nome}</div>
-              <div className="truncate font-body text-xs text-white/60">{msg}</div>
-            </div>
-            <Badge variant="solid" className="shrink-0">✓ Pronto</Badge>
-            <ChevronRight size={18} className="shrink-0 text-white/40" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ─── Dashboard do Professor ──────────────────────────────────────────────────
-export default function DashboardProfessor({ alunos, aulasEsseMes, presencasPorGrau, onSelectAluno }: {
-  alunos: any[]; aulasEsseMes: number; presencasPorGrau: number; onSelectAluno: (aluno: any, tabInicial?: TabAluno) => void
+export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, onAbrirProntos, onSelectAluno }: {
+  alunos: any[]; aulasEsseMes: number; qtdProntos: number; onAbrirProntos: () => void
+  onSelectAluno: (aluno: any, tabInicial?: TabAluno) => void
 }) {
   const comFrequencia = alunos.filter(a => (a.total_aulas ?? 0) > 0)
   const freqMedia = comFrequencia.length
@@ -222,18 +177,28 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, presencasPorG
   const atencaoList = comPct.filter(x => x.pct < 0.5).sort((a, b) => a.pct - b.pct)
   const atencao = atencaoList[0] ?? null
 
-  const prontos = alunos
-    .map(aluno => ({ aluno, alerta: alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null, presencasPorGrau) }))
-    .filter((x): x is { aluno: any; alerta: NonNullable<ReturnType<typeof alertaGraduacao>> } => x.alerta !== null)
-    .map(({ aluno, alerta }) => ({ aluno, msg: alerta.msg }))
-
   return (
     <div className="bg-[radial-gradient(ellipse_at_top,#2a0505_0%,#0a0a0a_55%)]">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <Menu size={22} className="text-white/60" />
         <span className="font-display text-2xl uppercase tracking-wide text-white">GrauMestre</span>
-        <Bell size={20} className="text-white/60" />
+        {/* Alvo de 44×44 (mínimo de toque) via margem negativa, mesmo princípio
+            do ✕ de apagar aula no AppShell: a área cresce para dentro do
+            padding do header (py-3/px-4), sem aumentar a altura da linha nem
+            o tamanho visual do ícone. */}
+        <button
+          onClick={onAbrirProntos}
+          aria-label="Notificações de graduação"
+          className="relative -my-3 -mr-3 flex h-11 w-11 items-center justify-center"
+        >
+          <Bell size={20} className="text-white/60" />
+          {qtdProntos > 0 && (
+            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-body text-[10px] font-bold leading-none text-white">
+              {qtdProntos}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Hero */}
@@ -251,7 +216,7 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, presencasPorG
           <div className="flex w-full max-w-[220px] flex-col gap-2">
             {[
               { label: 'Aulas/mês', value: aulasEsseMes },
-              { label: 'Prontos p/ graduar', value: prontos.length },
+              { label: 'Prontos p/ graduar', value: qtdProntos },
               { label: 'Precisa atenção', value: atencaoList.length },
             ].map(s => (
               <div key={s.label} className="flex items-center justify-between font-body text-sm text-white">
@@ -268,7 +233,6 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, presencasPorG
 
       <DistribuicaoFaixas alunos={alunos} />
       <PainelProfessor perto={perto} atencao={atencao} onSelect={onSelectAluno} />
-      <ProntosParaGraduar itens={prontos} onSelect={onSelectAluno} />
     </div>
   )
 }

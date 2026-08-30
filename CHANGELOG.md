@@ -10,6 +10,11 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **Sininho vira painel de notificações; a lista "Prontos para graduar" sai da home.**
+  - `<Bell>` do header, antes decorativo, ganha `onClick` e um badge (bolinha vermelha com a contagem, só quando há alguém pronto). O toque abre `PainelProntos`, listando foto, nome, faixa+graus, o motivo do alerta e uma linha de evidência ("X de Y presenças desde o último grau", ou "Tempo mínimo da faixa cumprido") — não é barra de progresso, é a justificativa de quem já está na lista.
+  - **O painel mora no `AppShell.tsx`**, com os outros modais e o mesmo padrão de bottom sheet — não um padrão novo em Tailwind dentro do `DashboardProfessor`. A lista é computada uma vez no `AppShell`; o `DashboardProfessor` só recebe a contagem, para o badge e para a estatística do hero mostrarem o mesmo número.
+  - Tocar num aluno fecha o painel na hora e abre o modal dele já na aba de graduação — mesmo padrão que `ModalAula` já usa ao entregar para `Chamada`, sem empilhar overlays.
+  - **O estado vazio é texto, não silêncio.** Com a linha de base de 3 aulas no banco, o painel fica vazio por meses; ele diz isso em uma linha, com o critério ao vivo, em vez de abrir em branco.
 - **"Prontos para graduar" passa a ser sobre GRAU, com critério de presença — não mais sobre faixa por tempo zero.** Migration `014_prontidao_por_presenca`.
   - **O card listava quase a turma inteira, e não era conta errada de tempo.** A IBJJF não exige tempo nenhum na faixa branca (art. 3.1.3 I), então `tempoMinimoAnos()` sempre devolveu 0 e todo branca adulto aparecia pronto desde o dia da matrícula — ruído por construção, não bug de cálculo.
   - **O alerta passa a ser sobre GRAU**, com critério de presença do professor (art. 4.1.3 permite): 48 presenças reais desde a última graduação registrada (ou desde a matrícula, sem nenhuma), editável em `professor_perfil.presencas_por_grau`. Mora em `lib/ritmo-graus.ts`, nunca em `lib/regras-ibjjf.ts` — mesma separação do ritmo em meses da `013`, e `meses_entre_graus` continua sem influenciar o card.

@@ -11,8 +11,8 @@ import {
   grausMaximos, proximaFaixa, nomeFaixaExibicao, diasRestantesProvisorio,
   anosNaFaixaAtual, prontoParaProximaFaixa, podeProximoGrauPreta,
 } from '@/lib/regras-ibjjf'
-import { alertaGraduacao } from '@/lib/alertas-graduacao'
-import { sugestaoProximoGrau, MESES_ENTRE_GRAUS_PADRAO, PRESENCAS_POR_GRAU_PADRAO } from '@/lib/ritmo-graus'
+import { alertaGraduacao, type Alerta } from '@/lib/alertas-graduacao'
+import { sugestaoProximoGrau, prontoParaProximoGrau, MESES_ENTRE_GRAUS_PADRAO, PRESENCAS_POR_GRAU_PADRAO } from '@/lib/ritmo-graus'
 import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
 import { sair } from '@/lib/auth'
 import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
@@ -742,6 +742,123 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
             {saving ? 'Salvando…' : 'Salvar alterações'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Painel de prontos (sininho) ──────────────────────────────────────────────
+// Mesmo padrão de bottom sheet dos outros modais — visible/handleClose com
+// fade de 220ms — porque é um modal como os outros, só que lista em vez de
+// formulário. `itens` já vem filtrado (sem null) por quem chama.
+//
+// Selecionar um aluno fecha o painel NA HORA (sem esperar o fade) e abre o
+// modal dele — mesmo padrão que ModalAula usa ao entregar para <Chamada />
+// (`setModalAula(false); setChamadaAula(aula)`), para não empilhar dois
+// overlays.
+function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
+  itens: { aluno: any; alerta: NonNullable<Alerta> }[]
+  presencasPorGrau: number
+  onClose: () => void
+  onSelect: (aluno: any) => void
+  t: Theme
+}) {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const id = setTimeout(() => setVisible(true), 10)
+    return () => clearTimeout(id)
+  }, [])
+
+  const handleClose = () => {
+    setVisible(false)
+    setTimeout(onClose, 220)
+  }
+
+  return (
+    <div
+      onClick={handleClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        transition: 'background 0.22s',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: t.bg, width: '100%', maxWidth: 480,
+          borderRadius: '16px 16px 0 0', border: `1px solid ${t.border}`,
+          maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
+          opacity: visible ? 1 : 0,
+          transition: 'transform 0.22s ease, opacity 0.22s ease',
+        }}
+      >
+        <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>Prontos para graduar</div>
+          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
+        </div>
+
+        {/* Estado vazio é obrigatório, não é ausência de UI: sem ele o sininho
+            que abre e não mostra nada volta a parecer decoração — o problema
+            que esta etapa existe para resolver. */}
+        {itens.length === 0 ? (
+          <div style={{ padding: 20, color: t.textSub, fontSize: 13, lineHeight: 1.6 }}>
+            Nenhum aluno com {presencasPorGrau} presenças desde o último grau. O app conta a partir das aulas lançadas na chamada.
+          </div>
+        ) : (
+          <div style={{ overflowY: 'auto', flex: 1, padding: '12px 16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {itens.map(({ aluno, alerta }) => {
+              // Evidência abaixo do motivo — não é barra de progresso, é a
+              // justificativa de quem já está na lista. Grau: presença contra
+              // o critério do professor. Faixa: só chega aqui com tempo
+              // mínimo da IBJJF e idade já validados (ver alertaGraduacao()).
+              const evidencia = alerta.tipo === 'grau'
+                ? (() => {
+                    const p = prontoParaProximoGrau(aluno, presencasPorGrau)
+                    return `${p.presencas} de ${p.necessarias} presenças desde o último grau`
+                  })()
+                : 'Tempo mínimo da faixa cumprido'
+
+              return (
+                <div
+                  key={aluno.id}
+                  onClick={() => onSelect(aluno)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
+                    background: t.surface, border: `1px solid ${t.border}`,
+                  }}
+                >
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                    overflow: 'hidden', background: t.surface2,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: `1px solid ${t.border}`,
+                  }}>
+                    {/* referrerPolicy: foto é URL externa colada à mão — sem isto o
+                        host dela recebe o endereço do app a cada carregamento */}
+                    {aluno.foto_url
+                      ? <img src={aluno.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <span style={{ fontSize: 15, fontWeight: 900, color: t.accent, fontFamily: 'monospace' }}>{aluno.nome[0]}</span>
+                    }
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: t.text, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+                      {aluno.nome}
+                    </div>
+                    <div style={{ marginBottom: 4 }}><BeltBadge faixa={aluno.faixa} graus={aluno.graus} size="sm" t={t} /></div>
+                    <div style={{ color: t.accent, fontWeight: 700, fontSize: 12 }}>{alerta.msg}</div>
+                    <div style={{ color: t.textMute, fontSize: 11 }}>{evidencia}</div>
+                  </div>
+                  <span style={{ color: t.textMute, fontSize: 20, flexShrink: 0 }}>›</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2099,17 +2216,26 @@ export default function AppShell() {
   const [aulaEdicao, setAulaEdicao] = useState<any | null>(null)
   const [professor, setProfessor] = useState<ProfessorPerfil | null>(null)
   const [modalProfessor, setModalProfessor] = useState(false)
+  const [painelProntos, setPainelProntos] = useState(false)
   const [erroAula, setErroAula] = useState<string | null>(null)
   const [naLixeira, setNaLixeira] = useState(0)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
 
   // Critério de presença deste professor para "pronto para o próximo grau" —
   // único ponto de leitura, thread-ado para todo call site de alertaGraduacao
-  // (AlunoCard, aplicarFiltros, DashboardProfessor) para os três lerem o
-  // mesmo número. Perfil ausente cai no padrão de lib/ritmo-graus.ts.
+  // (AlunoCard, aplicarFiltros, DashboardProfessor, PainelProntos) para todos
+  // lerem o mesmo número. Perfil ausente cai no padrão de lib/ritmo-graus.ts.
   const presencasPorGrau = professor?.presencas_por_grau ?? PRESENCAS_POR_GRAU_PADRAO
 
   const alunosVisiveis = aplicarFiltros(alunos, filtros, presencasPorGrau)
+
+  // Lista de prontos, computada uma vez aqui — o badge do sininho
+  // (DashboardProfessor) recebe só a contagem, e o painel do sininho
+  // (PainelProntos, montado lá embaixo com os outros modais) recebe a lista
+  // inteira. Etapa 2: a lista saiu da home, mas continua a mesma função.
+  const prontos = alunos
+    .map(aluno => ({ aluno, alerta: alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null, presencasPorGrau) }))
+    .filter((x): x is { aluno: any; alerta: NonNullable<Alerta> } => x.alerta !== null)
 
   // Aplica uma carga na tela.
   //
@@ -2226,7 +2352,10 @@ export default function AppShell() {
       <BannerInstalar />
 
       {/* Dashboard do Professor */}
-      <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} presencasPorGrau={presencasPorGrau} onSelectAluno={abrirAluno} />
+      <DashboardProfessor
+        alunos={alunos} aulasEsseMes={aulasEsseMes} qtdProntos={prontos.length}
+        onAbrirProntos={() => setPainelProntos(true)} onSelectAluno={abrirAluno}
+      />
 
       {/* Falha de carga: o aviso é obrigatório justamente porque a lista
           continua na tela. Sem ele o professor veria dado velho achando que é
@@ -2520,6 +2649,17 @@ export default function AppShell() {
             setProfessor(updated)
             startTransition(() => router.refresh())
           }}
+          t={t}
+        />
+      )}
+      {painelProntos && (
+        <PainelProntos
+          itens={prontos}
+          presencasPorGrau={presencasPorGrau}
+          onClose={() => setPainelProntos(false)}
+          // Fecha o painel na hora e abre o modal na aba de graduação — sem
+          // empilhar overlays, mesmo padrão do ModalAula → Chamada.
+          onSelect={aluno => { setPainelProntos(false); abrirAluno(aluno, 'graduação') }}
           t={t}
         />
       )}

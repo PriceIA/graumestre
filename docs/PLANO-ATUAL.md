@@ -228,7 +228,7 @@ no código.
 
 ---
 
-### ETAPA 2 — Sininho com painel de notificações · `PENDENTE`
+### ETAPA 2 — Sininho com painel de notificações · `CONCLUÍDA` (2026-08-30)
 
 Sininho ganha `onClick` e um badge com a contagem de prontos. O toque abre um
 painel deslizante (mesmo padrão de modal já usado no app) listando todos, com
@@ -249,9 +249,33 @@ primeira aula lançada"*. Painel que abre e não mostra nada, sem dizer por
 quê, volta a parecer decoração — exatamente o problema que esta etapa existe
 para resolver.
 
-**Aceite:** home sem a lista; badge com número certo; painel abre, fecha e
-navega; contagem some quando não há ninguém; estado vazio explica o motivo em
-vez de só ficar em branco.
+**Aceite (verificado em 2026-08-30, no localhost):**
+
+- [x] Home sem a lista — `ProntosParaGraduar` removido de `DashboardProfessor.tsx`.
+- [x] Badge com número certo (bolinha no sininho, só quando `qtdProntos > 0`).
+- [x] Painel abre, fecha (✕ e toque fora) e navega — tocar num aluno fecha o
+      painel na hora e abre o modal já na aba de graduação, sem empilhar
+      overlays (mesmo padrão que `ModalAula` usa ao entregar para `Chamada`).
+- [x] Contagem some quando não há ninguém pronto.
+- [x] Estado vazio explica o motivo: *"Nenhum aluno com N presenças desde o
+      último grau. O app conta a partir das aulas lançadas na chamada."*
+      (N = `presencas_por_grau` ao vivo).
+- [x] Testado baixando "Presenças por grau" para 1 (badge e painel enchem) e
+      voltando para 48 (badge some, estado vazio volta) — inclusive largura
+      de celular e fechar tocando fora do painel.
+
+O painel (`PainelProntos`) mora no `AppShell.tsx`, com os outros 4 modais e o
+mesmo padrão de bottom sheet (`visible`/`handleClose` com fade de 220ms) — não
+um 5º padrão em Tailwind dentro do `DashboardProfessor`. A lista de prontos é
+computada uma vez no `AppShell` (mesma `alertaGraduacao()` de sempre); o
+`DashboardProfessor` recebe só `qtdProntos` (badge + estatística do hero,
+que continuam mostrando o mesmo número de propósito) e `onAbrirProntos`.
+
+Cada item do painel mostra, abaixo do motivo (`alerta.msg`), uma linha de
+evidência: para alerta de **grau**, "X de Y presenças desde o último grau"
+(via `prontoParaProximoGrau()`); para alerta de **faixa**, "Tempo mínimo da
+faixa cumprido" — não é barra de progresso, é a justificativa de quem já
+está na lista.
 
 ---
 
@@ -273,6 +297,84 @@ Consequência boa: a home perde o card do professor e as abas caem de 3 para 2
 
 **Aceite:** menu abre/fecha; cada item leva ao lugar certo; badge de itens na
 lixeira continua visível em algum lugar; home mais curta.
+
+---
+
+### ETAPA 3B — Uma resposta só para "quem sumiu" · `PENDENTE`
+
+Entra **depois da Etapa 3 e antes da Etapa 4**. Decidida em 2026-08-30, olhando
+a home rodando com a Etapa 1 no ar.
+
+**O problema, em duas camadas**
+
+*Camada 1 — o app tem duas respostas para a mesma pergunta.* "Quem sumiu?" é
+respondido em dois lugares que podem discordar:
+
+- o selo **AFASTADO** usa `estaAfastado()` (`lib/afastamento.ts`): 21 dias sem
+  presença, com override manual do professor;
+- o card **"Precisa atenção"** (`DashboardProfessor.tsx`) usa outra conta:
+  `total_presencas / total_aulas < 0.5`.
+
+Um aluno que treinou seis meses seguidos e sumiu há 25 dias tem 100% de
+frequência (fora do "atenção") **e** selo AFASTADO. Outro que vem irregular mas
+treinou ontem cai em "atenção" e não tem selo. É a mesma divergência de duas
+fontes que a migration 010 foi escrita para matar — ver o cabeçalho dela.
+
+*Camada 2 — afastamento é medido em dias de calendário, não em aulas.* Um aluno
+que ficou 21 dias sem vir numa quinzena em que **não houve aula** não faltou a
+nada, mas leva o carimbo igual. É por isso que em 2026-08-30, com 3 aulas
+lançadas, **todo card da lista tinha o selo AFASTADO**: `ultima_presenca_data`
+era nulo para quase todo mundo e `dias === null` cai direto em afastado. Os
+alunos estavam treinando; o app é que não sabia.
+
+**Escopo**
+
+- `lib/afastamento.ts`: a regra automática passa a contar **aulas ativas
+  perdidas desde a última presença**, não dias. Com ~2 aulas por semana, 6
+  aulas ≈ os 21 dias de hoje, então o comportamento com dado cheio quase não
+  muda — o que muda é que **sem aula lançada não existe afastado**, porque
+  ninguém perdeu nada.
+  - `DIAS_PARA_AFASTADO` vira algo como `AULAS_PARA_AFASTADO`. **Ajuste só num
+    lugar**, como hoje.
+  - As **duas camadas continuam**: `afastado_manual` true/false ganha do
+    cálculo, e voltar para `null` devolve o automático. O professor sabe de
+    lesão e viagem, o app não.
+  - `motivoAfastamento()` passa a dizer o que virou verdade ("faltou às últimas
+    6 aulas"), não "sem presença há N dias".
+  - **"Nunca teve presença" deixa de ser afastado automaticamente.** Aluno novo
+    numa academia sem chamada lançada não é aluno que sumiu.
+- `DashboardProfessor.tsx`: "Precisa atenção" passa a usar `estaAfastado()` — a
+  **mesma** função do selo. Uma resposta só.
+- A porcentagem **continua existindo onde ela faz sentido**: o anel de
+  frequência do card e o donut da home. Ela mede comprometimento, não sumiço.
+  Não confundir as duas coisas de novo.
+
+**Onde o dado tem que vir**
+
+`ultima_presenca_data` é derivada em `lib/carregar-dados.ts` a partir das aulas
+já carregadas — e essa carga tem `.limit(50)`. Contar **aulas perdidas** exige
+saber quantas aulas ativas aconteceram depois da última presença do aluno.
+Decidir antes de codar se isso cabe no client com as 50 aulas (provavelmente
+sim, já que o limiar é ~6) ou se pede coluna nova na view — **e, se pedir,
+lembrar que a view é `select a.*` e precisa de drop + create + grant**, a
+armadilha da 005/008/010/014.
+
+**Fora de escopo, de propósito**
+
+O rótulo do card "Perto da faixa" continua mentindo (mostra o aluno com maior
+frequência, não quem está perto da faixa). O professor viu e escolheu deixar
+para depois.
+
+**Critério de aceite**
+
+- [ ] Com poucas aulas lançadas, **nenhum** aluno aparece como afastado
+      automaticamente — só quem o professor marcou à mão.
+- [ ] O selo do card e o card "Precisa atenção" listam exatamente o mesmo
+      conjunto. São a mesma função.
+- [ ] O chip "Afastados" do filtro concorda com os dois.
+- [ ] Override manual continua ganhando nos dois sentidos, e voltar para `null`
+      devolve o automático.
+- [ ] O anel de frequência e o donut **não** mudaram — eles medem outra coisa.
 
 ---
 

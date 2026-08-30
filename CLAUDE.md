@@ -188,7 +188,19 @@ de bug.
 
 ## Foto do aluno: URL externa, com `referrerPolicy`
 
-`foto_url` é uma URL colada à mão — não há Storage no projeto. Todo `<img>` que renderiza foto de aluno leva `referrerPolicy="no-referrer"`, senão o host da imagem recebe o endereço do app a cada carregamento. São **três** pontos: o card da lista e a linha da chamada (`AppShell.tsx`) e o `AvatarImage` do "Prontos para graduar" (`DashboardProfessor.tsx`). O `<img>` do hero fica de fora conscientemente: é asset local, não há terceiro para vazar. Ponto novo que renderize foto nasce com o atributo.
+`foto_url` é uma URL colada à mão — não há Storage no projeto. Todo `<img>` que renderiza foto de aluno leva `referrerPolicy="no-referrer"`, senão o host da imagem recebe o endereço do app a cada carregamento. São **três** pontos, todos em `AppShell.tsx`: o card da lista (`AlunoCard`), a linha da chamada (`Chamada`) e a lista do painel de prontos (`PainelProntos`, ver seção abaixo — substituiu o antigo `AvatarImage` do "Prontos para graduar" quando esse card saiu do `DashboardProfessor.tsx` na Etapa 2). O `<img>` do hero fica de fora conscientemente: é asset local, não há terceiro para vazar. Ponto novo que renderize foto nasce com o atributo.
+
+## Painel de prontos para graduar (sininho) — migration 014 completa a UI (Etapa 2, lote de agosto/2026)
+
+O `<Bell>` do header do `DashboardProfessor` virou `<button>` com badge — bolinha vermelha com a contagem, só quando `qtdProntos > 0` — e abre `PainelProntos`. O painel **mora no `AppShell.tsx`, não no `DashboardProfessor`**, pelo mesmo motivo de sempre: é um modal, e os 4 (agora 5) modais do app vivem todos no `AppShell` com inline styles e o mesmo padrão de bottom sheet (`visible`/`setTimeout(onClose, 220)`). Um painel em Tailwind dentro do `DashboardProfessor` seria um sexto padrão de modal — CLAUDE.md já pedia consistência, este é o precedente a seguir da próxima vez que um ícone de header ganhar comportamento (o `<Menu>` é o próximo candidato natural).
+
+A lista de prontos é computada **uma vez**, no `AppShell` (mesma `alertaGraduacao()` de sempre). `DashboardProfessor` recebe só `qtdProntos` — usado no badge **e** na estatística "Prontos p/ graduar" do hero, de propósito o mesmo número nos dois lugares — e `onAbrirProntos`.
+
+**Selecionar um aluno fecha o painel na hora**, sem esperar o fade de saída, e abre o modal dele já na aba de graduação — mesmo padrão que `ModalAula` já usa ao entregar para `<Chamada />` (`setModalAula(false); setChamadaAula(aula)`). Evita dois overlays empilhados; não é preciosismo, é o que já existia no código antes desta etapa.
+
+**O estado vazio é obrigatório, não ausência de UI.** Com a linha de base de 3 aulas no banco (ver a seção "Graus" acima), o painel fica vazio por meses — um sininho que abre e não mostra nada volta a parecer decoração, exatamente o problema que esta etapa existe para resolver. O texto nomeia o critério ao vivo: "Nenhum aluno com N presenças desde o último grau. O app conta a partir das aulas lançadas na chamada" (N = `presencas_por_grau`).
+
+Cada item da lista mostra, abaixo do motivo (`alerta.msg`), uma linha de evidência — não é barra de progresso, é a justificativa de quem já está ali: para alerta de **grau**, "X de Y presenças desde o último grau" (recalculado com `prontoParaProximoGrau()`); para alerta de **faixa**, "Tempo mínimo da faixa cumprido" (só chega ali com tempo IBJJF e idade já validados por `alertaGraduacao()`).
 
 ## Arquitetura futura que já está no dado
 
