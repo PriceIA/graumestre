@@ -98,14 +98,93 @@ A separação é **lógica antes de ser visual**, e é por isso que existe `lib/
 
 A coluna é em `professor_perfil`, tabela que a view `alunos_frequencia` **nunca referencia** (confirmado no DDL da 010, não presumido), então a armadilha do `select a.*` não foi acionada e a view não precisou ser recriada. Se um dia o ritmo virar por aluno, aí sim a view entra na conta.
 
-### O ritmo NÃO alimenta "Prontos para graduar"
+### O ritmo em MESES não alimenta "Prontos para graduar" — o critério de PRESENÇA, desde a migration 014, alimenta
 
-Vale dizer explicitamente, porque a suposição contrária é natural: **mudar `meses_entre_graus` não muda quem aparece no card "Prontos para graduar"** da home. São dois circuitos sem contato nenhum.
+Até a `013` isto era simples: nada do ritmo do professor tocava o card. A
+`014` (ETAPA 1 do lote de agosto/2026) mudou isso de propósito — ver a seção
+seguinte. A distinção que importa hoje não é mais "ritmo vs. card": é **qual
+preferência do professor**, porque `professor_perfil` guarda duas, lado a
+lado, e só uma alimenta o card.
 
-- O card usa `alertaGraduacao()` (`lib/alertas-graduacao.ts`), chamado no `DashboardProfessor.tsx`, que responde sobre o **tempo mínimo da IBJJF para a próxima FAIXA** (art. 3.1.3) — e, na preta, sobre o próximo grau por `GRAUS_PRETA`.
-- O ritmo usa `sugestaoProximoGrau()` (`lib/ritmo-graus.ts`), importado **em um único lugar**: `AppShell.tsx`, para o bloco tracejado do modal do aluno. Responde sobre o **próximo GRAU**, no ritmo do professor.
+- **`meses_entre_graus` continua isolado.** Só é lido por `sugestaoProximoGrau()`
+  (`lib/ritmo-graus.ts`), importado num único lugar — o bloco tracejado
+  "sugestão sua" do modal do aluno em `AppShell.tsx`. Não entra em
+  `alertaGraduacao()`, não influencia o card, o selo do crachá nem o chip
+  "Prontos".
+- **`presencas_por_grau` alimenta o card.** É o critério de
+  `prontoParaProximoGrau()` (também em `lib/ritmo-graus.ts`), que
+  `alertaGraduacao()` chama para decidir o alerta de GRAU — a fonte do card
+  "Prontos para graduar" na home, do selo do crachá e do chip "Prontos" (é a
+  mesma função nos três lugares, ver seção abaixo).
 
-Faixa contra grau, federação contra preferência. Se um dia alguém quiser que o ritmo influencie o card, isso é decisão de produto a tomar de propósito — não deve acontecer por acidente de import.
+As duas continuam preferência do professor (art. 4.1.3), nunca regra da
+IBJJF — nenhuma migrou para `lib/regras-ibjjf.ts`. A diferença é só "qual
+delas o card lê", e é intencional: meses é um lembrete solto no modal do
+aluno, presença é o critério de prontidão de verdade, porque é o que o
+professor de fato controla lançando a chamada.
+
+### Migration 014 — o alerta virou GRAU por presença, não mais FAIXA por tempo zero
+
+O card "Prontos para graduar" listava quase a turma inteira. Não era conta
+errada de tempo: a IBJJF não exige tempo nenhum na faixa branca (art. 3.1.3
+I), então `tempoMinimoAnos()` sempre devolveu `0` e `prontoParaProximaFaixa()`
+sempre devolveu `true` para todo branca adulto desde a matrícula — ruído por
+construção, não bug de cálculo. A investigação está fechada em
+`docs/PLANO-ATUAL.md` com a citação do artigo; não reabrir.
+
+`alertaGraduacao()` (`lib/alertas-graduacao.ts`) passou de `string | null`
+para um tipo discriminado:
+
+```ts
+type Alerta =
+  | { tipo: 'grau';  msg: string; proximoGrau: number }
+  | { tipo: 'faixa'; msg: string; faixaAlvo: Faixa }
+  | null
+```
+
+Nesta ordem:
+
+1. **Faixa preta** — intocado: os intervalos entre graus são da IBJJF
+   (`GRAUS_PRETA`), nunca presença.
+2. **Abaixo do teto de graus** — alerta de `grau`, só pelo critério de
+   presença (`prontoParaProximoGrau()`, `lib/ritmo-graus.ts`): presenças reais
+   desde a última graduação registrada `>= professor_perfil.presencas_por_grau`
+   (default 48). Vale para infantil também — o professor decide os graus das
+   crianças do mesmo jeito, e o próprio teto (3 graus infantil = 144
+   presenças) já protege da mesma forma que protege o adulto.
+3. **No teto de graus** (`grausMaximos()`) — alerta de `faixa`, e só quando é
+   verdade de verdade: tempo mínimo da IBJJF **e** idade mínima válida
+   (`idadeMinimaValida()` — checagem que não existia antes desta migration).
+
+Três call sites leem o mesmo retorno — `AlunoCard` (selo/tooltip),
+`aplicarFiltros` (chip "Prontos") e `DashboardProfessor` (lista da home,
+contador do hero) — e recebem `presencasPorGrau` (`professor?.presencas_por_grau
+?? PRESENCAS_POR_GRAU_PADRAO`) do `AppShell`, para os três concordarem sobre o
+mesmo critério.
+
+**A contagem é SQL, na view `alunos_frequencia`, nunca no client.**
+`lib/carregar-dados.ts` busca só as últimas 50 aulas; contar 48 presenças
+exige olhar pelo menos 48, e o `.limit(50)` quebraria a conta exatamente no
+ponto em que ela importa. Duas colunas novas: `presencas_desde_graduacao` e
+`aulas_desde_graduacao` (esta última ainda não consumida por nenhum código —
+preparada para a Etapa 2 mostrar "31 de 40 aulas" no painel do sininho, para
+não dropar e recriar a view de novo só por isso). Data-base:
+`greatest(coalesce((select max(data) das graduações não deletadas do aluno), a.inicio), a.inicio)`.
+O `greatest(..., a.inicio)` por fora é o mesmo piso que a `010` já aplica em
+`total_presencas`/`total_aulas`, pela mesma razão: aluno vindo de outra
+academia tem graduação registrada com data anterior à matrícula aqui — é para
+isso que existem `veio_de_faixa_juvenil` e `status_graduacao = 'provisorio'`
+— e sem o piso a janela "desde a graduação" contaria aulas anteriores a ele
+existir nesta turma. Removê-lo achando redundante reabre exatamente o que a
+`010` fechou para o denominador geral.
+
+**Linha de base no banco em 2026-08-30**: 3 aulas lançadas, presença máxima 1
+em toda a turma, zero alunos prontos. A lista fica vazia por meses até
+acumular chamada de verdade — é o comportamento esperado, não um alerta
+quebrado; o professor promove na mão nesse meio tempo. Quem ler isto daqui a
+alguns meses e achar a lista sempre vazia estranha: comparar `presencas_por_grau`
+contra `presencas_desde_graduacao` de um aluno específico antes de suspeitar
+de bug.
 
 ## Foto do aluno: URL externa, com `referrerPolicy`
 

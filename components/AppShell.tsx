@@ -12,7 +12,7 @@ import {
   anosNaFaixaAtual, prontoParaProximaFaixa, podeProximoGrauPreta,
 } from '@/lib/regras-ibjjf'
 import { alertaGraduacao } from '@/lib/alertas-graduacao'
-import { sugestaoProximoGrau, MESES_ENTRE_GRAUS_PADRAO } from '@/lib/ritmo-graus'
+import { sugestaoProximoGrau, MESES_ENTRE_GRAUS_PADRAO, PRESENCAS_POR_GRAU_PADRAO } from '@/lib/ritmo-graus'
 import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
 import { sair } from '@/lib/auth'
 import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
@@ -205,7 +205,7 @@ function FreqBar({ presencas, totalAulas, t }: { presencas: number; totalAulas: 
 }
 
 // ─── AlunoCard — crachá circular com anel de frequência ───────────────────────
-function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: Theme }) {
+function AlunoCard({ aluno, onClick, presencasPorGrau, t }: { aluno: any; onClick: () => void; presencasPorGrau: number; t: Theme }) {
   const [pressed, setPressed] = useState(false)
   const [hovered, setHovered] = useState(false)
 
@@ -221,7 +221,7 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
   const dash     = C * (1 - pct)
   const ringColor = freqColor(pct, t)
   const belt     = BELT_COLORS[aluno.faixa as Faixa] ?? BELT_COLORS.branca
-  const alerta   = alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null)
+  const alerta   = alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null, presencasPorGrau)
   const afastado = estaAfastado(aluno)
 
   const nomeParts = aluno.nome.split(' ')
@@ -263,7 +263,7 @@ function AlunoCard({ aluno, onClick, t }: { aluno: any; onClick: () => void; t: 
 
       {/* Sugestão de graduação — nunca bloqueio, só um aviso visual */}
       {alerta && (
-        <div title={alerta} style={{
+        <div title={alerta.msg} style={{
           position: 'absolute', top: 8, right: 8,
           background: t.accent, color: '#fff', fontSize: 8, fontWeight: 800,
           padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', letterSpacing: 0.5,
@@ -367,10 +367,10 @@ function ehInfantilAluno(aluno: any): boolean {
   return aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
 }
 
-function aplicarFiltros(alunos: any[], f: Filtros): any[] {
+function aplicarFiltros(alunos: any[], f: Filtros, presencasPorGrau: number): any[] {
   return alunos.filter(a => {
     if (f.faixa && a.faixa !== f.faixa) return false
-    if (f.prontos && alertaGraduacao(a, a.ultima_graduacao_data ?? null) === null) return false
+    if (f.prontos && alertaGraduacao(a, a.ultima_graduacao_data ?? null, presencasPorGrau) === null) return false
     if (f.afastados && !estaAfastado(a)) return false
     if (f.categoria === 'infantil' && !ehInfantilAluno(a)) return false
     if (f.categoria === 'adulto'   &&  ehInfantilAluno(a)) return false
@@ -538,6 +538,9 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
   const [mesesEntreGraus, setMesesEntreGraus] = useState(
     professor.meses_entre_graus ?? MESES_ENTRE_GRAUS_PADRAO
   )
+  const [presencasPorGrau, setPresencasPorGrau] = useState(
+    professor.presencas_por_grau ?? PRESENCAS_POR_GRAU_PADRAO
+  )
   const [saving, setSaving] = useState(false)
   const [visible, setVisible] = useState(false)
   const [saindo, setSaindo] = useState(false)
@@ -573,14 +576,14 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
     // Whitelist explícita de colunas, como em todo update do app.
     const { error } = await supabase
       .from('professor_perfil')
-      .update({ graus, meses_entre_graus: mesesEntreGraus })
+      .update({ graus, meses_entre_graus: mesesEntreGraus, presencas_por_grau: presencasPorGrau })
       .eq('id', professor.id)
     if (error) {
       alert(`Não foi possível salvar o perfil do professor: ${error.message}`)
       setSaving(false)
       return
     }
-    onSave({ ...professor, graus, meses_entre_graus: mesesEntreGraus })
+    onSave({ ...professor, graus, meses_entre_graus: mesesEntreGraus, presencas_por_grau: presencasPorGrau })
     handleClose()
   }
 
@@ -667,6 +670,36 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
               até a faixa marrom. <strong>Não altera</strong> os tempos mínimos de permanência
               por faixa (art. 3.1.3), que são regra da federação. Não se aplica à faixa preta,
               onde os intervalos entre graus são da IBJJF.
+            </div>
+          </div>
+
+          {/* Critério de presença para o card "Prontos para graduar" — mesma
+              natureza do ritmo em meses acima: preferência do professor
+              (art. 4.1.3), não regra da IBJJF. Ver lib/ritmo-graus.ts. */}
+          <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+              Presenças por grau — sugestão sua
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input
+                type="number" min={1} max={500} inputMode="numeric"
+                value={presencasPorGrau}
+                onChange={e => {
+                  const n = parseInt(e.target.value, 10)
+                  setPresencasPorGrau(Number.isNaN(n) ? PRESENCAS_POR_GRAU_PADRAO : Math.min(500, Math.max(1, n)))
+                }}
+                style={{
+                  width: 80, background: t.inputBg, border: `1px solid ${t.border2}`,
+                  borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 15,
+                  fontWeight: 700, textAlign: 'center', boxSizing: 'border-box',
+                }}
+              />
+              <span style={{ color: t.textSub, fontSize: 13 }}>presenças desde o último grau</span>
+            </div>
+            <div style={{ marginTop: 10, color: t.textMute, fontSize: 11, lineHeight: 1.5 }}>
+              É o critério do card "Prontos para graduar": conta presenças reais desde a
+              última graduação registrada (ou desde a matrícula, sem nenhuma). Preferência sua
+              (art. 4.1.3) — não é tempo mínimo de permanência por faixa (art. 3.1.3).
             </div>
           </div>
 
@@ -2070,7 +2103,13 @@ export default function AppShell() {
   const [naLixeira, setNaLixeira] = useState(0)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
 
-  const alunosVisiveis = aplicarFiltros(alunos, filtros)
+  // Critério de presença deste professor para "pronto para o próximo grau" —
+  // único ponto de leitura, thread-ado para todo call site de alertaGraduacao
+  // (AlunoCard, aplicarFiltros, DashboardProfessor) para os três lerem o
+  // mesmo número. Perfil ausente cai no padrão de lib/ritmo-graus.ts.
+  const presencasPorGrau = professor?.presencas_por_grau ?? PRESENCAS_POR_GRAU_PADRAO
+
+  const alunosVisiveis = aplicarFiltros(alunos, filtros, presencasPorGrau)
 
   // Aplica uma carga na tela.
   //
@@ -2160,7 +2199,7 @@ export default function AppShell() {
       .select()
       .single()
     if (error) { alert(`Não foi possível cadastrar o aluno: ${error.message}`); return }
-    if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0 }])
+    if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0 }])
   }
 
   const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(new Date().toISOString().slice(0, 7))).length
@@ -2187,7 +2226,7 @@ export default function AppShell() {
       <BannerInstalar />
 
       {/* Dashboard do Professor */}
-      <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} onSelectAluno={abrirAluno} />
+      <DashboardProfessor alunos={alunos} aulasEsseMes={aulasEsseMes} presencasPorGrau={presencasPorGrau} onSelectAluno={abrirAluno} />
 
       {/* Falha de carga: o aviso é obrigatório justamente porque a lista
           continua na tela. Sem ele o professor veria dado velho achando que é
@@ -2281,7 +2320,7 @@ export default function AppShell() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                 {alunosVisiveis.map((a: any) => (
-                  <AlunoCard key={a.id} aluno={a} onClick={() => abrirAluno(a)} t={t} />
+                  <AlunoCard key={a.id} aluno={a} onClick={() => abrirAluno(a)} presencasPorGrau={presencasPorGrau} t={t} />
                 ))}
               </div>
             )}

@@ -63,6 +63,12 @@ export interface ProfessorPerfil {
   // da federação e vive em lib/regras-ibjjf.ts. Ver lib/ritmo-graus.ts.
   meses_entre_graus: number
 
+  // Critério de presença DESTE professor para o próximo grau, contado desde
+  // a última graduação registrada (migration 014). Mesma natureza de
+  // meses_entre_graus: preferência editável, não regra da IBJJF. Ver
+  // lib/ritmo-graus.ts.
+  presencas_por_grau: number
+
   created_at: string
 }
 

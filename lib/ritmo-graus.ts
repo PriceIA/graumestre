@@ -24,6 +24,49 @@ import { dataInicioFaixaAtual, grausMaximos } from './regras-ibjjf'
 /** Ritmo padrão quando o professor nunca mexeu no valor. */
 export const MESES_ENTRE_GRAUS_PADRAO = 5
 
+/** Critério de presença padrão quando o professor nunca mexeu no valor. */
+export const PRESENCAS_POR_GRAU_PADRAO = 48
+
+export interface ProntidaoGrau {
+  pronto: boolean
+  presencas: number
+  necessarias: number
+  faltam: number
+}
+
+/**
+ * Prontidão para o PRÓXIMO GRAU pelo critério de presença do professor —
+ * nunca pelo tempo mínimo do art. 3.1.3, que é o motivo de este arquivo
+ * existir separado de regras-ibjjf.ts (ver cabeçalho).
+ *
+ * `presencas` vem de `aluno.presencas_desde_graduacao`, coluna derivada da
+ * view `alunos_frequencia` (migration 014) — contada em SQL porque o client
+ * só carrega até 50 aulas, e o critério de presença exige olhar todas.
+ *
+ * `pronto: false` em dois casos que não são "faltam presenças":
+ * - Faixa preta: lá os intervalos entre graus são da IBJJF (GRAUS_PRETA em
+ *   regras-ibjjf.ts), não presença.
+ * - Já no teto de graus da faixa (`grausMaximos()`): o próximo passo é mudar
+ *   de cor, não ganhar grau — quem decide isso é o alerta de FAIXA, não este.
+ */
+export function prontoParaProximoGrau(
+  aluno: Aluno & { presencas_desde_graduacao?: number },
+  presencasPorGrau: number = PRESENCAS_POR_GRAU_PADRAO,
+): ProntidaoGrau {
+  const presencas = aluno.presencas_desde_graduacao ?? 0
+
+  if (aluno.faixa === 'preta' || aluno.graus >= grausMaximos(aluno.faixa)) {
+    return { pronto: false, presencas, necessarias: presencasPorGrau, faltam: Math.max(0, presencasPorGrau - presencas) }
+  }
+
+  return {
+    pronto: presencas >= presencasPorGrau,
+    presencas,
+    necessarias: presencasPorGrau,
+    faltam: Math.max(0, presencasPorGrau - presencas),
+  }
+}
+
 export interface SugestaoGrau {
   proximoGrau: number
   /** ISO (yyyy-mm-dd) — quando o próximo grau "sai" no ritmo do professor. */

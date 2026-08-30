@@ -206,8 +206,8 @@ function ProntosParaGraduar({ itens, onSelect }: { itens: { aluno: any; msg: str
 }
 
 // ─── Dashboard do Professor ──────────────────────────────────────────────────
-export default function DashboardProfessor({ alunos, aulasEsseMes, onSelectAluno }: {
-  alunos: any[]; aulasEsseMes: number; onSelectAluno: (aluno: any, tabInicial?: TabAluno) => void
+export default function DashboardProfessor({ alunos, aulasEsseMes, presencasPorGrau, onSelectAluno }: {
+  alunos: any[]; aulasEsseMes: number; presencasPorGrau: number; onSelectAluno: (aluno: any, tabInicial?: TabAluno) => void
 }) {
   const comFrequencia = alunos.filter(a => (a.total_aulas ?? 0) > 0)
   const freqMedia = comFrequencia.length
@@ -223,8 +223,9 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, onSelectAluno
   const atencao = atencaoList[0] ?? null
 
   const prontos = alunos
-    .map(aluno => ({ aluno, msg: alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null) }))
-    .filter((x): x is { aluno: any; msg: string } => x.msg !== null)
+    .map(aluno => ({ aluno, alerta: alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null, presencasPorGrau) }))
+    .filter((x): x is { aluno: any; alerta: NonNullable<ReturnType<typeof alertaGraduacao>> } => x.alerta !== null)
+    .map(({ aluno, alerta }) => ({ aluno, msg: alerta.msg }))
 
   return (
     <div className="bg-[radial-gradient(ellipse_at_top,#2a0505_0%,#0a0a0a_55%)]">
@@ -250,7 +251,7 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, onSelectAluno
           <div className="flex w-full max-w-[220px] flex-col gap-2">
             {[
               { label: 'Aulas/mês', value: aulasEsseMes },
-              { label: 'Prontos p/ faixa', value: prontos.length },
+              { label: 'Prontos p/ graduar', value: prontos.length },
               { label: 'Precisa atenção', value: atencaoList.length },
             ].map(s => (
               <div key={s.label} className="flex items-center justify-between font-body text-sm text-white">
