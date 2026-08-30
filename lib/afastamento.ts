@@ -1,44 +1,42 @@
-// ─── Afastado: automático por frequência, com override manual ────────────────
+// ─── Afastado: automático por AULAS perdidas, com override manual ────────────
 // Duas camadas, nesta ordem:
 //
 //   1. afastado_manual (true/false)  -> o professor decidiu, ponto final
-//   2. afastado_manual null          -> conta os dias desde a última presença
+//   2. afastado_manual null          -> conta aulas ativas perdidas seguidas
+//      desde a última presença (ou desde a matrícula, se nunca teve nenhuma)
+//
+// Por que AULAS e não dias de calendário (mudança da Etapa 3B, lote de
+// agosto/2026): um aluno que ficou 21 dias sem vir numa quinzena em que não
+// houve aula nenhuma não faltou a nada, mas levava o carimbo do mesmo jeito —
+// o app não sabia que ninguém tinha aula naquele período. "Aulas perdidas" é
+// a pergunta certa: quantas vezes ele podia ter vindo e não veio.
 //
 // O professor sabe de coisas que a frequência não conta — lesão, viagem,
 // mudança de horário —, então a decisão dele sempre ganha do cálculo. Desfazer
 // o override é voltar a coluna para null, e o automático reassume.
 
-/** Dias sem presença até o aluno ser considerado afastado. Ajuste só aqui. */
-export const DIAS_PARA_AFASTADO = 21
+/** Aulas ativas perdidas seguidas até o aluno ser considerado afastado. Ajuste só aqui. */
+export const AULAS_PARA_AFASTADO = 6
 
 /**
- * `ultima_presenca_data` é derivada em lib/carregar-dados.ts a partir das aulas
- * já carregadas. Aluno que nunca teve presença registrada conta como afastado:
- * nunca apareceu é, para efeito de acompanhamento, o mesmo que parou de vir.
+ * `aulas_perdidas` é campo DERIVADO, montado em lib/carregar-dados.ts a
+ * partir das mesmas aulas que alimentam `ultima_presenca_data` — nunca pode
+ * entrar em payload de update.
  */
-export function diasSemPresenca(ultimaPresencaData: string | null): number | null {
-  if (!ultimaPresencaData) return null
-  // T00:00:00 força horário local — a string ISO pura seria lida como UTC e
-  // poderia deslocar a conta em um dia perto da virada.
-  const ultima = new Date(`${ultimaPresencaData}T00:00:00`)
-  if (Number.isNaN(ultima.getTime())) return null
-  return Math.floor((Date.now() - ultima.getTime()) / 86400000)
-}
-
-export function estaAfastado(aluno: { afastado_manual?: boolean | null; ultima_presenca_data?: string | null }): boolean {
+export function estaAfastado(aluno: { afastado_manual?: boolean | null; aulas_perdidas?: number | null }): boolean {
   if (aluno.afastado_manual === true)  return true
   if (aluno.afastado_manual === false) return false
-
-  const dias = diasSemPresenca(aluno.ultima_presenca_data ?? null)
-  return dias === null ? true : dias >= DIAS_PARA_AFASTADO
+  return (aluno.aulas_perdidas ?? 0) >= AULAS_PARA_AFASTADO
 }
 
 /** Texto curto para o selo/tooltip, explicando de onde veio o estado. */
-export function motivoAfastamento(aluno: { afastado_manual?: boolean | null; ultima_presenca_data?: string | null }): string | null {
+export function motivoAfastamento(aluno: { afastado_manual?: boolean | null; aulas_perdidas?: number | null; ultima_presenca_data?: string | null }): string | null {
   if (!estaAfastado(aluno)) return null
   if (aluno.afastado_manual === true) return 'Marcado como afastado pelo professor'
 
-  const dias = diasSemPresenca(aluno.ultima_presenca_data ?? null)
-  if (dias === null) return 'Sem nenhuma presença registrada'
-  return `Sem presença há ${dias} dias`
+  const perdidas = aluno.aulas_perdidas ?? 0
+  // Distingue "nunca veio" de "veio e parou" — mesmo critério de contagem,
+  // motivo diferente para o professor ler.
+  if (!aluno.ultima_presenca_data) return `Nunca esteve presente (${perdidas} aulas lançadas)`
+  return `Faltou às últimas ${perdidas} aulas`
 }

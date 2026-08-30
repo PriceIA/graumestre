@@ -13,7 +13,7 @@ import {
 } from '@/lib/regras-ibjjf'
 import { alertaGraduacao, type Alerta } from '@/lib/alertas-graduacao'
 import { sugestaoProximoGrau, prontoParaProximoGrau, MESES_ENTRE_GRAUS_PADRAO, PRESENCAS_POR_GRAU_PADRAO } from '@/lib/ritmo-graus'
-import { estaAfastado, motivoAfastamento, DIAS_PARA_AFASTADO } from '@/lib/afastamento'
+import { estaAfastado, motivoAfastamento, AULAS_PARA_AFASTADO } from '@/lib/afastamento'
 import { sair } from '@/lib/auth'
 import { eventoAtual, inscrever, descartarEvento, type EventoInstalacao } from '@/lib/instalacao'
 import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
@@ -944,7 +944,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
 
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
 function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGraduacao, t, podeEditar = true, tabInicial = 'perfil' }: {
-  aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[]; ultima_presenca_data?: string | null };
+  aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[]; ultima_presenca_data?: string | null; aulas_perdidas?: number };
   professor: ProfessorPerfil | null;
   onClose: () => void; onSave: (a: Aluno) => void; onDelete: (id: string) => void;
   // avisa o AppShell que algo entrou na lixeira, para o badge da aba recontar
@@ -1177,13 +1177,13 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                 </div>
                 <Toggle
                   label="Afastado"
-                  checked={form.afastado_manual ?? estaAfastado({ ...form, ultima_presenca_data: aluno.ultima_presenca_data })}
+                  checked={form.afastado_manual ?? estaAfastado({ ...form, aulas_perdidas: aluno.aulas_perdidas })}
                   onChange={v => set('afastado_manual', v)}
                   t={t}
                 />
                 <div style={{ color: t.textMute, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
                   {form.afastado_manual === null || form.afastado_manual === undefined
-                    ? `Automático: ${motivoAfastamento({ ...form, ultima_presenca_data: aluno.ultima_presenca_data }) ?? `presença nos últimos ${DIAS_PARA_AFASTADO} dias`}.`
+                    ? `Automático: ${motivoAfastamento({ ...form, aulas_perdidas: aluno.aulas_perdidas, ultima_presenca_data: aluno.ultima_presenca_data }) ?? `menos de ${AULAS_PARA_AFASTADO} aulas perdidas seguidas`}.`
                     : (
                       <>
                         Definido manualmente como {form.afastado_manual ? 'afastado' : 'ativo'}.{' '}
@@ -2422,7 +2422,7 @@ export default function AppShell() {
       .select()
       .single()
     if (error) { alert(`Não foi possível cadastrar o aluno: ${error.message}`); return }
-    if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0 }])
+    if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0, aulas_perdidas: 0 }])
   }
 
   const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(new Date().toISOString().slice(0, 7))).length

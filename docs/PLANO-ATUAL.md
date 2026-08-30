@@ -325,7 +325,7 @@ juntos, foram embora juntos, para o rodapé do `MenuLateral`.
 
 ---
 
-### ETAPA 3B — Uma resposta só para "quem sumiu" · `PENDENTE`
+### ETAPA 3B — Uma resposta só para "quem sumiu" · `CONCLUÍDA` (2026-08-30)
 
 Entra **depois da Etapa 3 e antes da Etapa 4**. Decidida em 2026-08-30, olhando
 a home rodando com a Etapa 1 no ar.
@@ -390,16 +390,33 @@ O rótulo do card "Perto da faixa" continua mentindo (mostra o aluno com maior
 frequência, não quem está perto da faixa). O professor viu e escolheu deixar
 para depois.
 
-**Critério de aceite**
+**Resolvido sem migration.** `ultima_presenca_data` já era derivada em
+`lib/carregar-dados.ts` a partir das aulas carregadas (`.limit(50)`); `aulas_perdidas`
+entrou no mesmo laço — conta, entre essas mesmas aulas, quantas têm
+`data > ultima_presenca_data` (aluno com presença), ou reusa `total_aulas`
+da view (aluno sem nenhuma) — que já é "aulas ativas desde a matrícula",
+dando 0 para quem entrou numa academia sem chamada lançada. A view
+`alunos_frequencia` não foi tocada.
 
-- [ ] Com poucas aulas lançadas, **nenhum** aluno aparece como afastado
+`DIAS_PARA_AFASTADO` (21) virou `AULAS_PARA_AFASTADO = 6`.
+`motivoAfastamento()` passou a dizer "Faltou às últimas N aulas" (tinha
+presença) ou "Nunca esteve presente (N aulas lançadas)" (nunca teve),
+textos escolhidos pelo usuário entre opções propostas. O card "Precisa
+atenção" do `PainelProfessor` passou a mostrar esse motivo, não mais
+porcentagem — e a virar sobre `estaAfastado()`, a mesma função do selo.
+
+**Critério de aceite (verificado em 2026-08-30, no localhost):**
+
+- [x] Com poucas aulas lançadas, **nenhum** aluno aparece como afastado
       automaticamente — só quem o professor marcou à mão.
-- [ ] O selo do card e o card "Precisa atenção" listam exatamente o mesmo
+- [x] O selo do card e o card "Precisa atenção" listam exatamente o mesmo
       conjunto. São a mesma função.
-- [ ] O chip "Afastados" do filtro concorda com os dois.
-- [ ] Override manual continua ganhando nos dois sentidos, e voltar para `null`
-      devolve o automático.
-- [ ] O anel de frequência e o donut **não** mudaram — eles medem outra coisa.
+- [x] O chip "Afastados" do filtro concorda com os dois (já chamava
+      `estaAfastado()`, se beneficiou sem precisar de mudança própria).
+- [x] Override manual continua ganhando nos dois sentidos, e voltar para
+      `null` devolve o automático.
+- [x] O anel de frequência e o donut **não** mudaram — `comFrequencia`,
+      `freqMedia` e `comPct`/`perto` ("Perto da faixa") ficaram intocados.
 
 ---
 

@@ -100,12 +100,30 @@ export async function carregarDados(): Promise<CargaDados> {
       }
     }
 
-    const alunosComGraduacao = (alunos ?? []).map(a => ({
-      ...a,
-      ultima_graduacao_data: ultimaGraduacaoPorAluno[a.id] ?? null,
-      historico_graduacoes: historicoPorAluno[a.id] ?? [],
-      ultima_presenca_data: ultimaPresencaPorAluno[a.id] ?? null,
-    }))
+    // Aulas ativas perdidas seguidas, para lib/afastamento.ts (Etapa 3B do
+    // lote de agosto/2026 — critério mudou de dias de calendário para aulas
+    // perdidas, porque dia sem aula lançada não é dia que o aluno faltou).
+    //
+    // Com presença registrada: conta as aulas (das mesmas já carregadas
+    // acima, ordenadas desc) com data > a da última presença — `>`, não
+    // `>=`, porque a aula em que ele esteve presente não é uma aula perdida.
+    // Sem presença nenhuma: usa `total_aulas` da view, que já é exatamente
+    // "aulas ativas desde que este aluno entrou" (migration 010) — é o que
+    // faz um aluno novo, numa academia sem chamada lançada ainda, dar 0 e
+    // não nascer afastado.
+    const alunosComGraduacao = (alunos ?? []).map(a => {
+      const ultimaPresenca = ultimaPresencaPorAluno[a.id] ?? null
+      const aulasPerdidas = ultimaPresenca
+        ? (aulas ?? []).filter((au: any) => au.data > ultimaPresenca).length
+        : (a.total_aulas ?? 0)
+      return {
+        ...a,
+        ultima_graduacao_data: ultimaGraduacaoPorAluno[a.id] ?? null,
+        historico_graduacoes: historicoPorAluno[a.id] ?? [],
+        ultima_presenca_data: ultimaPresenca,
+        aulas_perdidas: aulasPerdidas,
+      }
+    })
 
     // foto_url da aula é campo DERIVADO, como ultima_graduacao_data acima: o
     // banco guarda só o caminho no bucket, e a URL assinada vence. Uma chamada

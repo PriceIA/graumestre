@@ -10,6 +10,12 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **Afastado passa a contar AULAS perdidas, não dias de calendário — e o card "Precisa atenção" vira a mesma resposta do selo.**
+  - Duas fontes discordando sobre "quem sumiu": o selo AFASTADO usava dias sem presença, o card "Precisa atenção" usava `total_presencas / total_aulas < 0.5` — a mesma classe de divergência que a migration 010 já tinha fechado uma vez para frequência. Agora os dois chamam `estaAfastado()`.
+  - `DIAS_PARA_AFASTADO` (21) vira `AULAS_PARA_AFASTADO` (6). `aulas_perdidas` é derivado em `lib/carregar-dados.ts`, sem query nova nem mudança na view: conta aulas ativas com `data > ultima_presenca_data` (com presença) ou reusa `total_aulas` da view (sem nenhuma).
+  - **Sem aula lançada não existe afastado.** Um aluno novo numa academia sem chamada ainda dá `aulas_perdidas = 0` — a correção inteira da etapa: com só 3 aulas no banco, a turma inteira tinha o selo antes desta mudança.
+  - `motivoAfastamento()` passa a dizer "Faltou às últimas N aulas" ou "Nunca esteve presente (N aulas lançadas)", em vez de "sem presença há N dias". O card "Precisa atenção" mostra esse motivo, não mais porcentagem.
+  - Anel de frequência, donut da home e "Perto da faixa" não mudaram — medem comprometimento, pergunta diferente de "sumiu".
 - **Hambúrguer vira menu de verdade; Perfil do Professor e Lixeira saem da home.**
   - `<Menu>` do header ganha `onClick` e abre uma gaveta lateral (mesmo padrão de modal dos outros, entrando pela esquerda) com quatro itens: Perfil do Professor, Lixeira (com a contagem), Instalar no celular (só quando há prompt de instalação disponível) e Sair.
   - `ProfessorCard` sai da home e é removido; as abas caem de três para duas (`ALUNOS`/`AULAS`). `tab` continua podendo valer `'lixeira'` — só a barra deixou de desenhar o terceiro botão — para reaproveitar toda a lógica de conteúdo e do FAB que já checava esse valor, sem duplicar em estado novo.

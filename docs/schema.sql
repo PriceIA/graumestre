@@ -55,7 +55,7 @@ create table if not exists alunos (
   -- 008: override manual de afastamento.
   --   null        -> segue o cálculo automático por frequência
   --   true/false  -> o professor decidiu, e a decisão dele prevalece
-  -- O prazo do automático vive em lib/afastamento.ts (DIAS_PARA_AFASTADO).
+  -- O critério do automático vive em lib/afastamento.ts (AULAS_PARA_AFASTADO).
   afastado_manual boolean,
 
   created_at timestamptz default now(),

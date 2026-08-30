@@ -5,6 +5,7 @@ import { Bell, Menu } from 'lucide-react'
 import type { Faixa, TabAluno } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { estaAfastado, motivoAfastamento } from '@/lib/afastamento'
 
 const FAIXAS_CHART: { key: Faixa; label: string }[] = [
   { key: 'branca', label: 'BR' },
@@ -119,7 +120,10 @@ function DistribuicaoFaixas({ alunos }: { alunos: any[] }) {
 // ─── Painel do Professor ────────────────────────────────────────────────────
 function PainelProfessor({ perto, atencao, onSelect }: {
   perto: { aluno: any; pct: number } | null
-  atencao: { aluno: any; pct: number } | null
+  // Etapa 3B: "Atenção" mudou de pergunta — de "frequência baixa" (%) para
+  // "sumiu" (mesmo critério do selo AFASTADO, lib/afastamento.ts). O motivo
+  // já vem pronto de motivoAfastamento(), não é recalculado aqui.
+  atencao: { aluno: any; motivo: string | null } | null
   onSelect: (aluno: any) => void
 }) {
   if (!perto && !atencao) return null
@@ -151,7 +155,7 @@ function PainelProfessor({ perto, atencao, onSelect }: {
               Atenção
             </div>
             <div className="mb-1 truncate font-body text-sm font-bold text-white">{atencao.aluno.nome}</div>
-            <div className="font-body text-xs text-accent">{Math.round(atencao.pct * 100)}% freq</div>
+            <div className="truncate font-body text-xs text-accent">{atencao.motivo}</div>
           </Card>
         )}
       </div>
@@ -173,10 +177,21 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, q
       )
     : 0
 
+  // "Perto da faixa" continua medindo frequência (comprometimento) — fora de
+  // escopo da Etapa 3B de propósito, mesmo sabendo que o rótulo não reflete
+  // o que o card mostra (achado registrado, resolver depois).
   const comPct = comFrequencia.map(a => ({ aluno: a, pct: (a.total_presencas ?? 0) / (a.total_aulas ?? 1) }))
   const perto = comPct.length ? [...comPct].sort((a, b) => b.pct - a.pct)[0] : null
-  const atencaoList = comPct.filter(x => x.pct < 0.5).sort((a, b) => a.pct - b.pct)
-  const atencao = atencaoList[0] ?? null
+
+  // "Atenção" mudou de pergunta na Etapa 3B: de "frequência baixa" (%) para
+  // "sumiu" — mesmo critério do selo AFASTADO (lib/afastamento.ts), não uma
+  // conta paralela. Ordenado por aulas perdidas (quem sumiu há mais tempo
+  // primeiro) só para escolher qual destacar no card; a contagem do hero
+  // usa a lista inteira.
+  const atencaoList = alunos
+    .filter(estaAfastado)
+    .sort((a, b) => (b.aulas_perdidas ?? 0) - (a.aulas_perdidas ?? 0))
+  const atencao = atencaoList[0] ? { aluno: atencaoList[0], motivo: motivoAfastamento(atencaoList[0]) } : null
 
   return (
     <div className="bg-[radial-gradient(ellipse_at_top,#2a0505_0%,#0a0a0a_55%)]">

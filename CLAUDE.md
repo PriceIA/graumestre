@@ -216,6 +216,20 @@ O `<Menu>` do header ganhou `onClick` e abre `MenuLateral`, mesmo padrão de mod
 
 `ProfessorCard` saiu da home e o componente foi removido do `AppShell.tsx` — ficou sem nenhum uso depois que o Perfil do Professor virou item de menu.
 
+## Afastado: por AULAS perdidas, não por dias de calendário (Etapa 3B, lote de agosto/2026)
+
+Até aqui `estaAfastado()` (`lib/afastamento.ts`) contava **dias de calendário** sem presença (`DIAS_PARA_AFASTADO = 21`), e o card "Precisa atenção" do `DashboardProfessor` respondia a pergunta "quem sumiu?" por uma conta **diferente**: `total_presencas / total_aulas < 0.5`. Duas fontes para a mesma pergunta, que podiam discordar — a mesma classe de bug que a migration 010 já tinha fechado uma vez para frequência. E dias de calendário erram sozinhos: um aluno que ficou 21 dias sem vir numa quinzena **sem aula nenhuma lançada** não faltou a nada, mas levava o carimbo — foi o que aconteceu com a turma inteira em 2026-08-30, com só 3 aulas no banco.
+
+**A pergunta certa é "quantas vezes ele podia ter vindo e não veio", não "quantos dias se passaram".** `aulas_perdidas` é campo **derivado**, montado em `lib/carregar-dados.ts` no mesmo laço que já monta `ultima_presenca_data`, a partir das mesmas aulas carregadas (`.limit(50)`) — sem query nova, sem tocar na view:
+
+- **Aluno com presença registrada**: conta as aulas ativas já carregadas com `data > ultima_presenca_data` (`>`, não `>=` — a aula em que ele esteve presente não é perdida).
+- **Aluno sem nenhuma presença**: reusa `total_aulas` da view (migration 010), que já é "aulas ativas desde que este aluno entrou" — é o que faz um aluno novo, numa academia sem chamada lançada ainda, dar `0` e **não** nascer afastado. Essa é a correção inteira da etapa.
+- Se a contagem encostar no limite de 50 aulas carregadas, a conclusão não muda: o limiar (`AULAS_PARA_AFASTADO = 6`) já foi ultrapassado bem antes disso.
+
+**Uma resposta só, não duas.** `estaAfastado()` continua com as mesmas duas camadas de sempre (`afastado_manual` true/false ganha do cálculo; `null` devolve o automático), só que lendo `aulas_perdidas` em vez de dias. "Precisa atenção" no `DashboardProfessor` passou a chamar essa **mesma** função — não mais a conta de porcentagem — e o card mostra o motivo (`motivoAfastamento()`: "Faltou às últimas N aulas", ou "Nunca esteve presente (N aulas lançadas)" para quem nunca veio) em vez de um número de frequência.
+
+**O que mede comprometimento continua medindo comprometimento.** O anel de frequência do crachá, o donut "Frequência geral" da home e o card "Perto da faixa" (`comPct`/`perto`, que responde outra pergunta e continua com o rótulo errado de propósito — o professor viu e escolheu deixar para depois) não foram tocados. Afastado é sobre sumiço; frequência é sobre comprometimento — são perguntas diferentes, e essa é a linha que não pode voltar a se confundir (era exatamente a confusão que gerava a divergência desta seção).
+
 ## Arquitetura futura que já está no dado
 
 **Login de aluno, com permissão apenas de confirmar a própria presença** — não editar mais nada. A confiança é a conduta do próprio jiu-jítsu: de propósito **não** haverá geolocalização, foto, nem dupla confirmação.
