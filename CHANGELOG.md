@@ -10,6 +10,13 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **Faixa desenhada com graus substitui os losangos (`Diamonds`) e o texto-só (`BeltBadge`).**
+  - `components/FaixaDesenhada.tsx` (arquivo novo, SVG inline): corpo com gradiente, trama de tecido, costura, ponteira e esparadrapos por grau. `<FaixaDefs/>` (gradientes + patterns) é montado uma única vez no `AppShell`, referenciado por `url(#id)` — é o que mantém os 33 cards do grid baratos de rolar no celular.
+  - **As 13 faixas infantis de duas cores seguem o art. 1.3.1**: cor do grupo com uma listra branca ou preta longitudinal ao centro, correndo todo o comprimento — não duas metades lado a lado, construção inicial que foi corrigida antes de fechar a etapa. A listra decide o próprio contorno pela claridade dela mesma, nunca pela do corpo (achado em `verde_preta`, onde listra preta sobre corpo verde quase sumia).
+  - **7º/8º/9º da faixa preta é estilização assumida**, não reprodução literal do art. 1.3.4/1.3.5 — os artigos pedem precisão (gomos de 20cm, barra prateada dupla) que não dá pra replicar com fidelidade a partir de texto. Três construções estilizadas e claramente distintas entre si.
+  - Grau sempre no modo "preenchido": todos os espaços do teto da faixa aparecem, os conquistados acesos — decisão do usuário depois de comparar com o modo "só os que existem" numa página de teste. A largura de cada esparadrapo vem do teto (`max`), nunca da contagem de graus — bug real visto e corrigido antes do modo "exato" sair de vez.
+  - `grausMaximos()` ganhou o parâmetro `infantil` (mesmo motivo de `proximaFaixa()`: `branca` está nas duas progressões, com tetos diferentes). O caso do adulto cadastrado em faixa infantil (achado real em `amarela`) foi decidido de propósito: a faixa manda, não a idade.
+  - Trama corrigida para correr no comprimento da faixa, não na diagonal — uma versão inicial rotacionou o pattern e o resultado lia como jeans, não como o algodão de uma faixa de verdade.
 - **Afastado passa a contar AULAS perdidas, não dias de calendário — e o card "Precisa atenção" vira a mesma resposta do selo.**
   - Duas fontes discordando sobre "quem sumiu": o selo AFASTADO usava dias sem presença, o card "Precisa atenção" usava `total_presencas / total_aulas < 0.5` — a mesma classe de divergência que a migration 010 já tinha fechado uma vez para frequência. Agora os dois chamam `estaAfastado()`.
   - `DIAS_PARA_AFASTADO` (21) vira `AULAS_PARA_AFASTADO` (6). `aulas_perdidas` é derivado em `lib/carregar-dados.ts`, sem query nova nem mudança na view: conta aulas ativas com `data > ultima_presenca_data` (com presença) ou reusa `total_aulas` da view (sem nenhuma).

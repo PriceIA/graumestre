@@ -34,7 +34,10 @@ export function alertaGraduacao(
     return pode && proximoGrau ? { tipo: 'grau', msg: `Pronto para o ${proximoGrau}º grau`, proximoGrau } : null
   }
 
-  const noTeto = aluno.graus >= grausMaximos(aluno.faixa)
+  // `proximaFaixa` e `grausMaximos` precisam do infantil pelo mesmo motivo:
+  // `branca` está nas duas listas de progressão e tem tetos diferentes.
+  const infantil = aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
+  const noTeto = aluno.graus >= grausMaximos(aluno.faixa, infantil)
 
   // Abaixo do teto de graus: alerta de GRAU, só pelo critério de presença do
   // professor. Vale para infantil também — o professor decide os graus das
@@ -48,9 +51,7 @@ export function alertaGraduacao(
   }
 
   // No teto de graus: alerta de FAIXA, e só quando é verdade de verdade —
-  // tempo mínimo da IBJJF cumprido E idade mínima válida. `proximaFaixa`
-  // precisa do infantil porque `branca` está nas duas listas de progressão.
-  const infantil = aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
+  // tempo mínimo da IBJJF cumprido E idade mínima válida.
   const faixaAlvo = proximaFaixa(aluno.faixa, infantil)
   if (!faixaAlvo) return null
   if (!prontoParaProximaFaixa(aluno, ultimaGraduacaoData)) return null

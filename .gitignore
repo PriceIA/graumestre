@@ -32,3 +32,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*
+
+# bloco de notas entre o Claude (chat) e o Claude Code — rascunho de trabalho,
+# não faz parte do projeto. O registro durável vive em CLAUDE.md, CHANGELOG.md
+# e docs/PLANO-ATUAL.md, que continuam commitados.
+/docs/handoff/PARA-O-CODE.md
+/docs/handoff/DO-CODE.md

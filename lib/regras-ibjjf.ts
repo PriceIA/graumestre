@@ -77,18 +77,35 @@ export function nomeFaixaExibicao(faixa: Faixa, graus: number): string {
 }
 
 /**
- * Grau máximo permitido para a faixa (infantil sugerido: 3 — Anexo I).
+ * Grau máximo permitido para a faixa. Precisa de `infantil` pelo mesmo motivo
+ * de `proximaFaixa()`: **`branca` está nas duas listas**, e o teto de quem
+ * veste uma branca infantil (3, Anexo I) é diferente do de quem veste uma
+ * branca adulta (4, art. 4.1.2 I) — decidir só pela cor responderia errado
+ * bem na faixa mais comum do app.
  *
- * Branca, azul, roxa e marrom são "faixa lisa + 4 graus" (art. 4.1.2 I): o 4º
- * é o teto, e o que vem depois dele é a promoção para a próxima COR, não um 5º
- * grau — que não existe para nenhuma dessas quatro. A preta é o caso à parte
- * do art. 4.1.2 II, e o teste dela vem primeiro justamente porque ela também
- * está em FAIXAS_ADULTAS.
+ * Branca, azul, roxa e marrom ADULTAS são "faixa lisa + 4 graus" (art. 4.1.2
+ * I): o 4º é o teto, e o que vem depois dele é a promoção para a próxima COR,
+ * não um 5º grau — que não existe para nenhuma dessas quatro. A preta é o
+ * caso à parte do art. 4.1.2 II, e o teste dela vem primeiro porque ela
+ * também está em FAIXAS_ADULTAS.
+ *
+ * Toda faixa infantil (Anexo I) tem teto 3, branca incluída — `infantil`
+ * true decide isso sozinho, sem olhar `faixa`.
+ *
+ * **Caso decidido de propósito, não acidental:** adulto cadastrado numa
+ * faixa infantil (não deveria existir depois dos 16 — art. 2.2.3 — mas o
+ * cadastro aceita, e o app tem pelo menos um caso real em `amarela`). Com
+ * `infantil = false` e uma faixa que não é preta nem está em
+ * `FAIXAS_ADULTAS`, a resposta é **3, porque a FAIXA manda, não a idade**:
+ * o art. 4.1.2 I nomeia especificamente branca/azul/roxa/marrom, não "toda
+ * faixa usada por adulto", e amarela continua sendo uma faixa de teto 3
+ * (Anexo I) por natureza, independente de quem a veste. Registrado em
+ * docs/handoff/ como decisão consciente — não escolher 4 aqui de novo.
  */
-export function grausMaximos(faixa: Faixa): number {
+export function grausMaximos(faixa: Faixa, infantil: boolean): number {
   if (faixa === 'preta') return 9
-  if (FAIXAS_ADULTAS.includes(faixa)) return 4
-  return 3
+  if (infantil) return 3
+  return FAIXAS_ADULTAS.includes(faixa) ? 4 : 3
 }
 
 /**

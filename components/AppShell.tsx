@@ -20,6 +20,7 @@ import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
 import { subirFotoAula, removerFotoAula, assinarUrl } from '@/lib/foto-aula'
 import DashboardProfessor from '@/components/DashboardProfessor'
 import BannerInstalar from '@/components/BannerInstalar'
+import { FaixaDefs, FaixaDesenhada } from '@/components/FaixaDesenhada'
 
 // ─── Tema (paleta GrauMestre — preto/vermelho, fixa) ──────────────────────────
 // Paleta única (sem alternância claro/escuro), conforme design schema do
@@ -149,41 +150,30 @@ function validarAluno(form: Aluno): string | null {
   return null
 }
 
-// ─── Diamantes de grau (rotate-45, vermelho quando preenchido) ────────────────
-function Diamonds({ faixa, graus, size = 8, t }: { faixa: Faixa; graus: number; size?: number; t: Theme }) {
-  const max = grausMaximos(faixa)
-  return (
-    <div style={{ display: 'flex', gap: 3, alignItems: 'center', flexWrap: 'wrap' }}>
-      {Array.from({ length: max }, (_, i) => i).map(i => (
-        <div key={i} style={{
-          width: size, height: size,
-          transform: 'rotate(45deg)',
-          background: i < graus ? t.accent : 'transparent',
-          border: `1.5px solid ${i < graus ? t.accent : t.border2}`,
-          flexShrink: 0,
-          transition: 'background 0.2s, border-color 0.2s',
-        }} />
-      ))}
-    </div>
-  )
-}
-
-// ─── BeltBadge ───────────────────────────────────────────────────────────────
-function BeltBadge({ faixa, graus, size = 'md', t }: { faixa: Faixa; graus: number; size?: string; t: Theme }) {
+// ─── BeltBadge — etiqueta de texto + faixa desenhada (Etapa 4) ────────────────
+// Os losangos (`Diamonds`) saíram: quem desenha os graus agora é
+// `FaixaDesenhada` (components/FaixaDesenhada.tsx), com `max` sempre
+// calculado aqui — regra de faixa mora em regras-ibjjf.ts, o componente de
+// desenho não deduz nada sozinho.
+function BeltBadge({ faixa, graus, infantil, size = 'md', t }: { faixa: Faixa; graus: number; infantil: boolean; size?: 'sm' | 'md'; t: Theme }) {
   const belt = BELT_COLORS[faixa] ?? BELT_COLORS.branca
   const label = nomeFaixaExibicao(faixa, graus)
   const px = size === 'sm' ? '4px 8px' : '5px 11px'
   const fs = size === 'sm' ? 10 : 12
+  const max = grausMaximos(faixa, infantil)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <span style={{
         background: belt.bg, color: belt.text, padding: px, borderRadius: 3,
         fontWeight: 700, fontSize: fs, letterSpacing: 1, textTransform: 'uppercase',
         border: faixa === 'branca' ? '1px solid #ccc' : 'none', fontFamily: 'monospace',
+        flexShrink: 0,
       }}>
         {label}
       </span>
-      <Diamonds faixa={faixa} graus={graus} size={size === 'sm' ? 7 : 9} t={t} />
+      <div style={{ flex: '1 1 auto', minWidth: size === 'sm' ? 70 : 100, maxWidth: size === 'sm' ? 140 : 200 }}>
+        <FaixaDesenhada faixa={faixa} graus={graus} max={max} size={size} />
+      </div>
     </div>
   )
 }
@@ -326,8 +316,12 @@ function AlunoCard({ aluno, onClick, presencasPorGrau, t }: { aluno: any; onClic
         {nomeFaixaExibicao(aluno.faixa, aluno.graus)}
       </div>
 
-      {/* Graus */}
-      <Diamonds faixa={aluno.faixa} graus={aluno.graus} size={8} t={t} />
+      {/* Faixa desenhada com graus — `size="sm"` de propósito: sem trama nem
+          costura, é o que mantém os 33 cards do grid leves de rolar no
+          celular (ver CLAUDE.md, seção PERFORMANCE de FaixaDesenhada.tsx). */}
+      <div style={{ width: '100%' }}>
+        <FaixaDesenhada faixa={aluno.faixa} graus={aluno.graus} max={grausMaximos(aluno.faixa, ehInfantilAluno(aluno))} size="sm" />
+      </div>
 
       {/* Tempo na arte */}
       <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', letterSpacing: 1 }}>
@@ -927,7 +921,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
                     <div style={{ color: t.text, fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
                       {aluno.nome}
                     </div>
-                    <div style={{ marginBottom: 4 }}><BeltBadge faixa={aluno.faixa} graus={aluno.graus} size="sm" t={t} /></div>
+                    <div style={{ marginBottom: 4 }}><BeltBadge faixa={aluno.faixa} graus={aluno.graus} infantil={ehInfantilAluno(aluno)} size="sm" t={t} /></div>
                     <div style={{ color: t.accent, fontWeight: 700, fontSize: 12 }}>{alerta.msg}</div>
                     <div style={{ color: t.textMute, fontSize: 11 }}>{evidencia}</div>
                   </div>
@@ -980,7 +974,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
   const categoria = form.data_nascimento ? calcularCategoria(form.data_nascimento) : null
   const infantilAluno = form.data_nascimento ? ehInfantil(form.data_nascimento) : false
   const faixasDisponiveis = infantilAluno ? FAIXAS_INFANTIS : FAIXAS_ADULTAS
-  const maxGrausFaixa = grausMaximos(form.faixa)
+  const maxGrausFaixa = grausMaximos(form.faixa, infantilAluno)
   const ultimaGraduacaoData = aluno.ultima_graduacao_data ?? null
 
   // Próxima COR — só faz sentido para quem já está no teto de graus. Depende de
@@ -1123,7 +1117,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div>
               <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>{form.nome}</div>
-              <div style={{ marginTop: 6 }}><BeltBadge faixa={form.faixa} graus={form.graus} t={t} /></div>
+              <div style={{ marginTop: 6 }}><BeltBadge faixa={form.faixa} graus={form.graus} infantil={infantilAluno} t={t} /></div>
             </div>
             <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
           </div>
@@ -1275,7 +1269,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                   // não por faixa. E como os botões de grau re-renderizam 0–4,
                   // nenhum ficaria destacado e o professor não veria o erro.
                   <button key={fx} onClick={() => setForm(f => ({
-                    ...f, faixa: fx, graus: Math.min(f.graus, grausMaximos(fx)),
+                    ...f, faixa: fx, graus: Math.min(f.graus, grausMaximos(fx, infantilAluno)),
                   }))} style={{
                     padding: '8px 14px', borderRadius: 6, cursor: 'pointer',
                     background: BELT_COLORS[fx].bg, color: BELT_COLORS[fx].text, fontWeight: 700, fontSize: 12,
@@ -2112,7 +2106,7 @@ function Chamada({ aula, alunos, onClose, t }: {
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ color: t.text, fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{a.nome}</div>
-                <BeltBadge faixa={a.faixa} graus={a.graus} size="sm" t={t} />
+                <BeltBadge faixa={a.faixa} graus={a.graus} infantil={ehInfantilAluno(a)} size="sm" t={t} />
               </div>
 
               <div style={{
@@ -2443,6 +2437,11 @@ export default function AppShell() {
 
   return (
     <div style={{ background: t.bg, minHeight: '100vh', fontFamily: 'var(--font-body), system-ui, sans-serif', color: t.text, maxWidth: 480, margin: '0 auto' }}>
+
+      {/* Gradientes + trama da faixa desenhada — declarados UMA VEZ aqui,
+          referenciados por url(#id) em toda faixa da tela. Monta um <svg>
+          0×0 fora do fluxo; a posição na árvore não importa. */}
+      <FaixaDefs />
 
       {/* Convite para instalar. É position:fixed, então a posição aqui na
           árvore não importa — fica no topo só para não se perder no meio. */}

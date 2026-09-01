@@ -420,27 +420,67 @@ porcentagem — e a virar sobre `estaAfastado()`, a mesma função do selo.
 
 ---
 
-### ETAPA 4 — Faixa visual com graus no card do aluno · `PENDENTE`
+### ETAPA 4 — Faixa visual com graus no card do aluno · `CONCLUÍDA` (2026-09-01)
 
-Hoje o grau é mostrado com losangos (`Diamonds`) e um texto (`BeltBadge`). Vira
-o desenho da faixa de verdade, abaixo do card: barra na cor da faixa, ponteira
-e esparadrapos brancos, um por grau.
+Os losangos (`Diamonds`) e o texto-só (`BeltBadge`) viraram o desenho da
+faixa de verdade: `components/FaixaDesenhada.tsx` (arquivo novo, SVG inline)
+com corpo em gradiente, trama de tecido, costura, ponteira e esparadrapos
+por grau. `BeltBadge` passou a ser etiqueta + `<FaixaDesenhada/>`; o grid de
+33 cards usa `<FaixaDesenhada size="sm"/>` sozinho. `<FaixaDefs/>` (gradientes
++ patterns) é montada uma única vez no `AppShell`, nunca por instância.
 
-Regras do desenho, tiradas do regulamento e das fotos de referência:
+Foi mais rodada de handoff do que o previsto — duas decisões erradas
+tomadas no meio do caminho foram corrigidas antes do commit, e ficam
+registradas aqui para não voltar:
 
-- Ponteira **preta** nas faixas coloridas; **vermelha** na faixa preta
-  (art. 1.3.3).
-- Esparadrapos brancos sobre a ponteira, 1 por grau, até 4 (até marrom) ou até
-  6+ na preta.
-- Faixas infantis de duas cores (`cinza_branca`, `amarela_preta`, …) precisam
-  da barra listrada, não de uma cor só — são 13 faixas infantis, não esquecer.
-- Faixa branca precisa de borda visível, senão some no fundo escuro.
+- **As 13 infantis de duas cores não são duas metades lado a lado** — a
+  primeira proposta foi essa e estava errada. O art. 1.3.1 pede cor do grupo
+  com uma listra branca ou preta **ao centro, em todo o comprimento**.
+  Corrigido antes de desenhar as 13, a partir da citação literal do artigo.
+- **A trama inicial rodava 35° e lia como jeans**, não como o algodão
+  ondulado de uma faixa de verdade. Corrigida para correr no comprimento
+  (sem `patternTransform`), depois de comparação com foto de referência.
 
-SVG inline ou CSS puro — **sem lib nova**, e seguindo o padrão de `style={{}}`
-do `AppShell` (`className` do Tailwind não funciona lá).
+Dois achados reais durante a revisão visual das 17, sem estarem no escopo
+pedido:
 
-**Aceite:** as 17 faixas renderizam; 0 a 4 graus corretos; preta com 7º/8º/9º
-sem quebrar; legível no celular.
+- **`verde_preta`**: a listra preta quase sumia sobre o corpo verde (cores
+  de luminância parecida). Corrigido com a regra "a listra decide o
+  contorno pela claridade dela mesma, nunca pela do corpo" — documentada em
+  CLAUDE.md para não regredir.
+- **A preta ia tentar desenhar 9 espaços de esparadrapo** (o teto de
+  negócio, até o honorário) onde só cabem 6 (7º–9º já são outro desenho).
+  `MAX_ESPARADRAPOS_PRETA = 6` é constante de desenho, não de regra —
+  mora em `FaixaDesenhada.tsx`, não em `regras-ibjjf.ts`.
+
+**Decisão de produto tomada no meio da etapa:** grau sempre no modo
+"preenchido" (todos os espaços do teto aparecem, os conquistados acesos) —
+comparado ao vivo com o modo "só os que existem" numa página de teste
+(`/faixas`, descartável, apagada antes do commit) antes do usuário escolher.
+
+`grausMaximos(faixa, infantil)` ganhou o segundo parâmetro nesta etapa
+(mesmo motivo de `proximaFaixa()`). O caso do adulto cadastrado em faixa
+infantil (`amarela`) foi decidido de propósito: 3, "a faixa manda" — ver
+CLAUDE.md.
+
+**Critério de aceite (verificado em 2026-09-01, no app real com os 33
+alunos, localhost):**
+
+- [x] As 17 faixas renderizam corretamente (revisão visual em `/faixas`
+      antes de integrar, e no app depois).
+- [x] 0 até o teto de graus corretos, com o teto certo por faixa/infantil.
+- [x] Preta com 7º/8º/9º sem quebrar — construções próprias, distintas
+      entre si.
+- [x] Legível no celular, nos dois tamanhos (`sm` no grid, `md` no modal).
+- [x] Grid de 33 cards rolando liso com `size="sm"` (sem trama/costura).
+- [x] Sem erro de console em nenhuma tela testada (grid, modal do aluno,
+      painel do sininho).
+
+**Fora de escopo desta etapa, registrado como experimento à parte (ver
+"Fila depois deste lote" ou handoff):** textura (trama/costura) no
+`AlunoCard` do grid, hoje em `size="sm"` sem elas. Aprovado como está;
+pedido do usuário foi só testar, numa página separada, se dá pra melhorar
+sem regredir a performance da rolagem.
 
 ---
 
@@ -522,3 +562,10 @@ real (Storage) · ping/keep-alive do Supabase · layout novo (desenho do usuári
 · login de aluno. E o **Passo 6 (PDF)**, parado desde 2026-08-04 sem escopo
 registrado em lugar nenhum — quem retomar levanta o escopo com o usuário antes
 de planejar.
+
+**Experimento à parte, não é etapa:** trama/costura no `AlunoCard` do grid
+(hoje `size="sm"`, sem elas — aprovado e rodando). Pedido do usuário depois
+de fechar a Etapa 4: testar numa página descartável (`/faixas-card`), em
+branch ou stash, sem tocar no `AlunoCard`/`FaixaDesenhada` já commitados, se
+uma trama mais grossa lê melhor no tamanho real do card. Se nada ganhar,
+mantém como está.

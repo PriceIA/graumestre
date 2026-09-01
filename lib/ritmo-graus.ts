@@ -19,7 +19,7 @@
 // ============================================================
 
 import type { Aluno } from './types'
-import { dataInicioFaixaAtual, grausMaximos } from './regras-ibjjf'
+import { dataInicioFaixaAtual, ehInfantil, grausMaximos } from './regras-ibjjf'
 
 /** Ritmo padrão quando o professor nunca mexeu no valor. */
 export const MESES_ENTRE_GRAUS_PADRAO = 5
@@ -54,8 +54,9 @@ export function prontoParaProximoGrau(
   presencasPorGrau: number = PRESENCAS_POR_GRAU_PADRAO,
 ): ProntidaoGrau {
   const presencas = aluno.presencas_desde_graduacao ?? 0
+  const infantil = aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
 
-  if (aluno.faixa === 'preta' || aluno.graus >= grausMaximos(aluno.faixa)) {
+  if (aluno.faixa === 'preta' || aluno.graus >= grausMaximos(aluno.faixa, infantil)) {
     return { pronto: false, presencas, necessarias: presencasPorGrau, faltam: Math.max(0, presencasPorGrau - presencas) }
   }
 
@@ -122,7 +123,8 @@ export function sugestaoProximoGrau(
   mesesEntreGraus: number = MESES_ENTRE_GRAUS_PADRAO,
 ): SugestaoGrau | null {
   if (aluno.faixa === 'preta') return null
-  if (aluno.graus >= grausMaximos(aluno.faixa)) return null
+  const infantil = aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
+  if (aluno.graus >= grausMaximos(aluno.faixa, infantil)) return null
 
   const base = dataInicioFaixaAtual(aluno, ultimaGraduacaoData)
   if (!base) return null
