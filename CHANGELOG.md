@@ -10,6 +10,11 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **Filtros agrupados num painel nomeado, atrás de um botão "Filtrar".**
+  - Os até 8 chips soltos em duas linhas (faixa, prontos, afastados, infantil/adulto) viraram um painel (`PainelFiltros`, sétimo modal do app, mesmo padrão dos outros) com três grupos: Faixa, Situação e Categoria.
+  - **Sem rascunho local, de propósito.** A ideia original era um estado de rascunho que só aplicava ao tocar "Ver N alunos"; o usuário pediu para tirar — o contador ao vivo do rodapé já passa a mensagem de "isso está valendo", então descartar ao fechar pelo backdrop seria a interação contradizendo a própria tela, e arriscado num app usado com pressa no tatame. Cada chip aplica na hora, igual antes; fechar (de qualquer jeito) nunca desfaz nada.
+  - Filtro ativo também aparece como **chip removível** ao lado do botão "Filtrar", fora do painel — 1 toque tira, sem abrir nada.
+  - Nenhuma lógica de filtro mudou: `aplicarFiltros`, `temFiltroAtivo`, `FILTROS_VAZIOS`, `ORDEM_FAIXAS` são os mesmos; só a casca visual foi embrulhada. AND continua sendo AND, e `aplicarFiltros` continua chamando a mesma `alertaGraduacao()`/`estaAfastado()` de sempre.
 - **Faixa desenhada com graus substitui os losangos (`Diamonds`) e o texto-só (`BeltBadge`).**
   - `components/FaixaDesenhada.tsx` (arquivo novo, SVG inline): corpo com gradiente, trama de tecido, costura, ponteira e esparadrapos por grau. `<FaixaDefs/>` (gradientes + patterns) é montado uma única vez no `AppShell`, referenciado por `url(#id)` — é o que mantém os 33 cards do grid baratos de rolar no celular.
   - **As 13 faixas infantis de duas cores seguem o art. 1.3.1**: cor do grupo com uma listra branca ou preta longitudinal ao centro, correndo todo o comprimento — não duas metades lado a lado, construção inicial que foi corrigida antes de fechar a etapa. A listra decide o próprio contorno pela claridade dela mesma, nunca pela do corpo (achado em `verde_preta`, onde listra preta sobre corpo verde quase sumia).

@@ -484,23 +484,44 @@ sem regredir a performance da rolagem.
 
 ---
 
-### ETAPA 5 — Filtros agrupados num controle só · `PENDENTE`
+### ETAPA 5 — Filtros agrupados num controle só · `CONCLUÍDA` (2026-09-01)
 
-Hoje são até 8 chips soltos em duas linhas ocupando a home. Vira **um botão
-"Filtrar"** com a contagem de filtros ativos, que abre um painel com os grupos
-nomeados: **Faixa**, **Situação** (Prontos / Afastados), **Categoria**
-(Infantil / Adulto), mais "Limpar filtros".
+Os até 8 chips soltos em duas linhas viraram um botão **"Filtrar"** com badge
+de contagem, abrindo `PainelFiltros` (sétimo modal, mesmo padrão
+`visible`/`handleClose` de 220ms do `MenuLateral`/`PainelProntos`) com três
+grupos nomeados: **Faixa**, **Situação** (Prontos/Afastados), **Categoria**
+(Infantil/Adulto) + "Limpar filtros". Filtro ativo também vira **chip
+removível** ao lado do botão, fora do painel — 1 toque tira, sem abrir nada.
 
-Comportamento atual a **preservar**: filtros combinam em AND; só aparecem as
-faixas que existem na turma; `setFiltros` continua usando atualização funcional
-(dois toques no mesmo frame se anulam sem isso — está comentado no código);
-`aplicarFiltros` chama a mesma `alertaGraduacao()` da home.
+**Decisão de produto que mudou o plano no meio do caminho:** a proposta
+original tinha um rascunho local no painel (só aplicava ao tocar "Ver N
+alunos", descartava ao fechar por fora). O usuário derrubou antes de eu
+codar: se o contador do rodapé atualiza ao vivo enquanto o professor marca,
+a tela já diz "isso vale" — descartar ao fechar pelo backdrop contradiria a
+própria informação na tela, e um toque sem querer fora do painel (fácil com
+pressa, no tatame) apagaria a seleção sem aviso. Resultado: **sem rascunho**,
+cada chip chama `setFiltros` direto como antes, e fechar (de qualquer jeito)
+nunca desfaz nada. O botão do rodapé virou só "o jeito rápido de fechar
+sabendo o resultado" — "Ver N alunos" com filtro ativo, "Ver todos os N
+alunos" sem nenhum (texto proposto para não parecer ação pendente).
 
-Quando há filtro ativo, o resumo ("12 de 47 alunos") fica visível **fora** do
-painel — senão o professor não sabe que a lista está filtrada.
+Nenhuma lógica de filtro mudou: `Filtros`, `FILTROS_VAZIOS`, `temFiltroAtivo`,
+`aplicarFiltros`, `ORDEM_FAIXAS` e `Chip` são os mesmos de sempre — só a
+casca visual foi embrulhada num painel novo.
 
-**Aceite:** todo filtro que funcionava continua funcionando; contador certo;
-home visivelmente mais curta.
+**Critério de aceite (verificado em 2026-09-01, no app real com os 33
+alunos, localhost):**
+
+- [x] Filtro por faixa continua funcionando (testado com Azul: 3 alunos,
+      igual ao gráfico "Distribuição por faixa").
+- [x] AND entre filtros: Azul + Prontos deu 0 (correto — nenhum aluno pronto
+      no banco ainda, linha de base conhecida desde a Etapa 1).
+- [x] Marcar dois filtros, fechar pelo backdrop, reabrir: os dois continuam
+      marcados e a lista continua filtrada.
+- [x] "Limpar filtros" (dentro do painel) e o ✕ do chip individual (fora do
+      painel, 1 toque) resetam corretamente.
+- [x] Resumo "N de M alunos" visível fora do painel quando há filtro ativo.
+- [x] Sem erro de console em nenhuma interação testada.
 
 ---
 

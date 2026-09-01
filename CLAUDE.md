@@ -244,6 +244,14 @@ Quatro coisas que a próxima sessão não pode reabrir por engano:
 
 `grausMaximos(faixa, infantil)` ganhou o segundo parâmetro nesta etapa — mesmo motivo de `proximaFaixa()`, `branca` está nas duas listas e tem tetos diferentes (3 infantil, 4 adulta). O caso do adulto cadastrado numa faixa infantil (não deveria existir depois dos 16 — art. 2.2.3 — mas o cadastro aceita, e há um caso real em `amarela`) foi decidido de propósito: **3, "a faixa manda"** — o art. 4.1.2 I nomeia especificamente branca/azul/roxa/marrom, não "toda faixa usada por adulto", e `amarela` é faixa infantil por natureza (Anexo I) independente de quem a veste.
 
+## Filtros num painel nomeado (Etapa 5, lote de agosto/2026)
+
+Os até 8 chips soltos em duas linhas (`BarraFiltros`) viraram um botão **"Filtrar"** com badge de contagem, chips removíveis por filtro ativo (1 toque tira, sem abrir nada) e um painel (`PainelFiltros`, sétimo modal do app, mesmo padrão `visible`/`handleClose` de 220ms do `MenuLateral`/`PainelProntos`) com três grupos nomeados: **Faixa**, **Situação** (Prontos/Afastados) e **Categoria** (Infantil/Adulto).
+
+**Não existe rascunho local no painel — decisão consciente, não o design original.** A primeira proposta foi abrir o painel com uma cópia do estado (`draft`), aplicando só ao tocar num botão "Ver N alunos" no rodapé, e descartando ao fechar por fora. O usuário derrubou isso: se o contador do rodapé atualiza ao vivo enquanto o professor marca, a tela já está dizendo "isso vale" — descartar ao fechar pelo backdrop viraria a interação contradizendo a própria informação na tela, e um toque sem querer fora do painel (fácil de acontecer com pressa, no tatame) apagaria a seleção sem aviso. Cada chip do painel chama `setFiltros` direto, exatamente como os chips soltos de antes; fechar (backdrop, ✕, ou o botão "Ver N alunos") nunca desfaz nada, porque não há nada para desfazer. O botão de baixo é só o jeito rápido de fechar sabendo o resultado — texto "Ver N alunos" com filtro ativo, "Ver todos os N alunos" sem nenhum, para não parecer ação pendente quando não há filtro.
+
+Nada na lógica de filtro mudou: `Filtros`, `FILTROS_VAZIOS`, `temFiltroAtivo`, `aplicarFiltros` e `ORDEM_FAIXAS` são os mesmos de sempre — só a casca visual foi embrulhada num painel. `aplicarFiltros` continua chamando a mesma `alertaGraduacao()` e a mesma `estaAfastado()`; o painel não pode nunca ganhar um critério próprio de "quem sumiu" ou "quem está pronto" — é exatamente a duplicação de fonte que a Etapa 3B fechou.
+
 ## Arquitetura futura que já está no dado
 
 **Login de aluno, com permissão apenas de confirmar a própria presença** — não editar mais nada. A confiança é a conduta do próprio jiu-jítsu: de propósito **não** haverá geolocalização, foto, nem dupla confirmação.
