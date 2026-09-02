@@ -40,6 +40,7 @@ Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a li
 5. **Testar manualmente e reportar teste por teste, antes de commitar.** Verificar no banco, não só na tela. Se um teste falha, reportar e parar — não commitar por cima.
 6. Dado de teste criado durante a verificação é limpo no fim, e o estado do banco conferido contra a linha de base.
 7. **Atualizar este arquivo e o `CHANGELOG.md` antes do commit final — não é opcional, faz parte de "pronto".** A documentação deixou de ser mantida à mão fora do código: ela vive no repositório e se atualiza sessão a sessão, junto com a mudança que a tornou verdadeira. Documentação que envelhece em silêncio é pior do que documentação nenhuma, porque a sessão seguinte confia nela.
+8. **Commit não é "pronto" — `git push` para a `origin` e conferir que a Vercel disparou o deploy a partir da `main` são.** Em 2026-09-02, 11 commits de um lote inteiro (as sete etapas de agosto, mais documentação) ficaram um dia inteiro parados só no `main` local: o processo terminava no commit, ninguém verificava o push, e `origin/main` continuou congelado na migration 013 sem que nada acusasse o atraso. Depois de cada commit — o final da sessão, ou qualquer ponto em que o trabalho pareça fechado — rode `git push` e confirme com `git status`/`git log origin/main..main` que não sobrou nada; depois confira (`vercel ls` ou o dashboard) que o deploy de produção saiu a partir daquele commit.
 
 ## A lixeira apaga de verdade (migration 011)
 

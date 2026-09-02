@@ -37,6 +37,11 @@ começar:
 8. Atualizar `CLAUDE.md`, `CHANGELOG.md` e este arquivo antes do commit —
    faz parte de "pronto", não uma etapa à parte.
 9. Commit. Uma etapa, um commit.
+10. **`git push` para a `origin` e conferir que a Vercel disparou o deploy
+    a partir da `main`** (`vercel ls` ou o dashboard) — faz parte de
+    "pronto" tanto quanto o commit. Ver o `CLAUDE.md` para o porquê: 11
+    commits de um dia inteiro já ficaram parados só no `main` local por
+    esse passo não existir no processo.
 
 ## Fila conhecida (não é plano — lembrete para quando um lote começar)
 
