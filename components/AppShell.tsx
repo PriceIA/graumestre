@@ -1668,6 +1668,30 @@ function validarLinkYoutube(valor: string): string | null {
   return null
 }
 
+// Extrai o id do vídeo para montar a miniatura (Etapa 6) — nunca lança.
+// `studio.youtube.com` passa em validarLinkYoutube() (está em
+// HOSTS_YOUTUBE) mas não tem id extraível no mesmo formato: cai no `return
+// null` final, e quem chama trata isso como "sem miniatura, mostra o botão
+// de texto", nunca como erro.
+function extrairIdYoutube(link: string): string | null {
+  let url: URL
+  try {
+    url = new URL(link)
+  } catch {
+    return null
+  }
+  const host = url.hostname.toLowerCase()
+  if (host === 'youtu.be') {
+    return url.pathname.split('/').filter(Boolean)[0] ?? null
+  }
+  if (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com') {
+    if (url.pathname === '/watch') return url.searchParams.get('v')
+    const partes = url.pathname.split('/').filter(Boolean)
+    if (partes[0] === 'shorts' || partes[0] === 'embed') return partes[1] ?? null
+  }
+  return null
+}
+
 // ─── Foto da aula (com reassinatura) ─────────────────────────────────────────
 // A URL assinada vence em 1h (VALIDADE_URL_SEGUNDOS). A imagem já pintada
 // continua na tela depois disso — o que expira é o direito de baixar de novo —,
@@ -1722,6 +1746,67 @@ function FotoAula({ path, url, onUrlRenovada, style, t }: {
       onError={renovar}
       onLoad={() => { jaTentou.current = false }}
     />
+  )
+}
+
+// ─── Miniatura do vídeo da aula (Etapa 6) ─────────────────────────────────────
+// Mesmo padrão do FotoAula acima: `onError` cai de volta num estado visível
+// em vez de deixar retângulo quebrado. Aqui o "de volta" é o botão de texto
+// que o card já usava antes desta etapa. `id` pode ser `null` (link válido
+// pelo validador mas sem id extraível — studio.youtube.com, por exemplo) e
+// cai no mesmo botão: não dá para saber, só pelo `onError` da <img>, se o
+// vídeo está privado, removido ou o link é inválido, então o fallback é o
+// mesmo para os três casos — e para "não deu pra nem tentar".
+function MiniaturaYoutube({ id, link, style, t }: {
+  id: string | null; link: string; style: React.CSSProperties; t: Theme
+}) {
+  const [falhou, setFalhou] = useState(false)
+
+  if (!id || falhou) {
+    return (
+      <a
+        href={link} target="_blank" rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        style={{
+          ...style,
+          background: t.accentBg, border: `1px solid ${t.accent}`,
+          color: t.accent, fontWeight: 700, fontSize: 12, textDecoration: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+        }}
+      >
+        ▶ Assistir aula
+      </a>
+    )
+  }
+
+  return (
+    <a
+      href={link} target="_blank" rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      style={{ ...style, position: 'relative', display: 'block', overflow: 'hidden' }}
+    >
+      <img
+        src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}
+        alt="" referrerPolicy="no-referrer"
+        onError={() => setFalhou(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+      {/* ▶ sobreposto: lado a lado e do mesmo tamanho da foto da aula, sem
+          isto as duas imagens ficam indistinguíveis — só descobriria qual é
+          o vídeo tocando, o toque desperdiçado que este app evita. */}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{
+          width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            width: 0, height: 0, marginLeft: 3,
+            borderTop: '7px solid transparent', borderBottom: '7px solid transparent',
+            borderLeft: '11px solid #fff',
+          }} />
+        </div>
+      </div>
+    </a>
   )
 }
 
@@ -1906,6 +1991,8 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
             <div style={{ color: t.textMute, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
               Para quem faltou assistir depois. Pode deixar vazio agora e colar o link
               aqui quando a gravação subir.
+              <br />
+              Use &quot;Não listado&quot;. Vídeo &quot;Privado&quot; não gera miniatura nem abre para o aluno.
             </div>
           </div>
 
@@ -2719,7 +2806,14 @@ export default function AppShell() {
                 ⚠ {erroAula}
               </div>
             )}
-            {aulas.map((a: any) => (
+            {aulas.map((a: any) => {
+              // Calculado uma vez por card: usado para decidir se a
+              // miniatura entra na linha de imagens (2 casos: sem link
+              // nenhum, ou link válido mas sem id extraível — studio.youtube.com
+              // ou algo fora dos formatos cobertos) e para montar a própria
+              // miniatura, sem repetir a extração.
+              const idYoutube = a.link_youtube ? extrairIdYoutube(a.link_youtube) : null
+              return (
               // card inteiro abre a chamada daquela aula — sem botão extra
               <div
                 key={a.id} onClick={() => setChamadaAula(a)}
@@ -2772,42 +2866,44 @@ export default function AppShell() {
                   <span style={{ background: t.surface2, border: `1px solid ${t.border}`, borderRadius: 4, padding: '3px 8px', fontSize: 12, color: t.textSub }}>
                     {(a.presencas ?? []).filter((p: any) => p.presente).length} presentes
                   </span>
-                  {/* sem gravação, nada ocupa este espaço — nada de "link indisponível" */}
-                  {a.link_youtube && (
-                    <a
-                      href={a.link_youtube} target="_blank" rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      style={{
-                        background: t.accentBg, border: `1px solid ${t.accent}`, borderRadius: 4,
-                        padding: '3px 8px', fontSize: 12, color: t.accent, fontWeight: 700,
-                        textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
-                      }}
-                    >
-                      ▶ Assistir aula
-                    </a>
-                  )}
                 </div>
-                {/* Miniatura: é o que faz reconhecer a aula de relance, mais que
-                    a técnica escrita. Só aparece quando há foto — aula sem foto
-                    não ganha placeholder ocupando altura à toa. */}
-                {a.foto_path && (
-                  <FotoAula
-                    path={a.foto_path} url={a.foto_url} t={t}
-                    // guarda a URL renovada na lista: sem isto o próximo render
-                    // do card voltaria à URL vencida e erraria de novo
-                    onUrlRenovada={nova =>
-                      setAulas(prev => prev.map(x => x.id === a.id ? { ...x, foto_url: nova } : x))
-                    }
-                    style={{
-                      width: '100%', height: 110, objectFit: 'cover',
-                      borderRadius: 8, border: `1px solid ${t.border}`,
-                      marginTop: 10, display: 'block',
-                    }}
-                  />
+                {/* Foto + miniatura do vídeo, lado a lado (Etapa 6). Foto à
+                    esquerda (não muda de lugar), miniatura à direita (a
+                    novidade); cada uma ocupa a linha inteira quando é a
+                    única. Sem nenhuma das duas, nada ocupa este espaço —
+                    mesmo princípio de sempre, nada de placeholder. */}
+                {(a.foto_path || a.link_youtube) && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    {a.foto_path && (
+                      <FotoAula
+                        path={a.foto_path} url={a.foto_url} t={t}
+                        // guarda a URL renovada na lista: sem isto o próximo render
+                        // do card voltaria à URL vencida e erraria de novo
+                        onUrlRenovada={nova =>
+                          setAulas(prev => prev.map(x => x.id === a.id ? { ...x, foto_url: nova } : x))
+                        }
+                        style={{
+                          flex: 1, minWidth: 0, height: 110, objectFit: 'cover',
+                          borderRadius: 8, border: `1px solid ${t.border}`, display: 'block',
+                        }}
+                      />
+                    )}
+                    {/* `idYoutube` pode ser null aqui (studio.youtube.com, ou
+                        qualquer formato fora dos cobertos) — MiniaturaYoutube
+                        trata isso como o mesmo botão de texto do onError,
+                        nunca deixa a linha com buraco do lado da foto. */}
+                    {a.link_youtube && (
+                      <MiniaturaYoutube
+                        id={idYoutube} link={a.link_youtube} t={t}
+                        style={{ flex: 1, minWidth: 0, height: 110, borderRadius: 8, border: `1px solid ${t.border}` }}
+                      />
+                    )}
+                  </div>
                 )}
                 {a.notas && <div style={{ marginTop: 8, color: t.textSub, fontSize: 12, fontStyle: 'italic' }}>{a.notas}</div>}
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 

@@ -10,6 +10,12 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **Card da aula ganha miniatura de vídeo, em vez de um botão de texto.**
+  - `extrairIdYoutube()` (nova) cobre `watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, ignorando `&t=`/`?si=`; nunca lança, devolve `null` para `studio.youtube.com` e formatos fora dos cobertos.
+  - `MiniaturaYoutube` (novo componente), mesmo padrão de `onError` do `FotoAula`: erro na imagem cai de volta no botão de texto "▶ Assistir aula". `id` aceita `null` — achado ao testar `studio.youtube.com`: sem isso, um link válido sem id extraível virava um buraco silencioso na linha, sem imagem nem botão.
+  - Miniatura e foto da aula (quando as duas existem) ficam lado a lado, mesma altura de 110px; sozinha, cada uma ocupa a linha inteira. Foto à esquerda (não muda de lugar), miniatura à direita.
+  - ▶ sobreposto (círculo translúcido + triângulo) só na miniatura — as duas imagens do mesmo tamanho, lado a lado, ficavam indistinguíveis sem ele.
+  - Aviso novo no campo do link (`ModalAula`): "Use 'Não listado'. Vídeo 'Privado' não gera miniatura nem abre para o aluno."
 - **Filtros agrupados num painel nomeado, atrás de um botão "Filtrar".**
   - Os até 8 chips soltos em duas linhas (faixa, prontos, afastados, infantil/adulto) viraram um painel (`PainelFiltros`, sétimo modal do app, mesmo padrão dos outros) com três grupos: Faixa, Situação e Categoria.
   - **Sem rascunho local, de propósito.** A ideia original era um estado de rascunho que só aplicava ao tocar "Ver N alunos"; o usuário pediu para tirar — o contador ao vivo do rodapé já passa a mensagem de "isso está valendo", então descartar ao fechar pelo backdrop seria a interação contradizendo a própria tela, e arriscado num app usado com pressa no tatame. Cada chip aplica na hora, igual antes; fechar (de qualquer jeito) nunca desfaz nada.
