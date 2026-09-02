@@ -101,10 +101,10 @@ A coluna é em `professor_perfil`, tabela que a view `alunos_frequencia` **nunca
 ### O ritmo em MESES não alimenta "Prontos para graduar" — o critério de PRESENÇA, desde a migration 014, alimenta
 
 Até a `013` isto era simples: nada do ritmo do professor tocava o card. A
-`014` (ETAPA 1 do lote de agosto/2026) mudou isso de propósito — ver a seção
-seguinte. A distinção que importa hoje não é mais "ritmo vs. card": é **qual
-preferência do professor**, porque `professor_perfil` guarda duas, lado a
-lado, e só uma alimenta o card.
+`014` mudou isso de propósito — ver a seção seguinte (linha do tempo completa
+no `CHANGELOG.md`). A distinção que importa hoje não é mais "ritmo vs. card":
+é **qual preferência do professor**, porque `professor_perfil` guarda duas,
+lado a lado, e só uma alimenta o card.
 
 - **`meses_entre_graus` continua isolado.** Só é lido por `sugestaoProximoGrau()`
   (`lib/ritmo-graus.ts`), importado num único lugar — o bloco tracejado
@@ -167,7 +167,7 @@ mesmo critério.
 exige olhar pelo menos 48, e o `.limit(50)` quebraria a conta exatamente no
 ponto em que ela importa. Duas colunas novas: `presencas_desde_graduacao` e
 `aulas_desde_graduacao` (esta última ainda não consumida por nenhum código —
-preparada para a Etapa 2 mostrar "31 de 40 aulas" no painel do sininho, para
+preparada para o painel do sininho mostrar "31 de 40 aulas" no futuro, para
 não dropar e recriar a view de novo só por isso). Data-base:
 `greatest(coalesce((select max(data) das graduações não deletadas do aluno), a.inicio), a.inicio)`.
 O `greatest(..., a.inicio)` por fora é o mesmo piso que a `010` já aplica em
@@ -188,25 +188,25 @@ de bug.
 
 ## Foto do aluno: URL externa, com `referrerPolicy`
 
-`foto_url` é uma URL colada à mão — não há Storage no projeto. Todo `<img>` que renderiza foto de aluno leva `referrerPolicy="no-referrer"`, senão o host da imagem recebe o endereço do app a cada carregamento. São **três** pontos, todos em `AppShell.tsx`: o card da lista (`AlunoCard`), a linha da chamada (`Chamada`) e a lista do painel de prontos (`PainelProntos`, ver seção abaixo — substituiu o antigo `AvatarImage` do "Prontos para graduar" quando esse card saiu do `DashboardProfessor.tsx` na Etapa 2). O `<img>` do hero fica de fora conscientemente: é asset local, não há terceiro para vazar. Ponto novo que renderize foto nasce com o atributo.
+`foto_url` é uma URL colada à mão — não há Storage no projeto. Todo `<img>` que renderiza foto de aluno leva `referrerPolicy="no-referrer"`, senão o host da imagem recebe o endereço do app a cada carregamento. São **três** pontos, todos em `AppShell.tsx`: o card da lista (`AlunoCard`), a linha da chamada (`Chamada`) e a lista do painel de prontos (`PainelProntos`, ver seção abaixo — substituiu o antigo `AvatarImage` do "Prontos para graduar" quando esse card saiu do `DashboardProfessor.tsx` para o Painel de prontos). O `<img>` do hero fica de fora conscientemente: é asset local, não há terceiro para vazar. Ponto novo que renderize foto nasce com o atributo.
 
-## Painel de prontos para graduar (sininho) — migration 014 completa a UI (Etapa 2, lote de agosto/2026)
+## Painel de prontos para graduar (sininho) — migration 014 completa a UI
 
-O `<Bell>` do header do `DashboardProfessor` virou `<button>` com badge — bolinha vermelha com a contagem, só quando `qtdProntos > 0` — e abre `PainelProntos`. O painel **mora no `AppShell.tsx`, não no `DashboardProfessor`**, pelo mesmo motivo de sempre: é um modal, e os modais do app vivem todos no `AppShell` com inline styles e o mesmo padrão de bottom sheet (`visible`/`setTimeout(onClose, 220)`). Um painel em Tailwind dentro do `DashboardProfessor` seria um padrão de modal à parte — CLAUDE.md já pedia consistência, e foi o precedente seguido pelo `<Menu>` na Etapa 3 (ver seção abaixo).
+O `<Bell>` do header do `DashboardProfessor` virou `<button>` com badge — bolinha vermelha com a contagem, só quando `qtdProntos > 0` — e abre `PainelProntos`. O painel **mora no `AppShell.tsx`, não no `DashboardProfessor`**, pelo mesmo motivo de sempre: é um modal, e os modais do app vivem todos no `AppShell` com inline styles e o mesmo padrão de bottom sheet (`visible`/`setTimeout(onClose, 220)`). Um painel em Tailwind dentro do `DashboardProfessor` seria um padrão de modal à parte — CLAUDE.md já pedia consistência, e foi o precedente seguido pelo `<Menu>` no Menu lateral (ver seção abaixo).
 
 A lista de prontos é computada **uma vez**, no `AppShell` (mesma `alertaGraduacao()` de sempre). `DashboardProfessor` recebe só `qtdProntos` — usado no badge **e** na estatística "Prontos p/ graduar" do hero, de propósito o mesmo número nos dois lugares — e `onAbrirProntos`.
 
-**Selecionar um aluno fecha o painel na hora**, sem esperar o fade de saída, e abre o modal dele já na aba de graduação — mesmo padrão que `ModalAula` já usa ao entregar para `<Chamada />` (`setModalAula(false); setChamadaAula(aula)`). Evita dois overlays empilhados; não é preciosismo, é o que já existia no código antes desta etapa.
+**Selecionar um aluno fecha o painel na hora**, sem esperar o fade de saída, e abre o modal dele já na aba de graduação — mesmo padrão que `ModalAula` já usa ao entregar para `<Chamada />` (`setModalAula(false); setChamadaAula(aula)`). Evita dois overlays empilhados; não é preciosismo, é o que já existia no código antes deste painel.
 
-**O estado vazio é obrigatório, não ausência de UI.** Com a linha de base de 3 aulas no banco (ver a seção "Graus" acima), o painel fica vazio por meses — um sininho que abre e não mostra nada volta a parecer decoração, exatamente o problema que esta etapa existe para resolver. O texto nomeia o critério ao vivo: "Nenhum aluno com N presenças desde o último grau. O app conta a partir das aulas lançadas na chamada" (N = `presencas_por_grau`).
+**O estado vazio é obrigatório, não ausência de UI.** Com a linha de base de 3 aulas no banco (ver a seção "Graus" acima), o painel fica vazio por meses — um sininho que abre e não mostra nada volta a parecer decoração, exatamente o problema que este estado vazio existe para resolver. O texto nomeia o critério ao vivo: "Nenhum aluno com N presenças desde o último grau. O app conta a partir das aulas lançadas na chamada" (N = `presencas_por_grau`).
 
 Cada item da lista mostra, abaixo do motivo (`alerta.msg`), uma linha de evidência — não é barra de progresso, é a justificativa de quem já está ali: para alerta de **grau**, "X de Y presenças desde o último grau" (recalculado com `prontoParaProximoGrau()`); para alerta de **faixa**, "Tempo mínimo da faixa cumprido" (só chega ali com tempo IBJJF e idade já validados por `alertaGraduacao()`).
 
-## Menu lateral (hambúrguer) — Etapa 3, lote de agosto/2026
+## Menu lateral (hambúrguer)
 
 O `<Menu>` do header ganhou `onClick` e abre `MenuLateral`, mesmo padrão de modal dos outros — `AppShell.tsx`, `visible`/`handleClose` com fade de 220ms — mas entra **pela esquerda**, não de baixo: é o lado do ícone que abriu. Quatro itens: Perfil do Professor, Lixeira, Instalar no celular (condicional) e Sair.
 
-**`tab` continua com o tipo `'alunos' | 'aulas' | 'lixeira'`** — não virou estado separado para a lixeira. A barra de abas só deixou de iterar o terceiro valor (`(['alunos', 'aulas'] as const).map(...)`); o item "Lixeira" do menu faz `setTab('lixeira')` como sempre fez o clique na aba. Toda a lógica que já checava `tab === 'lixeira'` — o conteúdo renderizado e o FAB escondido (`tab !== 'lixeira'`) — continuou correta sem precisar mudar uma linha. **Esse é o padrão a seguir**: quando um destino sai da barra de navegação visível mas o componente de destino continua existindo, prefira reaproveitar o estado que já o seleciona a duplicar em uma flag nova — a duplicação é como duas fontes de verdade nascem, e este projeto já pagou caro por isso (ver a migration 010 e a Etapa 3B).
+**`tab` continua com o tipo `'alunos' | 'aulas' | 'lixeira'`** — não virou estado separado para a lixeira. A barra de abas só deixou de iterar o terceiro valor (`(['alunos', 'aulas'] as const).map(...)`); o item "Lixeira" do menu faz `setTab('lixeira')` como sempre fez o clique na aba. Toda a lógica que já checava `tab === 'lixeira'` — o conteúdo renderizado e o FAB escondido (`tab !== 'lixeira'`) — continuou correta sem precisar mudar uma linha. **Esse é o padrão a seguir**: quando um destino sai da barra de navegação visível mas o componente de destino continua existindo, prefira reaproveitar o estado que já o seleciona a duplicar em uma flag nova — a duplicação é como duas fontes de verdade nascem, e este projeto já pagou caro por isso (ver a migration 010 e a seção "Afastado: por aulas perdidas..." abaixo).
 
 **A `Lixeira` precisou de cabeçalho próprio.** Sem aba destacada acima dela (a barra mostra só ALUNOS/AULAS, nenhum ativo), nada na tela dizia "você está na lixeira" nem como sair — um bug real, achado só ao abrir a tela, que `tsc` e a suíte de tipos não pegam porque não é erro de tipo. `Lixeira` ganhou `onVoltar` e uma linha "‹ Lixeira" tocável no topo (chama `setTab('alunos')`), presente também no estado de carregamento — não só depois da lista chegar.
 
@@ -216,21 +216,21 @@ O `<Menu>` do header ganhou `onClick` e abre `MenuLateral`, mesmo padrão de mod
 
 `ProfessorCard` saiu da home e o componente foi removido do `AppShell.tsx` — ficou sem nenhum uso depois que o Perfil do Professor virou item de menu.
 
-## Afastado: por AULAS perdidas, não por dias de calendário (Etapa 3B, lote de agosto/2026)
+## Afastado: por aulas perdidas, não por dias de calendário
 
 Até aqui `estaAfastado()` (`lib/afastamento.ts`) contava **dias de calendário** sem presença (`DIAS_PARA_AFASTADO = 21`), e o card "Precisa atenção" do `DashboardProfessor` respondia a pergunta "quem sumiu?" por uma conta **diferente**: `total_presencas / total_aulas < 0.5`. Duas fontes para a mesma pergunta, que podiam discordar — a mesma classe de bug que a migration 010 já tinha fechado uma vez para frequência. E dias de calendário erram sozinhos: um aluno que ficou 21 dias sem vir numa quinzena **sem aula nenhuma lançada** não faltou a nada, mas levava o carimbo — foi o que aconteceu com a turma inteira em 2026-08-30, com só 3 aulas no banco.
 
 **A pergunta certa é "quantas vezes ele podia ter vindo e não veio", não "quantos dias se passaram".** `aulas_perdidas` é campo **derivado**, montado em `lib/carregar-dados.ts` no mesmo laço que já monta `ultima_presenca_data`, a partir das mesmas aulas carregadas (`.limit(50)`) — sem query nova, sem tocar na view:
 
 - **Aluno com presença registrada**: conta as aulas ativas já carregadas com `data > ultima_presenca_data` (`>`, não `>=` — a aula em que ele esteve presente não é perdida).
-- **Aluno sem nenhuma presença**: reusa `total_aulas` da view (migration 010), que já é "aulas ativas desde que este aluno entrou" — é o que faz um aluno novo, numa academia sem chamada lançada ainda, dar `0` e **não** nascer afastado. Essa é a correção inteira da etapa.
+- **Aluno sem nenhuma presença**: reusa `total_aulas` da view (migration 010), que já é "aulas ativas desde que este aluno entrou" — é o que faz um aluno novo, numa academia sem chamada lançada ainda, dar `0` e **não** nascer afastado. Essa é a correção inteira desta mudança.
 - Se a contagem encostar no limite de 50 aulas carregadas, a conclusão não muda: o limiar (`AULAS_PARA_AFASTADO = 6`) já foi ultrapassado bem antes disso.
 
 **Uma resposta só, não duas.** `estaAfastado()` continua com as mesmas duas camadas de sempre (`afastado_manual` true/false ganha do cálculo; `null` devolve o automático), só que lendo `aulas_perdidas` em vez de dias. "Precisa atenção" no `DashboardProfessor` passou a chamar essa **mesma** função — não mais a conta de porcentagem — e o card mostra o motivo (`motivoAfastamento()`: "Faltou às últimas N aulas", ou "Nunca esteve presente (N aulas lançadas)" para quem nunca veio) em vez de um número de frequência.
 
 **O que mede comprometimento continua medindo comprometimento.** O anel de frequência do crachá, o donut "Frequência geral" da home e o card "Perto da faixa" (`comPct`/`perto`, que responde outra pergunta e continua com o rótulo errado de propósito — o professor viu e escolheu deixar para depois) não foram tocados. Afastado é sobre sumiço; frequência é sobre comprometimento — são perguntas diferentes, e essa é a linha que não pode voltar a se confundir (era exatamente a confusão que gerava a divergência desta seção).
 
-## Faixa desenhada com graus (Etapa 4, lote de agosto/2026)
+## Faixa desenhada com graus
 
 `Diamonds` (losangos) e o `BeltBadge` texto-só saíram. `components/FaixaDesenhada.tsx` desenha a faixa de verdade — corpo com gradiente, trama de tecido, costura, ponteira e esparadrapos por grau — em SVG inline, arquivo separado do `AppShell.tsx` de propósito (mesmo padrão do `BannerInstalar.tsx`). `BeltBadge` agora é etiqueta de texto + `<FaixaDesenhada/>`; o grid de 33 cards (`AlunoCard`) usa `<FaixaDesenhada size="sm"/>` sozinho, sem etiqueta. `<FaixaDefs/>` (gradientes + pattern de trama) é montado **uma única vez**, no topo do `return` do `AppShell` — nunca por instância, é o que mantém 33 faixas no grid baratas de rolar no celular.
 
@@ -240,19 +240,19 @@ Quatro coisas que a próxima sessão não pode reabrir por engano:
 - **A listra decide o contorno pela claridade DELA MESMA, nunca pela do corpo.** Achado real ao revisar as 17 visualmente: `verde_preta` (listra preta sobre corpo verde) quase sumia, porque as duas cores têm luminância parecida. O contorno "escuro sobre claro / claro sobre escuro" que o resto do desenho usa resolve pra cor do **corpo** — pergunta diferente de "essa listra contrasta com o que está por baixo dela". A listra preta sempre leva contorno claro, a branca sempre contorno escuro, **independente do corpo**. Vale para qualquer combinação escura-sobre-escura que apareça depois; não trocar por um contorno que segue o corpo achando que simplifica.
 - **O 7º/8º/9º da faixa preta é estilização ASSUMIDA, não reprodução do art. 1.3.4/1.3.5.** Os artigos pedem "gomos de 20cm" e "barra prateada dupla" com precisão que não dá para replicar com fidelidade a partir de descrição de texto. `VariantePretaAlta` desenha três construções estilizadas e claramente distintas entre si (gomos alternados vermelho/preto no 7º, vermelho/branco com friso prateado no 8º, base branca com barras douradas no 9º) — melhor uma estilização assumida do que uma fidelidade alegada e falsa, num app que um faixa preta vai abrir. `MAX_ESPARADRAPOS_PRETA = 6` mora em `FaixaDesenhada.tsx`, não em `lib/regras-ibjjf.ts`, porque é limite de **desenho**: só os graus 1–6 da preta são esparadrapo na mesma ponteira, o 7º–9º já são outra construção inteira. `grausMaximos('preta', ...)` continua devolvendo 9 (o teto de negócio, até o honorário) — é uma constante diferente, para uma pergunta diferente, e não deve ser movida para junto das regras da IBJJF achando que é a mesma coisa.
 - **A trama corre no comprimento da faixa (eixo X do viewBox) de propósito, sem `patternTransform`.** Uma tentativa inicial rotacionou os dois patterns 35° e o resultado lia como jeans, não como o algodão ondulado de uma faixa de jiu-jítsu de verdade (conferido contra foto de referência). Não "arrumar" de volta para diagonal numa sessão futura achando que é mais "tecido" — o comprimento é a leitura certa, e num card pequeno a direção da linha carrega mais reconhecimento do que a textura em si.
-- **`AlunoCard` usa `size="sm"` (sem trama nem costura) por escolha do professor, TESTADA — não por esquecimento nem por limitação técnica.** Depois de fechar a etapa, ele pediu para comparar: um branch à parte (`experimento/textura-alunocard`, descartado, nunca chegou na `main`) montou 4 variantes lado a lado no tamanho real do card — atual lisa, +costura sem trama, +trama na escala de hoje, +trama mais grossa/contrastada — nas 4 faixas mais distintas. Ele olhou no celular e ficou com a lisa: *"preferi elas lisas mesmo"*. Se uma sessão futura achar que o card "ficou incompleto" por não ter textura como o `md`, a resposta já foi dada — não reabrir sem pedido novo do usuário.
+- **`AlunoCard` usa `size="sm"` (sem trama nem costura) por escolha do professor, TESTADA — não por esquecimento nem por limitação técnica.** Depois disso, ele pediu para comparar: um branch à parte (`experimento/textura-alunocard`, descartado, nunca chegou na `main`) montou 4 variantes lado a lado no tamanho real do card — atual lisa, +costura sem trama, +trama na escala de hoje, +trama mais grossa/contrastada — nas 4 faixas mais distintas. Ele olhou no celular e ficou com a lisa: *"preferi elas lisas mesmo"*. Se uma sessão futura achar que o card "ficou incompleto" por não ter textura como o `md`, a resposta já foi dada — não reabrir sem pedido novo do usuário.
 
-`grausMaximos(faixa, infantil)` ganhou o segundo parâmetro nesta etapa — mesmo motivo de `proximaFaixa()`, `branca` está nas duas listas e tem tetos diferentes (3 infantil, 4 adulta). O caso do adulto cadastrado numa faixa infantil (não deveria existir depois dos 16 — art. 2.2.3 — mas o cadastro aceita, e há um caso real em `amarela`) foi decidido de propósito: **3, "a faixa manda"** — o art. 4.1.2 I nomeia especificamente branca/azul/roxa/marrom, não "toda faixa usada por adulto", e `amarela` é faixa infantil por natureza (Anexo I) independente de quem a veste.
+`grausMaximos(faixa, infantil)` ganhou o segundo parâmetro na faixa desenhada — mesmo motivo de `proximaFaixa()`, `branca` está nas duas listas e tem tetos diferentes (3 infantil, 4 adulta). O caso do adulto cadastrado numa faixa infantil (não deveria existir depois dos 16 — art. 2.2.3 — mas o cadastro aceita, e há um caso real em `amarela`) foi decidido de propósito: **3, "a faixa manda"** — o art. 4.1.2 I nomeia especificamente branca/azul/roxa/marrom, não "toda faixa usada por adulto", e `amarela` é faixa infantil por natureza (Anexo I) independente de quem a veste.
 
-## Filtros num painel nomeado (Etapa 5, lote de agosto/2026)
+## Filtros num painel nomeado
 
 Os até 8 chips soltos em duas linhas (`BarraFiltros`) viraram um botão **"Filtrar"** com badge de contagem, chips removíveis por filtro ativo (1 toque tira, sem abrir nada) e um painel (`PainelFiltros`, sétimo modal do app, mesmo padrão `visible`/`handleClose` de 220ms do `MenuLateral`/`PainelProntos`) com três grupos nomeados: **Faixa**, **Situação** (Prontos/Afastados) e **Categoria** (Infantil/Adulto).
 
 **Não existe rascunho local no painel — decisão consciente, não o design original.** A primeira proposta foi abrir o painel com uma cópia do estado (`draft`), aplicando só ao tocar num botão "Ver N alunos" no rodapé, e descartando ao fechar por fora. O usuário derrubou isso: se o contador do rodapé atualiza ao vivo enquanto o professor marca, a tela já está dizendo "isso vale" — descartar ao fechar pelo backdrop viraria a interação contradizendo a própria informação na tela, e um toque sem querer fora do painel (fácil de acontecer com pressa, no tatame) apagaria a seleção sem aviso. Cada chip do painel chama `setFiltros` direto, exatamente como os chips soltos de antes; fechar (backdrop, ✕, ou o botão "Ver N alunos") nunca desfaz nada, porque não há nada para desfazer. O botão de baixo é só o jeito rápido de fechar sabendo o resultado — texto "Ver N alunos" com filtro ativo, "Ver todos os N alunos" sem nenhum, para não parecer ação pendente quando não há filtro.
 
-Nada na lógica de filtro mudou: `Filtros`, `FILTROS_VAZIOS`, `temFiltroAtivo`, `aplicarFiltros` e `ORDEM_FAIXAS` são os mesmos de sempre — só a casca visual foi embrulhada num painel. `aplicarFiltros` continua chamando a mesma `alertaGraduacao()` e a mesma `estaAfastado()`; o painel não pode nunca ganhar um critério próprio de "quem sumiu" ou "quem está pronto" — é exatamente a duplicação de fonte que a Etapa 3B fechou.
+Nada na lógica de filtro mudou: `Filtros`, `FILTROS_VAZIOS`, `temFiltroAtivo`, `aplicarFiltros` e `ORDEM_FAIXAS` são os mesmos de sempre — só a casca visual foi embrulhada num painel. `aplicarFiltros` continua chamando a mesma `alertaGraduacao()` e a mesma `estaAfastado()`; o painel não pode nunca ganhar um critério próprio de "quem sumiu" ou "quem está pronto" — é exatamente a duplicação de fonte que a seção "Afastado: por aulas perdidas..." fechou.
 
-## Card de vídeo da aula, com miniatura (Etapa 6, lote de agosto/2026)
+## Card de vídeo da aula, com miniatura
 
 O botão de texto "▶ Assistir aula" (só aparecia quando `link_youtube` existia) virou uma miniatura de verdade — a capa do vídeo, com um ▶ sobreposto — ao lado da foto da aula (migration 012) no card da aula, em `AppShell.tsx`. As duas ficam lado a lado, `flex:1` cada, 110px de altura (mesma altura que a foto já usava sozinha): **foto à esquerda** (não muda de lugar, quem já usa o app não estranha), **miniatura à direita** (a novidade). Quando só uma existe, ocupa a linha inteira sozinha — mesmo princípio de sempre, sem placeholder para o que não existe.
 
@@ -276,14 +276,14 @@ Três decisões que parecem descuido e não são:
 
 - **O service worker é mínimo de propósito e não tem cache.** Ele existe só porque o Chrome exige um SW registrado *com handler de `fetch`* para considerar o app instalável. Cachear resposta do Supabase por engano faria o professor ver chamada e presença desatualizadas no tatame — que é exatamente o erro que este app não pode cometer. Offline é etapa própria, e precisa decidir invalidação antes de escrever uma linha.
 - **Ícones só com `purpose: "any"`, sem variante maskable.** Maskable exige recorte circular com padding seguro, que clipparia o "Life Style" do logo.
-- **A captura do `beforeinstallprompt` mora em `lib/instalacao.ts`, não dentro do banner.** O evento dispara logo no carregamento e o banner só monta depois do login: com o listener dentro dele, o evento disparava enquanto o professor digitava a senha, sem ninguém escutando, e como não dispara de novo o banner nunca apareceria. Quem escuta é o layout, cedo; o banner só lê o que já foi capturado. Se um dia o banner mudar de lugar, essa separação continua sendo o que faz ele aparecer. Desde a Etapa 3 há um segundo consumidor — o item "Instalar no celular" do `MenuLateral` — assinando `eventoAtual()`/`inscrever()` do mesmo jeito, independente do banner; a separação captura/exibição foi o que tornou isso possível sem duplicar o listener.
+- **A captura do `beforeinstallprompt` mora em `lib/instalacao.ts`, não dentro do banner.** O evento dispara logo no carregamento e o banner só monta depois do login: com o listener dentro dele, o evento disparava enquanto o professor digitava a senha, sem ninguém escutando, e como não dispara de novo o banner nunca apareceria. Quem escuta é o layout, cedo; o banner só lê o que já foi capturado. Se um dia o banner mudar de lugar, essa separação continua sendo o que faz ele aparecer. Desde que o Menu lateral existe há um segundo consumidor — o item "Instalar no celular" do `MenuLateral` — assinando `eventoAtual()`/`inscrever()` do mesmo jeito, independente do banner; a separação captura/exibição foi o que tornou isso possível sem duplicar o listener.
 
 O banner é dispensável e grava em `sessionStorage` (não `localStorage`): o pedido é não incomodar de novo na *mesma sessão*; numa aba nova o convite volta. iOS não recebe banner — Safari não implementa `beforeinstallprompt`, e sem evento o componente não renderiza nada, sem farejar user-agent.
 
 ## Pendências conhecidas
 
 1. **Passo 6 — geração de PDF: pausado em 2026-08-04.** Sem prazo definido; outro projeto teve prioridade. Nada foi commitado e nada ficou pela metade na árvore — a pausa foi antes de qualquer código. O escopo do Passo 6 não está registrado em lugar nenhum do repo; quem retomar precisa levantar isso com o usuário antes de planejar.
-2. **Foto por upload real (Supabase Storage).** A `referrerPolicy` acima é o remendo de curto prazo, não a solução: a foto continua sendo uma URL que o professor tem que hospedar em algum lugar e colar à mão — no celular, no tatame. O certo é bucket + policy de upload + captura pela câmera, e isso é sessão própria. **Ficou fora do lote 3 de propósito.**
+2. **Foto do ALUNO por upload real (Supabase Storage) — a da AULA já foi feita na migration 012.** A `referrerPolicy` acima é o remendo de curto prazo, não a solução: a foto do aluno continua sendo uma URL que o professor tem que hospedar em algum lugar e colar à mão — no celular, no tatame. O certo é bucket + policy de upload + captura pela câmera, igual ao que a `012` já entregou para a foto da aula. É sessão própria. **Ficou fora do lote 3 de propósito.**
 3. **A purga da lixeira não apaga o arquivo no Storage.** A `011` apaga a linha da aula; o cascade do Postgres não alcança o bucket, então a foto daquela aula fica órfã. É pouco (uma por aula) e não vaza — o bucket é privado —, mas cresce devagar para sempre. Resolver exige varrer o bucket contra as linhas existentes, o que é trabalho próprio.
 4. **Fila offline da chamada.** Achado da mesma auditoria, maior que este lote: hoje um toque na chamada com a rede caída se perde. Ligado à decisão de cache que o service worker adiou de propósito (ver a seção de PWA) — offline precisa de invalidação decidida antes da primeira linha de código. **Ficou fora do lote 3 de propósito.**
 
@@ -293,14 +293,16 @@ Já resolvidas: a **purga física da lixeira** (era pendência explícita desde 
 
 | Arquivo | O que é |
 |---|---|
+| `docs/PLANO-ATUAL.md` | Plano da etapa em andamento; volta a ficar vazio quando o lote fecha |
+| `docs/handoff/` | Troca de contexto entre Claude (chat) e Claude Code — `PARA-O-CODE.md`/`DO-CODE.md` |
 | `components/AppShell.tsx` | UI principal: lista e modal de aluno, aulas, chamada, lixeira, filtros |
 | `components/FaixaDesenhada.tsx` | Faixa desenhada (SVG) com graus — corpo, listra, ponteira, esparadrapos, `<FaixaDefs/>` |
 | `components/DashboardProfessor.tsx` | Home (Tailwind/shadcn): frequência geral, distribuição, prontos para graduar |
 | `lib/carregar-dados.ts` | Carga única das listagens ativas + campos derivados. Usada no server e no client |
 | `lib/regras-ibjjf.ts` | Faixas, categoria etária, tempo mínimo, quem pode assinar — **só o que a IBJJF exige** |
 | `lib/ritmo-graus.ts` | Ritmo de graus do professor — **sugestão dele**, separado do motor da IBJJF de propósito |
-| `lib/alertas-graduacao.ts` | `alertaGraduacao()` — fonte única do "pronto para graduar" |
-| `lib/afastamento.ts` | `DIAS_PARA_AFASTADO` e a regra de afastado (automático + override) |
+| `lib/alertas-graduacao.ts` | `alertaGraduacao()` — fonte única do "pronto para graduar"; devolve `{tipo:'grau'\|'faixa', ...} \| null`, não mais `string\|null` |
+| `lib/afastamento.ts` | `AULAS_PARA_AFASTADO`; `estaAfastado()`/`motivoAfastamento()` leem `aulas_perdidas`, não dias de calendário |
 | `lib/auth.ts` | `useSessao()` e `sair()` — estado da sessão do professor |
 | `components/LoginGate.tsx` | Tela de login e gate no topo do app |
 | `lib/instalacao.ts` | Captura global do `beforeinstallprompt` (começa no layout, cedo) |
