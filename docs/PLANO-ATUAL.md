@@ -5,7 +5,7 @@
 
 | Fase | Estado |
 |---|---|
-| G0 Preparar o terreno | **CONCLUÍDA** (aguarda teste e ok do Pedro) — backup verificado, migrations 001–014 conferidas, branch criado |
+| G0 Preparar o terreno | **CONCLUÍDA** (2026-10-21, testada no `localhost` e aprovada pelo Pedro) — backup verificado, migrations 001–014 conferidas, branch criado, permissão de leitura das skills liberada |
 | G1 Ping do Supabase (vai direto para a `main`) | **PENDENTE — próxima** |
 | G2 em diante | PENDENTE, na ordem do ROADMAP |
 
