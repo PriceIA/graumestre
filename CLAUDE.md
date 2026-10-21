@@ -14,7 +14,7 @@ App de gestão de alunos e aulas de jiu-jítsu, para **um professor faixa preta*
 - **Supabase client-side direto, sem rotas de API.** O app fala com o PostgREST do browser. Não crie `app/api/*` para funcionalidade nova — a pasta não existe mais, e não deve voltar.
 - **`components/AppShell.tsx` usa inline styles, não classes Tailwind.** É o componente principal e concentra quase toda a UI. Siga o padrão dele ao editá-lo — não misture `className` do Tailwind lá dentro. O Tailwind é usado no `DashboardProfessor` e nos `components/ui/*` (shadcn), que são outra geração de código.
 - **Login via Supabase Auth, client-side.** `LoginGate` no topo do `app/page.tsx`: sem sessão, nada do app é montado. A tela pede **apelido e senha**, não e-mail — o `LoginGate` monta `apelido@graumestre.app` antes de chamar `signInWithPassword`, porque é o apelido que o professor lembra e digita rápido no celular. **A conta em Authentication > Users tem que ser criada exatamente nesse formato.** O domínio não precisa existir nem receber e-mail; é só identificador. Não há cadastro público nem "esqueci a senha". O client usa `persistSession: true` e `autoRefreshToken: true`; sem isso a sessão morre a cada reload.
-- **RLS exige `authenticated`** nas 5 tabelas e na view (migration 009). `anon` não lê nem escreve nada. A chave pública no `.env` é esperada e correta — ela só identifica o projeto; quem protege é a policy.
+- **O que protege o banco hoje é o `GRANT`, não a RLS** (conferido em produção em 2026-10-21, G0). A migration 009 criou policies `authenticated` e revogou `anon`, e o `anon` de fato não lê nem escreve nada. **Mas `alunos`, `aulas`, `graduacoes` e `presencas` estão com a RLS DESLIGADA** (`relrowsecurity = false`; só `professor_perfil` está ligada) — as policies existem e são inertes. Na prática o efeito de hoje é o mesmo (toda conta logada vê tudo; só existe a conta do professor), mas **a RLS tem que ser ligada, com as policies certas e testada, antes de existir qualquer conta de aluno (G9)**. Não aplicar `enable row level security` avulso: com as policies atuais `using (true)` ele não protegeria nada de aluno. A chave pública no `.env` é esperada e correta — ela só identifica o projeto.
 - **A carga de dados é client-side.** O `app/page.tsx` é um server component fino que só monta o gate e o `AppShell`; quem busca é o `AppShell` ao montar, já com sessão. Buscar no servidor voltaria vazio — o token vive no browser.
 
 ## Padrão obrigatório: whitelist explícita de colunas
@@ -41,6 +41,17 @@ Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a li
 6. Dado de teste criado durante a verificação é limpo no fim, e o estado do banco conferido contra a linha de base.
 7. **Atualizar este arquivo e o `CHANGELOG.md` antes do commit final — não é opcional, faz parte de "pronto".** A documentação deixou de ser mantida à mão fora do código: ela vive no repositório e se atualiza sessão a sessão, junto com a mudança que a tornou verdadeira. Documentação que envelhece em silêncio é pior do que documentação nenhuma, porque a sessão seguinte confia nela.
 8. **Commit não é "pronto" — `git push` para a `origin` e conferir que a Vercel disparou o deploy a partir da `main` são.** Em 2026-09-02, 11 commits de um lote inteiro (as sete etapas de agosto, mais documentação) ficaram um dia inteiro parados só no `main` local: o processo terminava no commit, ninguém verificava o push, e `origin/main` continuou congelado na migration 013 sem que nada acusasse o atraso. Depois de cada commit — o final da sessão, ou qualquer ponto em que o trabalho pareça fechado — rode `git push` e confirme com `git status`/`git log origin/main..main` que não sobrou nada; depois confira (`vercel ls` ou o dashboard) que o deploy de produção saiu a partir daquele commit.
+
+## Branches e site no ar
+
+Desde a G0 (2026-10-21) o projeto está no **lote v2** (`docs/ROADMAP.md`).
+
+- **`main` é o site no ar** (Vercel, produção). Só recebe merge quando o Pedro disser. Única exceção prevista: a G1 (ping do Supabase), que vai direto para a `main` porque o banco está dormindo.
+- **O trabalho acontece no branch `desenvolvimento`**, com push a cada commit. Para esse branch, a regra 8 acima vale com a troca de alvo: `git push` e conferir `git log origin/desenvolvimento..desenvolvimento` vazio; o deploy de **produção** só é conferido quando algo entra na `main`.
+- **O banco é um só, o mesmo do site no ar.** Qualquer teste no `localhost` ou em preview escreve nos dados reais — dado de teste é limpo no fim e a contagem conferida contra a linha de base (33 alunos, 5 aulas, 59 presenças, 29 graduações em 2026-10-21).
+- **Migration é avisada no plano, antes, e aplicada pelo Pedro** no SQL Editor. Só acrescenta (nunca apaga nem renomeia coluna).
+- **Backup antes de qualquer migration:** `scripts/backup-graumestre.mjs` (tabelas por API + fotos) e `pg_dump` (ver o cabeçalho do script). O backup vive **fora do repositório** (`C:\Backups\graumestre\<data>\`) e contém hash de senha e dados de crianças — nunca vai para git, nuvem ou e-mail.
+- **O cadastro público do Supabase fica sempre desligado.** Conta de aluno só nasce por convite (G10), e nenhum convite funciona antes da RLS por papel estar pronta e testada (G9).
 
 ## A lixeira apaga de verdade (migration 011)
 

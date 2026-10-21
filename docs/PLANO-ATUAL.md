@@ -1,4 +1,23 @@
-# PLANO-ATUAL.md — nenhum lote em andamento
+# PLANO-ATUAL.md — Lote v2 em andamento (G0 concluída, próxima: G1)
+
+**Plano mestre: `docs/ROADMAP.md`.** Branch de trabalho: `desenvolvimento`
+(a `main` é o site no ar). Plano da G0: `docs/superpowers/plans/2026-10-21-g0-preparar-terreno.md`.
+
+| Fase | Estado |
+|---|---|
+| G0 Preparar o terreno | **CONCLUÍDA** (aguarda teste e ok do Pedro) — backup verificado, migrations 001–014 conferidas, branch criado |
+| G1 Ping do Supabase (vai direto para a `main`) | **PENDENTE — próxima** |
+| G2 em diante | PENDENTE, na ordem do ROADMAP |
+
+**Achado da G0 que vira requisito da G9:** a RLS está desligada em `alunos`,
+`aulas`, `graduacoes` e `presencas` em produção (só o `GRANT` protege). Ver
+`CLAUDE.md` (seção Stack) e `docs/ROADMAP.md` (G9).
+
+---
+
+*(O texto abaixo é o procedimento permanente deste arquivo.)*
+
+# Como este arquivo funciona
 
 Não há lote de trabalho ativo agora. **O `CLAUDE.md` diz como o projeto é;
 este arquivo diz o que está sendo feito e onde paramos** — quando não há

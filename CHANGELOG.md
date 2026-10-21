@@ -10,6 +10,12 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **G0 do lote v2 — terreno preparado, nada visível muda (branch `desenvolvimento`).**
+  - **Backup verificado antes de qualquer migration:** `pg_dump` (schemas `public` e `storage` + `auth.users`/`auth.identities`) e exportação por API em JSON e CSV, com `MANIFESTO.txt` (contagens e SHA-256). Contagens conferidas contra o banco: 33 alunos, 5 aulas, 59 presenças, 29 graduações, 1 perfil; bucket `aulas-fotos` vazio (0 fotos). Guardado fora do repositório.
+  - `scripts/backup-graumestre.mjs` (novo): lê credenciais só do ambiente, recusa gravar dentro do repo e aborta se o login falhar ou `alunos` vier vazia.
+  - **Migrations 001–014 conferidas em produção (só leitura): todas aplicadas.** Ritmo gravado no perfil: `meses_entre_graus = 5`, `presencas_por_grau = 40`.
+  - **Achado: a RLS está desligada em `alunos`, `aulas`, `graduacoes` e `presencas`** (só `professor_perfil` está ligada). As policies da 009 existem, mas inertes; hoje protege o `GRANT` (anon revogado). Não alterado nesta fase — vira requisito da G9. O `CLAUDE.md` dizia "RLS exige `authenticated` nas 5 tabelas": corrigido.
+  - Novos: `docs/COMO-USAR-SKILLS.md`, seção "Branches e site no ar" no `CLAUDE.md`, `docs/ROADMAP.md` e protótipo `docs/direcoes/gm-kimono.html` versionados; `docs/PLANO-ATUAL.md` aponta para a G1.
 - **Card da aula ganha miniatura de vídeo, em vez de um botão de texto.**
   - `extrairIdYoutube()` (nova) cobre `watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, ignorando `&t=`/`?si=`; nunca lança, devolve `null` para `studio.youtube.com` e formatos fora dos cobertos.
   - `MiniaturaYoutube` (novo componente), mesmo padrão de `onError` do `FotoAula`: erro na imagem cai de volta no botão de texto "▶ Assistir aula". `id` aceita `null` — achado ao testar `studio.youtube.com`: sem isso, um link válido sem id extraível virava um buraco silencioso na linha, sem imagem nem botão.
