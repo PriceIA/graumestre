@@ -6,7 +6,7 @@
 | Fase | Estado |
 |---|---|
 | G0 Preparar o terreno | **CONCLUÍDA** (2026-10-21, testada no `localhost` e aprovada pelo Pedro) — backup verificado, migrations 001–014 conferidas, branch criado, permissão de leitura das skills liberada |
-| G1 Ping do Supabase (vai direto para a `main`) | **PENDENTE — próxima** |
+| G1 Ping do Supabase (vai direto para a `main`) | **CÓDIGO PRONTO, testado no `localhost`** (migration 015 aplicada em 2026-10-22; 401/401/200 ok). Falta: commit, levar para a `main` quando o Pedro mandar, conferir deploy de produção e cron listado na Vercel |
 | G2 em diante | PENDENTE, na ordem do ROADMAP |
 
 **Achado da G0 que vira requisito da G9:** a RLS está desligada em `alunos`,
