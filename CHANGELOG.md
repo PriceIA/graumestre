@@ -10,6 +10,12 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **G1 do lote v2 — ping do Supabase por Vercel Cron (migration 015).** Evita que o plano gratuito pause o projeto por inatividade (~7 dias).
+  - `app/api/ping/route.ts` (novo): `GET` protegido por `CRON_SECRET` (`Authorization: Bearer`); sem segredo, ou com `CRON_SECRET` indefinido, responde 401 sem tocar o banco. Usa só a chave pública e chama `rpc('ping')`.
+  - `vercel.json` (novo): cron `0 9 */5 * *` (06:00 de Brasília, a cada 5 dias; `*/5` reinicia a cada mês, o maior intervalo é 5 dias).
+  - **Migration 015: `public.ping()`**, que devolve `1` e não lê tabela. Foi preciso porque a 009 revogou o `anon` das tabelas: um `select` ali dá `permission denied` e não há garantia de que conte como atividade. Só acrescenta uma função; sem RLS ou GRANT de tabela alterados. Aplicada pelo Pedro em 2026-10-22.
+  - Testado no `localhost`: sem segredo 401, segredo errado 401, segredo certo 200 `{ok:true}`. `tsc --noEmit` limpo.
+  - Única exceção à regra "sem `app/api`" (ver `CLAUDE.md`).
 - **Card da aula ganha miniatura de vídeo, em vez de um botão de texto.**
   - `extrairIdYoutube()` (nova) cobre `watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, ignorando `&t=`/`?si=`; nunca lança, devolve `null` para `studio.youtube.com` e formatos fora dos cobertos.
   - `MiniaturaYoutube` (novo componente), mesmo padrão de `onError` do `FotoAula`: erro na imagem cai de volta no botão de texto "▶ Assistir aula". `id` aceita `null` — achado ao testar `studio.youtube.com`: sem isso, um link válido sem id extraível virava um buraco silencioso na linha, sem imagem nem botão.
