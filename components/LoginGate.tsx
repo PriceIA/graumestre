@@ -94,7 +94,7 @@ function TelaLogin() {
               onKeyDown={e => { if (e.key === 'Enter') entrar() }}
               style={{
                 width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`,
-                borderRadius: 'var(--r)', padding: '12px 14px', color: t.text, fontSize: 15,
+                borderRadius: 'var(--r)', padding: '12px 14px', color: t.text, fontSize: 16,
                 boxSizing: 'border-box',
               }}
             />
@@ -110,7 +110,7 @@ function TelaLogin() {
               onKeyDown={e => { if (e.key === 'Enter') entrar() }}
               style={{
                 width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`,
-                borderRadius: 'var(--r)', padding: '12px 14px', color: t.text, fontSize: 15,
+                borderRadius: 'var(--r)', padding: '12px 14px', color: t.text, fontSize: 16,
                 boxSizing: 'border-box',
               }}
             />

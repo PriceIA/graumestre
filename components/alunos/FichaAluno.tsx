@@ -22,12 +22,14 @@ import { Field, Toggle } from '@/components/comum/Campos'
 import { scrim, type Theme } from '@/lib/cores'
 
 // ─── Modal Aluno ─────────────────────────────────────────────────────────────
-export function FichaAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGraduacao, t, podeEditar = true, tabInicial = 'perfil' }: {
+export function FichaAluno({ aluno, professor, onClose, onSave, onDelete, onGraduacaoMudou, t, podeEditar = true, tabInicial = 'perfil' }: {
   aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[]; ultima_presenca_data?: string | null; aulas_perdidas?: number };
   professor: ProfessorPerfil | null;
   onClose: () => void; onSave: (a: Aluno) => void; onDelete: (id: string) => void;
-  // avisa o AppShell que algo entrou na lixeira, para o badge da aba recontar
-  onDeleteGraduacao: () => void; t: Theme;
+  // avisa o AppShell que o histórico de graduações mudou (gravou ou apagou):
+  // ele recarrega a lista do banco, que é a fonte única — o selo PRONTO, o
+  // histórico e o badge da lixeira dependem disso
+  onGraduacaoMudou: () => void; t: Theme;
   // Hoje é sempre true (app single-user, só o professor usa). Fica preparado
   // para quando o aluno puder logar e ver o próprio perfil em modo leitura.
   podeEditar?: boolean;
@@ -108,7 +110,7 @@ export function FichaAluno({ aluno, professor, onClose, onSave, onDelete, onDele
     }
     setErro(null)
     setHistorico(prev => prev.filter(h => h.id !== g.id))
-    onDeleteGraduacao()
+    onGraduacaoMudou()
   }
 
   const handleSave = async () => {
@@ -171,6 +173,7 @@ export function FichaAluno({ aluno, professor, onClose, onSave, onDelete, onDele
         return
       }
       novaUltimaGraduacao = hoje
+      onGraduacaoMudou()
     }
 
     onSave({ ...form, nome: payload.nome as string, ultima_graduacao_data: novaUltimaGraduacao } as Aluno)
@@ -221,9 +224,14 @@ export function FichaAluno({ aluno, professor, onClose, onSave, onDelete, onDele
 
         {/* fieldset desabilita de uma vez todos os inputs/selects/botões que
             estiverem dentro dele — as abas ficam de fora e continuam navegáveis */}
+        {/* A rolagem mora numa <div>, não no <fieldset>: no Chrome o conteúdo de
+            um fieldset com overflow vazava dos limites dele e era pintado por
+            cima do rodapé (reproduzido em 2026-10-23, G5.2). O fieldset fica
+            dentro, só para desligar a edição. minHeight:0 deixa o flex encolher. */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         <fieldset
           disabled={!podeEditar}
-          style={{ padding: 20, overflowY: 'auto', flex: 1, border: 'none', margin: 0, minWidth: 0 }}
+          style={{ padding: 20, border: 'none', margin: 0, minWidth: 0 }}
         >
           {tab === 'perfil' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -334,7 +342,7 @@ export function FichaAluno({ aluno, professor, onClose, onSave, onDelete, onDele
               <textarea
                 value={form.notas ?? ''} onChange={e => set('notas', e.target.value)}
                 placeholder="Anote evolução, pontos de atenção..."
-                style={{ width: '100%', minHeight: 160, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: 12, color: t.text, fontSize: 14, lineHeight: 1.6, resize: 'vertical', boxSizing: 'border-box' }}
+                style={{ width: '100%', minHeight: 160, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: 12, color: t.text, fontSize: 16, lineHeight: 1.6, resize: 'vertical', boxSizing: 'border-box' }}
               />
             </div>
           )}
@@ -456,7 +464,7 @@ export function FichaAluno({ aluno, professor, onClose, onSave, onDelete, onDele
                 <select
                   value={form.veio_de_faixa_juvenil ?? ''}
                   onChange={e => set('veio_de_faixa_juvenil', e.target.value || null)}
-                  style={{ width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 14, boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 16, boxSizing: 'border-box' }}
                 >
                   <option value="">Nenhuma</option>
                   <option value="azul_juvenil">Azul juvenil</option>
@@ -515,6 +523,7 @@ export function FichaAluno({ aluno, professor, onClose, onSave, onDelete, onDele
             </div>
           )}
         </fieldset>
+        </div>
 
         {erro && (
           <div style={{

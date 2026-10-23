@@ -10,7 +10,7 @@ export function Field({ label, value, onChange, type = 'text', placeholder, t }:
       <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>{label}</div>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        style={{ width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 14, boxSizing: 'border-box' }}
+        style={{ width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 16, boxSizing: 'border-box' }}
       />
     </div>
   )

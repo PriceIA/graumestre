@@ -149,7 +149,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
                 }}
                 style={{
                   width: 80, background: t.inputBg, border: `1px solid ${t.border2}`,
-                  borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 15,
+                  borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 16,
                   fontWeight: 700, textAlign: 'center', boxSizing: 'border-box',
                 }}
               />
@@ -181,7 +181,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
                 }}
                 style={{
                   width: 80, background: t.inputBg, border: `1px solid ${t.border2}`,
-                  borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 15,
+                  borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 16,
                   fontWeight: 700, textAlign: 'center', boxSizing: 'border-box',
                 }}
               />
@@ -950,7 +950,7 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
             <textarea
               value={form.notas} onChange={e => set('notas', e.target.value)}
               placeholder="Anotações gerais sobre a aula..."
-              style={{ width: '100%', minHeight: 80, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: 10, color: t.text, fontSize: 13, resize: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', minHeight: 80, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: 10, color: t.text, fontSize: 16, resize: 'none', boxSizing: 'border-box' }}
             />
           </div>
         </div>
@@ -1165,7 +1165,7 @@ function Chamada({ aula, alunos, onClose, t }: {
           placeholder="Buscar por nome…"
           style={{
             width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`,
-            borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 14,
+            borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 16,
             boxSizing: 'border-box',
           }}
         />
@@ -1387,6 +1387,8 @@ function Lixeira({ t, onRestaurado, onVoltar }: { t: Theme; onRestaurado: () => 
   )
 }
 
+type FichaAberta = { id: string; origem: 'alunos' | 'fora'; aba: TabAluno }
+
 // ─── AppShell ────────────────────────────────────────────────────────────────
 // Sem props de dados: a carga inteira acontece aqui, no cliente, ao montar.
 // Antes vinha pronta do server component, mas com a RLS exigindo
@@ -1408,9 +1410,10 @@ export default function AppShell() {
   const [erroPerfil, setErroPerfil] = useState<string | null>(null)
   const [retentando, setRetentando] = useState(false)
   const [tab, setTab]       = useState<'inicio' | 'alunos' | 'aulas' | 'lixeira'>('inicio')
-  const [alunoSel, setAlunoSel]   = useState<any | null>(null)
-  // aba em que o modal do aluno abre — só o card "Prontos para graduar" muda isso
-  const [abaAluno, setAbaAluno]   = useState<TabAluno>('perfil')
+  // Ficha aberta: guardamos o ID (e a origem e a aba), não o objeto. O objeto é
+  // lido da lista a cada render, então a recarga depois de graduar chega na
+  // ficha aberta, e um aluno apagado some da tela sozinho.
+  const [ficha, setFicha] = useState<FichaAberta | null>(null)
   const [modalAula, setModalAula] = useState(false)
   // aula cuja chamada está aberta — recém-criada pelo modal ou reaberta pelo card
   const [chamadaAula, setChamadaAula] = useState<any | null>(null)
@@ -1505,13 +1508,16 @@ export default function AppShell() {
 
   useEffect(() => { contarLixeira() }, [])
 
-  // Ponto único de abertura do modal do aluno: quem não pede aba cai em
+  // Ponto único de abertura da ficha do aluno: quem não pede aba cai em
   // 'perfil'. Sem isso a aba escolhida por uma abertura anterior sobreviveria
-  // para a próxima, porque `abaAluno` é estado do AppShell, não do modal.
-  const abrirAluno = (aluno: any, aba: TabAluno = 'perfil') => {
-    setAbaAluno(aba)
-    setAlunoSel(aluno)
-  }
+  // para a próxima, porque a aba é estado do AppShell, não da ficha. `origem`
+  // diz de onde veio o toque (a tela de Alunos ou o Início/Graduar) — a G5.4 usa.
+  const abrirAluno = (aluno: any, aba: TabAluno = 'perfil', origem: FichaAberta['origem'] = 'alunos') =>
+    setFicha({ id: aluno.id, aba, origem })
+
+  const alunoAberto = ficha ? alunos.find(a => a.id === ficha.id) ?? null : null
+  // aluno apagado (ou sumido da lista): a ficha não pode ficar aberta sobre nada
+  useEffect(() => { if (ficha && !alunoAberto) setFicha(null) }, [ficha, alunoAberto])
 
   const apagarAula = async (aula: any) => {
     if (!window.confirm(`Apagar a aula de ${aula.data}? Ela vai para a lixeira e pode ser restaurada por ${DIAS_LIXEIRA} dias.`)) return
@@ -1574,7 +1580,7 @@ export default function AppShell() {
         <DashboardProfessor
           alunos={alunos} aulasEsseMes={aulasEsseMes} qtdProntos={prontos.length}
           onAbrirProntos={() => setPainelProntos(true)}
-          onSelectAluno={abrirAluno}
+          onSelectAluno={(aluno, aba) => abrirAluno(aluno, aba, 'fora')}
         />
       )}
 
@@ -1787,11 +1793,12 @@ export default function AppShell() {
       )}
 
       {/* Modais */}
-      {alunoSel && (
+      {ficha && alunoAberto && (
         <FichaAluno
-          aluno={alunoSel}
+          key={ficha.id}
+          aluno={alunoAberto}
           professor={professor}
-          onClose={() => setAlunoSel(null)}
+          onClose={() => setFicha(null)}
           onSave={updated => {
             setAlunos(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
             startTransition(() => router.refresh())
@@ -1800,8 +1807,10 @@ export default function AppShell() {
             setAlunos(prev => prev.filter(a => a.id !== id))
             contarLixeira()
           }}
-          onDeleteGraduacao={contarLixeira}
-          tabInicial={abaAluno}
+          // A gravação já está no banco; recarregar traz o histórico novo, o
+          // selo PRONTO recalculado pela view e o badge da lixeira certo.
+          onGraduacaoMudou={async () => { await recarregar(); await contarLixeira() }}
+          tabInicial={ficha.aba}
           t={t}
         />
       )}
@@ -1863,7 +1872,7 @@ export default function AppShell() {
           onClose={() => setPainelProntos(false)}
           // Fecha o painel na hora e abre o modal na aba de graduação — sem
           // empilhar overlays, mesmo padrão do ModalAula → Chamada.
-          onSelect={aluno => { setPainelProntos(false); abrirAluno(aluno, 'graduação') }}
+          onSelect={aluno => { setPainelProntos(false); abrirAluno(aluno, 'graduação', 'fora') }}
           t={t}
         />
       )}
