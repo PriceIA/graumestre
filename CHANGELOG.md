@@ -10,6 +10,13 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **G2 do lote v2 — `PRODUCT.md` e `DESIGN.md` (só documento, nenhum código muda; branch `desenvolvimento`).**
+  - `PRODUCT.md` (novo, raiz): professor no tatame, alunos com login próprio que confirmam a própria presença, crianças na turma, o que nunca pode se perder, o que o app deliberadamente não faz. Registra que a conferência do professor depois da presença do aluno **não é dupla confirmação**: a presença já vale na hora, a conferência é revisão posterior.
+  - `DESIGN.md` (novo, raiz): tokens dos dois temas (kimono branco e preto) com os nomes das custom properties do protótipo `gm-kimono.html`, e as regras: trama, costura (preta no branco, branca no preto), ponteira de faixa preta só decorativa, estêncil só em título e placar, 44 px, estado sempre escrito. Gerado do protótipo, não do app; a G3 leva os tokens ao código.
+  - **Decisão 1 do ROADMAP resolvida (opção A):** o alerta deixa de ser vermelho e vira **âmbar** (`#B45309` no claro, `#F59E0B` no escuro); o vermelho fica só na ponteira, como decoração.
+  - **Erro e sucesso** definidos (o FOJJ não tinha), marcados como proposta no documento: erro `#B42318`/`#D92D20`, sucesso `#067647`/`#12B76A`.
+  - **Contraste conferido por cálculo (WCAG):** todos os pares de texto passam AA nos dois temas; menor valor, 4.83:1. Pontos decorativos abaixo de 3:1 (borda da etiqueta e ponteira no kimono preto) anotados, sem exigência.
+  - Sem migration. O sidecar `.impeccable/design.json` não foi gerado (sem código para extrair); sai na G3.
 - **G1 do lote v2 — ping do Supabase por Vercel Cron (migration 015).** Evita que o plano gratuito pause o projeto por inatividade (~7 dias).
   - `app/api/ping/route.ts` (novo): `GET` protegido por `CRON_SECRET` (`Authorization: Bearer`); sem segredo, ou com `CRON_SECRET` indefinido, responde 401 sem tocar o banco. Usa só a chave pública e chama `rpc('ping')`.
   - `vercel.json` (novo): cron `0 9 */5 * *` (06:00 de Brasília, a cada 5 dias; `*/5` reinicia a cada mês, o maior intervalo é 5 dias).

@@ -307,6 +307,8 @@ Já resolvidas: a **purga física da lixeira** (era pendência explícita desde 
 | Arquivo | O que é |
 |---|---|
 | `docs/PLANO-ATUAL.md` | Plano da etapa em andamento; volta a ficar vazio quando o lote fecha |
+| `PRODUCT.md` | Contexto de produto (G2): quem usa, o que nunca se perde, o que o app não faz. Lido pelo Impeccable |
+| `DESIGN.md` | Sistema visual (G2): tokens dos dois temas, regras (trama, costura, ponteira, estêncil, 44 px), alerta âmbar. Gerado do protótipo `gm-kimono.html`; vale a partir da G3 |
 | `docs/handoff/` | Troca de contexto entre Claude (chat) e Claude Code — `PARA-O-CODE.md`/`DO-CODE.md` |
 | `components/AppShell.tsx` | UI principal: lista e modal de aluno, aulas, chamada, lixeira, filtros |
 | `components/FaixaDesenhada.tsx` | Faixa desenhada (SVG) com graus — corpo, listra, ponteira, esparadrapos, `<FaixaDefs/>` |

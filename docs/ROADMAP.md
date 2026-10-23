@@ -116,9 +116,9 @@ do aluno não segura o resto.
 ## 4. Decisões que ainda faltam (cada uma na fase indicada)
 
 **Parte 1**
-1. **Vermelho de alerta × vermelho da ponteira** *(G2)*. Hoje é o mesmo
-   vermelho. Ou o alerta ganha outra cor, ou fica o mesmo vermelho sempre com
-   texto e ícone.
+1. ✅ **Vermelho de alerta × vermelho da ponteira** *(G2, decidido
+   2026-10-22)*: o alerta ganha outra cor, **âmbar**; o vermelho fica só na
+   ponteira, como decoração. Valores em `DESIGN.md`.
 2. **Onde fica o botão de tema** *(G3)*: no cabeçalho de toda tela (como no
    protótipo) ou só no menu.
 3. **Correção de datas** *(G4)*: o FOJJ achou um defeito que também existe no
