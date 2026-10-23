@@ -1,19 +1,25 @@
 import type { Metadata, Viewport } from 'next'
-import { Anton, Open_Sans } from 'next/font/google'
+import { Archivo, Big_Shoulders_Stencil_Display } from 'next/font/google'
 import SplashGate from '@/components/SplashGate'
 import RegistroServiceWorker from '@/components/RegistroServiceWorker'
+import { SCRIPT_TEMA } from '@/lib/tema'
 import './globals.css'
 
-const anton = Anton({
+// Archivo variável com o eixo de largura (wdth): é o que deixa caber nome longo
+// de aluno sem encolher a letra. Estêncil só para título e número (DESIGN.md).
+const archivo = Archivo({
   subsets: ['latin'],
-  weight: '400',
-  variable: '--font-display',
+  weight: 'variable',
+  axes: ['wdth'],
+  display: 'swap',
+  variable: '--font-ui',
 })
 
-const openSans = Open_Sans({
+const estencil = Big_Shoulders_Stencil_Display({
   subsets: ['latin'],
-  weight: ['400', '600', '700'],
-  variable: '--font-body',
+  weight: ['700', '800', '900'],
+  display: 'swap',
+  variable: '--font-display',
 })
 
 export const metadata: Metadata = {
@@ -34,7 +40,10 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0a0a0a',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F4F4F1' },
+    { media: '(prefers-color-scheme: dark)', color: '#131312' },
+  ],
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -42,8 +51,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${anton.variable} ${openSans.variable}`}>
-      <body className="font-body">
+    // suppressHydrationWarning: o script abaixo põe data-tema no <html> antes
+    // do React hidratar, e o servidor não sabe esse valor.
+    <html lang="pt-BR" className={`${archivo.variable} ${estencil.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
+      </head>
+      <body>
         <RegistroServiceWorker />
         <SplashGate>{children}</SplashGate>
       </body>
