@@ -82,7 +82,7 @@ export function BarraFiltros({ alunos, filtros, setFiltros, busca, setBusca, tot
           <span style={SO_LEITOR}>Buscar aluno pelo nome</span>
           <input
             type="search" value={busca} onChange={e => setBusca(e.target.value)}
-            placeholder="Buscar aluno pelo nome" autoComplete="off" enterKeyHint="search"
+            placeholder="Buscar aluno" autoComplete="off" enterKeyHint="search"
           />
         </label>
         <button type="button" className="al-btn" onClick={onAbrirPainel}>

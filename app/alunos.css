@@ -87,6 +87,14 @@
 .al-meta .num { font-variant-numeric: tabular-nums; }
 .al-faixa { grid-column: 3; grid-row: 1 / span 2; width: 96px; }
 .al-col { display: none; }
+.al-col .suave { color: var(--tinta-suave); }
+.al-cab { display: none; }
+.al-novo { display: none; }
+.al-lateral { display: contents; }
+.ficha-vazia { display: none; }
+.ficha-raiz { display: contents; }
+.ficha-scrim { display: none; }
+.area { padding: 16px 16px 0; }
 
 .al-vazio {
   margin-top: 18px; padding: 24px; text-align: center; font-size: 15px; color: var(--tinta-media);
@@ -106,7 +114,7 @@
 .ficha:focus { outline: none; }
 .ficha.aberta { transform: none; visibility: visible; transition: transform .22s var(--ease); }
 
-.ficha-rolagem { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 24px; }
+.ficha-rolagem { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 24px; }
 /* sem padding no alto da rolagem: a barra de abas gruda no topo de verdade */
 .ficha-topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 14px 0 10px; }
 .ficha-fechar {
@@ -134,7 +142,9 @@
 /* O fieldset só desliga a edição; a rolagem é da .ficha-rolagem (G5.2). */
 .ficha-campos { border: 0; margin: 0; padding: 0; min-width: 0; }
 .ficha-conteudo { display: flex; flex-direction: column; gap: 14px; }
-.ficha-duplo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; }
+.ficha-duplo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 0; }
+/* campo de data: o seletor do navegador é largo; sem isto estoura a coluna */
+.ficha-duplo .cp-input { min-width: 0; padding: 0 10px; }
 .ficha-dado dt { font-size: 13px; color: var(--tinta-media); font-weight: 600; }
 .ficha-dado dd { margin: 2px 0 0; font: 800 22px/1.1 var(--ui); font-variation-settings: 'wdth' 75; }
 .ficha-notas { min-height: 160px; padding: 12px 14px; line-height: 1.5; resize: vertical; }
@@ -193,4 +203,87 @@
 .fi-aviso {
   margin-top: 12px; padding: 10px 12px; border: 1.5px solid var(--alerta); border-radius: var(--r);
   background: color-mix(in srgb, var(--alerta) 10%, var(--papel)); color: var(--alerta-texto); font-size: 14px; line-height: 1.4; font-weight: 600;
+}
+
+/* ═══ Computador (960 px ou mais), G5.4 ════════════════════════════════════
+   Alunos usa a largura toda. A tela vira duas colunas que rolam cada uma no
+   seu ritmo: a lista à esquerda (busca e filtros presos no alto) e a ficha
+   fixa à direita, sem abrir janela por cima. Largura útil conferida em
+   960 px: 960 - 232 (menu) - 72 (margens) - 28 (vão) - 340 (ficha) = 288 px
+   para a lista — por isso a tabela só aparece a partir de 1240 px. */
+@media (min-width: 960px) {
+  .conteudo.larga { max-width: none; height: 100dvh; display: flex; flex-direction: column; padding-bottom: 0; }
+  .conteudo.larga .topo { flex: none; }
+  .conteudo.larga .area { flex: 1; min-height: 0; padding: 0 24px 24px; display: flex; flex-direction: column; }
+  .conteudo.larga .topo { margin-left: 24px; margin-right: 24px; }
+  .al-novo { display: inline-flex; }
+  .fab-area.so-celular { display: none; }
+
+  .al-grade {
+    flex: 1; min-height: 0; display: grid; gap: 28px; align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+  .al-principal { min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  .al-ferramentas { flex: none; }
+  .al-rolagem { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+  .al-lateral { display: block; min-height: 0; position: relative; }
+
+  /* Ficha fixa: ocupa a coluna da direita, sem animação de subida. */
+  .ficha-raiz.fixa { display: block; height: 100%; }
+  .ficha-raiz.fixa .ficha {
+    position: static; inset: auto; height: 100%; z-index: auto;
+    transform: none; visibility: visible; transition: none;
+    background: var(--papel); border: 1.5px solid var(--controle); border-radius: var(--r);
+  }
+  .ficha-raiz.fixa .ficha-fechar { display: none; }
+  .ficha-vazia {
+    display: grid; place-items: center; height: 100%; padding: 24px; text-align: center;
+    color: var(--tinta-media); font-size: 15px; background: var(--papel); border: 1.5px dashed var(--controle); border-radius: var(--r);
+  }
+
+  /* Ficha que vem de fora (Início, Graduar): painel pela direita sobre a tela. */
+  .ficha-raiz.fora { display: block; position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+  .ficha-raiz.fora .ficha-scrim {
+    display: block; position: absolute; inset: 0; pointer-events: auto;
+    background: color-mix(in srgb, var(--scrim) 0%, transparent); transition: background .22s;
+  }
+  .ficha-raiz.fora .ficha-scrim.aberto { background: color-mix(in srgb, var(--scrim) 60%, transparent); }
+  .ficha-raiz.fora .ficha {
+    inset: 0 0 0 auto; width: 440px; max-width: 100%; pointer-events: auto;
+    background: var(--papel); border-left: 1.5px solid var(--controle);
+    transform: translateX(100%); transition: transform .22s var(--ease), visibility 0s .22s;
+  }
+  .ficha-raiz.fora .ficha.aberta { transform: none; transition: transform .22s var(--ease); }
+
+  /* Dentro do painel o fundo é papel; a trama fica na página. */
+  .ficha-raiz .ficha-rolagem { padding: 0 20px 20px; }
+  .ficha-raiz .ficha-abas { margin: 14px -20px 16px; padding: 0 20px; background: var(--papel); }
+  .ficha-raiz .ficha-quadro { background: var(--fundo); }
+  .ficha-raiz .ficha-rodape { padding: 12px 20px; }
+  .ficha-erro { margin: 0 20px 10px; }
+
+  .al-nome { font-size: 15.5px; }
+  .al-linha { grid-template-columns: 40px minmax(0, 1fr) 84px; }
+  .al-faixa { width: 84px; }
+  .al-linha[aria-current="true"] { background: var(--fundo); }
+  .al-cab { position: sticky; top: 0; z-index: 1; background: var(--fundo); }
+}
+
+/* Tabela: nome, faixa, frequência, situação. Só onde cabem as quatro colunas. */
+@media (min-width: 1240px) {
+  .conteudo.larga .area { padding: 0 36px 24px; }
+  .conteudo.larga .topo { margin-left: 36px; margin-right: 36px; }
+  .al-grade { grid-template-columns: minmax(0, 1fr) 380px; }
+  .al-cab {
+    display: grid; grid-template-columns: 40px minmax(120px, 1fr) 104px 104px 100px; gap: 12px;
+    padding: 12px 2px 8px; border-bottom: 1.5px solid var(--controle);
+    font: 750 12px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-media);
+  }
+  .al-linha { grid-template-columns: 40px minmax(120px, 1fr) 104px 104px 100px; grid-template-rows: auto; gap: 12px; min-height: 56px; padding: 8px 2px; }
+  .al-av { grid-row: auto; }
+  .al-faixa { grid-column: 3; grid-row: auto; width: 104px; }
+  .al-meta { display: none; }
+  .al-col { display: block; color: var(--tinta-media); font-size: 14.5px; white-space: nowrap; }
+  .al-col.st { display: flex; align-items: center; gap: 6px; }
+  .al-grupo h3 { margin-top: 4px; }
 }

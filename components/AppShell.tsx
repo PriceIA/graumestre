@@ -1514,10 +1514,30 @@ export default function AppShell() {
   // 'perfil'. Sem isso a aba escolhida por uma abertura anterior sobreviveria
   // para a próxima, porque a aba é estado do AppShell, não da ficha. `origem`
   // diz de onde veio o toque (a tela de Alunos ou o Início/Graduar) — a G5.4 usa.
-  const abrirAluno = (aluno: any, aba: TabAluno = 'perfil', origem: FichaAberta['origem'] = 'alunos') =>
+  const abrirAluno = (aluno: any, aba: TabAluno = 'perfil', origem: FichaAberta['origem'] = 'alunos') => {
+    // tocar de novo no aluno que já está aberto não faz nada (nem pergunta)
+    if (ficha && ficha.id === aluno.id && ficha.aba === aba && ficha.origem === origem) return
+    if (!confirmarDescarte()) return
     setFicha({ id: aluno.id, aba, origem })
+  }
 
   const alunoAberto = ficha ? alunos.find(a => a.id === ficha.id) ?? null : null
+
+  // A ficha avisa (onAlteradoMudou) se há alteração não salva. Com o painel
+  // fixo ao lado da tabela, a navegação fica à vista: trocar de aluno ou de
+  // tela passa por esta pergunta, ou o que foi digitado se perderia sem aviso.
+  const fichaAlterada = useRef(false)
+  useEffect(() => { if (!ficha) fichaAlterada.current = false }, [ficha])
+  const confirmarDescarte = () =>
+    !ficha || !fichaAlterada.current ||
+    window.confirm(`Descartar as alterações em ${alunoAberto?.nome ?? 'este aluno'}?`)
+
+  // Troca de tela: fecha a ficha (depois da pergunta, se houver alteração).
+  const irPara = (aba: typeof tab) => {
+    if (!confirmarDescarte()) return
+    setFicha(null)
+    setTab(aba)
+  }
   // aluno apagado (ou sumido da lista): a ficha não pode ficar aberta sobre nada
   useEffect(() => { if (ficha && !alunoAberto) setFicha(null) }, [ficha, alunoAberto])
 
@@ -1531,6 +1551,7 @@ export default function AppShell() {
   }
 
   const novoAluno = async () => {
+    if (!confirmarDescarte()) return
     const { data, error } = await supabase
       .from('alunos')
       .insert({ nome: 'Novo Aluno', faixa: 'branca', graus: 0, inicio: hojeBrasil() })
@@ -1563,14 +1584,41 @@ export default function AppShell() {
     )
   }
 
+  // A ficha do aluno aberta. Origem 'alunos': vai para a vaga ao lado da
+  // tabela; 'fora' (Início, Graduar): painel por cima, na raiz.
+  const fichaEl = ficha && alunoAberto ? (
+    <FichaAluno
+      key={`${ficha.id}-${ficha.origem}-${ficha.aba}`}
+      aluno={alunoAberto}
+      professor={professor}
+      presencasPorGrau={presencasPorGrau}
+      origem={ficha.origem}
+      onAlteradoMudou={alterado => { fichaAlterada.current = alterado }}
+      onClose={() => setFicha(null)}
+      onSave={updated => {
+        setAlunos(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
+        startTransition(() => router.refresh())
+      }}
+      onDelete={id => {
+        setAlunos(prev => prev.filter(a => a.id !== id))
+        contarLixeira()
+      }}
+      // A gravação já está no banco; recarregar traz o histórico novo, o selo
+      // PRONTO recalculado pela view e o badge da lixeira certo.
+      onGraduacaoMudou={async () => { await recarregar(); await contarLixeira() }}
+      tabInicial={ficha.aba}
+      t={t}
+    />
+  ) : null
+
   return (
     <div className="app" style={{ fontFamily: t.ui, color: t.text }}>
       <Navegacao
-        atual={tab} onIr={setTab}
+        atual={tab} onIr={irPara}
         onGraduar={() => setPainelProntos(true)} onMais={() => setMenuAberto(true)}
         qtdProntos={prontos.length}
       />
-      <main className="conteudo">
+      <main className={`conteudo${tab === 'alunos' ? ' larga' : ''}`}>
 
       {/* Gradientes + trama da faixa desenhada — declarados UMA VEZ aqui,
           referenciados por url(#id) em toda faixa da tela. Monta um <svg>
@@ -1595,6 +1643,11 @@ export default function AppShell() {
         <header className="topo">
           <h1>{tab === 'alunos' ? 'Alunos' : 'Aulas'}</h1>
           <span className="sub">{tab === 'alunos' ? `${alunos.length} alunos` : `${aulas.length} aulas`}</span>
+          {tab === 'alunos' && (
+            <span className="acoes-topo">
+              <button type="button" className="al-btn cheio al-novo" onClick={novoAluno}>+ Novo aluno</button>
+            </span>
+          )}
         </header>
       )}
 
@@ -1638,7 +1691,7 @@ export default function AppShell() {
       )}
 
       {/* Conteúdo */}
-      <div style={{ padding: '16px 16px 0' }}>
+      <div className="area">
 
         {tab === 'alunos' && (
           <TelaAlunos
@@ -1646,6 +1699,7 @@ export default function AppShell() {
             busca={buscaAluno} setBusca={setBuscaAluno}
             presencasPorGrau={presencasPorGrau} idAberto={ficha?.id ?? null}
             onAbrir={aluno => abrirAluno(aluno)} onAbrirFiltros={() => setFiltroAberto(true)}
+            ficha={ficha?.origem === 'alunos' ? fichaEl : null}
           />
         )}
 
@@ -1776,7 +1830,7 @@ export default function AppShell() {
       {/* FAB — só onde há o que criar: Alunos e Aulas. No Início e na lixeira
           não há (no Início o "+" abriria uma aula, o que ninguém espera). */}
       {(tab === 'alunos' || tab === 'aulas') && (
-        <div className="fab-area">
+        <div className={`fab-area${tab === 'alunos' ? ' so-celular' : ''}`}>
           <FabButton
             onClick={tab === 'alunos' ? novoAluno : () => setModalAula(true)}
             t={t}
@@ -1785,28 +1839,7 @@ export default function AppShell() {
       )}
 
       {/* Modais */}
-      {ficha && alunoAberto && (
-        <FichaAluno
-          key={ficha.id}
-          aluno={alunoAberto}
-          professor={professor}
-          presencasPorGrau={presencasPorGrau}
-          onClose={() => setFicha(null)}
-          onSave={updated => {
-            setAlunos(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
-            startTransition(() => router.refresh())
-          }}
-          onDelete={id => {
-            setAlunos(prev => prev.filter(a => a.id !== id))
-            contarLixeira()
-          }}
-          // A gravação já está no banco; recarregar traz o histórico novo, o
-          // selo PRONTO recalculado pela view e o badge da lixeira certo.
-          onGraduacaoMudou={async () => { await recarregar(); await contarLixeira() }}
-          tabInicial={ficha.aba}
-          t={t}
-        />
-      )}
+      {ficha?.origem === 'fora' && fichaEl}
       {modalAula && (
         <ModalAula
           onClose={() => setModalAula(false)}
@@ -1874,7 +1907,7 @@ export default function AppShell() {
           naLixeira={naLixeira}
           onClose={() => setMenuAberto(false)}
           onAbrirPerfil={() => { setMenuAberto(false); setModalProfessor(true) }}
-          onAbrirLixeira={() => { setMenuAberto(false); setTab('lixeira') }}
+          onAbrirLixeira={() => { setMenuAberto(false); irPara('lixeira') }}
           t={t}
         />
       )}

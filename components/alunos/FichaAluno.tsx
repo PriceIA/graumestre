@@ -26,11 +26,18 @@ const TABS: TabAluno[] = ['perfil', 'frequência', 'notas', 'graduação']
 // ─── Ficha do aluno ──────────────────────────────────────────────────────────
 // Folha que sobe e cobre a tela (celular). Quatro abas — Perfil, Frequência,
 // Notas, Graduação —, rodapé fixo com Cancelar e Salvar. Era o ModalAluno.
-export function FichaAluno({ aluno, professor, presencasPorGrau, onClose, onSave, onDelete, onGraduacaoMudou, t, podeEditar = true, tabInicial = 'perfil' }: {
+export function FichaAluno({ aluno, professor, presencasPorGrau, origem, onAlteradoMudou, onClose, onSave, onDelete, onGraduacaoMudou, t, podeEditar = true, tabInicial = 'perfil' }: {
   aluno: AlunoFicha
   professor: ProfessorPerfil | null
   // o mesmo número que alimenta o selo da lista e o painel de prontos
   presencasPorGrau: number
+  // De onde veio o toque. 'alunos': a ficha mora ao lado da tabela (computador)
+  // ou cobre a tela (celular). 'fora': veio do Início ou do Graduar e entra como
+  // painel pela direita por cima da tela em que o professor estava.
+  origem: 'alunos' | 'fora'
+  // avisa o AppShell se há alteração não salva, para ele perguntar antes de
+  // trocar de aluno ou de tela (o painel fixo deixa a navegação à vista)
+  onAlteradoMudou: (alterado: boolean) => void
   onClose: () => void; onSave: (a: Aluno) => void; onDelete: (id: string) => void
   // avisa o AppShell que o histórico de graduações mudou (gravou ou apagou):
   // ele recarrega a lista do banco, que é a fonte única — o selo PRONTO, o
@@ -80,6 +87,9 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, onClose, onSave
     const id = setTimeout(() => setVisible(true), 10)
     return () => clearTimeout(id)
   }, [])
+
+  const alterado = podeEditar && alunoAlterado(aluno, form)
+  useEffect(() => { onAlteradoMudou(alterado) }, [alterado])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Foco na folha ao abrir: leitor de tela e teclado começam dentro dela.
   useEffect(() => { folha.current?.focus() }, [])
@@ -203,8 +213,11 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, onClose, onSave
   const totalAulas = form.total_aulas ?? 0
 
   return (
+    <div className={`ficha-raiz ${origem === 'fora' ? 'fora' : 'fixa'}`}>
+    {/* Pano escuro só no painel que vem por cima (computador); toque nele fecha */}
+    <div className={`ficha-scrim${visible ? ' aberto' : ''}`} onClick={pedirFechar} aria-hidden="true" />
     <div
-      ref={folha} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Ficha de ${aluno.nome}`}
+      ref={folha} tabIndex={-1} role="dialog" aria-modal={origem === 'fora' ? true : undefined} aria-label={`Ficha de ${aluno.nome}`}
       className={`ficha${visible ? ' aberta' : ''}`}
     >
       <div className="ficha-rolagem">
@@ -365,6 +378,7 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, onClose, onSave
           </button>
         )}
       </div>
+    </div>
     </div>
   )
 }

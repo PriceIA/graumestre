@@ -9,7 +9,7 @@ import { ListaAlunos } from '@/components/alunos/ListaAlunos'
 // Os alunos, os filtros e a busca moram no AppShell (sobrevivem à troca de aba);
 // aqui só se decide o que mostrar. "Pronto" e "afastado" vêm de
 // alertaGraduacao()/estaAfastado(), as mesmas funções do resto do app.
-export function TelaAlunos({ alunos, filtros, setFiltros, busca, setBusca, presencasPorGrau, idAberto, onAbrir, onAbrirFiltros }: {
+export function TelaAlunos({ alunos, filtros, setFiltros, busca, setBusca, presencasPorGrau, idAberto, onAbrir, onAbrirFiltros, ficha }: {
   alunos: any[]
   filtros: Filtros; setFiltros: React.Dispatch<React.SetStateAction<Filtros>>
   busca: string; setBusca: (v: string) => void
@@ -17,23 +17,34 @@ export function TelaAlunos({ alunos, filtros, setFiltros, busca, setBusca, prese
   idAberto: string | null
   onAbrir: (aluno: any) => void
   onAbrirFiltros: () => void
+  // A ficha aberta a partir desta tela. No computador ela mora ao lado da
+  // tabela (a coluna da direita); no celular é a folha que cobre a tela, e a
+  // coluna some. Sem aluno aberto, o computador mostra o convite para tocar.
+  ficha: React.ReactNode
 }) {
   const visiveis = aplicarFiltros(alunos, filtros, presencasPorGrau).filter(a => casaBusca(a.nome, busca))
 
   return (
-    <>
-      <BarraFiltros
-        alunos={alunos} filtros={filtros} setFiltros={setFiltros}
-        busca={busca} setBusca={setBusca}
-        totalVisivel={visiveis.length} onAbrirPainel={onAbrirFiltros}
-      />
-      {visiveis.length === 0 ? (
-        <div className="al-vazio" role="status">
-          {busca.trim() !== '' ? `Nenhum aluno com "${busca.trim()}".` : 'Nenhum aluno com esses filtros.'}
+    <div className="al-grade">
+      <div className="al-principal">
+        <BarraFiltros
+          alunos={alunos} filtros={filtros} setFiltros={setFiltros}
+          busca={busca} setBusca={setBusca}
+          totalVisivel={visiveis.length} onAbrirPainel={onAbrirFiltros}
+        />
+        <div className="al-rolagem">
+          {visiveis.length === 0 ? (
+            <div className="al-vazio" role="status">
+              {busca.trim() !== '' ? `Nenhum aluno com "${busca.trim()}".` : 'Nenhum aluno com esses filtros.'}
+            </div>
+          ) : (
+            <ListaAlunos alunos={visiveis} presencasPorGrau={presencasPorGrau} idAberto={idAberto} onAbrir={onAbrir} />
+          )}
         </div>
-      ) : (
-        <ListaAlunos alunos={visiveis} presencasPorGrau={presencasPorGrau} idAberto={idAberto} onAbrir={onAbrir} />
-      )}
-    </>
+      </div>
+      <aside className="al-lateral" aria-label="Aluno selecionado">
+        {ficha ?? <div className="ficha-vazia">Toque num aluno para ver a ficha dele aqui.</div>}
+      </aside>
+    </div>
   )
 }

@@ -19,6 +19,13 @@ export function LinhaAluno({ aluno, presencasPorGrau, aberto, onClick }: {
   const alerta = alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null, presencasPorGrau)
   const afastado = estaAfastado(aluno)
   const totalAulas = aluno.total_aulas ?? 0
+  const totalPresencas = aluno.total_presencas ?? 0
+  const selos = (
+    <>
+      {alerta && <span className="al-etq alerta" title={alerta.msg}>Pronto</span>}
+      {afastado && <span className="al-etq alerta-contorno" title={motivoAfastamento(aluno) ?? 'Afastado'}>Afastado</span>}
+    </>
+  )
 
   return (
     <button type="button" className="al-linha" aria-current={aberto} onClick={onClick}>
@@ -40,10 +47,15 @@ export function LinhaAluno({ aluno, presencasPorGrau, aberto, onClick }: {
       </span>
       <span className="al-meta">
         <span>{NOMES_FAIXA[aluno.faixa as keyof typeof NOMES_FAIXA]}, {grausTxt(aluno.graus)}</span>
-        <span className="num">{aluno.total_presencas ?? 0} de {totalAulas} aulas</span>
-        {alerta && <span className="al-etq alerta" title={alerta.msg}>Pronto</span>}
-        {afastado && <span className="al-etq alerta-contorno" title={motivoAfastamento(aluno) ?? 'Afastado'}>Afastado</span>}
+        <span className="num">{totalPresencas} de {totalAulas} aulas</span>
+        {selos}
       </span>
+      {/* Colunas da tabela (computador, a partir de 1240 px). Escondidas no
+          celular e nas larguras médias, onde a linha de cima já diz tudo. */}
+      <span className="al-col num">
+        {totalAulas > 0 ? <>{totalPresencas} de {totalAulas} <span className="suave">({Math.round(totalPresencas / totalAulas * 100)}%)</span></> : '—'}
+      </span>
+      <span className="al-col st">{alerta || afastado ? selos : <span className="suave">Em dia</span>}</span>
     </button>
   )
 }
@@ -53,6 +65,9 @@ export function ListaAlunos({ alunos, presencasPorGrau, idAberto, onAbrir }: {
 }) {
   return (
     <div className="al-lista">
+      <div className="al-cab" aria-hidden="true">
+        <span /><span>Nome</span><span>Faixa</span><span>Frequência</span><span>Situação</span>
+      </div>
       {agruparPorFaixa(alunos).map(g => (
         <section key={g.faixa} className="al-grupo" aria-label={NOMES_FAIXA[g.faixa]}>
           <h3>
