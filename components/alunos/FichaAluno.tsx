@@ -52,18 +52,26 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, origem, onAlter
   tabInicial?: TabAluno
 }) {
   const [form, setForm]   = useState<AlunoFicha>({ ...aluno })
+  // O aluno COMO ESTAVA quando a ficha abriu. É a base de toda comparação ("a
+  // faixa mudou?", "há alteração?", "qual era a faixa anterior da graduação")
+  // e não pode acompanhar a lista: se o salvar gravar o aluno e falhar no
+  // histórico, o AppShell já terá posto a faixa nova na lista, e a "nova
+  // tentativa" compararia a faixa nova com ela mesma — sem graduação para
+  // gravar, ficha fechando como se tivesse dado certo. (O prop `aluno` segue
+  // vivo só para o que é fato do banco: selos e nome.)
+  const [original] = useState<AlunoFicha>(aluno)
   const [tab, setTab]     = useState<TabAluno>(tabInicial)
   const [saving, setSaving] = useState(false)
   const [erro, setErro]   = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
   // cópia local do histórico para o ✕ sumir na hora, sem esperar recarga
-  const [historico, setHistorico] = useState<Graduacao[]>(aluno.historico_graduacoes ?? [])
+  const [historico, setHistorico] = useState<Graduacao[]>(original.historico_graduacoes ?? [])
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
   const folha = useRef<HTMLDivElement>(null)
 
   // Validação de quem pode assinar (art. 6°, 7.3, 7.4, 7.4.1) — só entra em
   // jogo quando a faixa está de fato mudando nesta edição.
-  const faixaAlterada = form.faixa !== aluno.faixa
+  const faixaAlterada = form.faixa !== original.faixa
   const tipoAprovacao = tipoAprovacaoGraduacao(form.faixa, form.status_graduacao)
   const aprovacao: { ok: boolean; motivo?: string } = professor && faixaAlterada
     ? professorPodeAssinar(professor, tipoAprovacao)
@@ -76,11 +84,11 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, origem, onAlter
   const categoria = form.data_nascimento ? calcularCategoria(form.data_nascimento) : null
   const infantilAluno = form.data_nascimento ? ehInfantil(form.data_nascimento) : false
   const maxGrausFaixa = grausMaximos(form.faixa, infantilAluno)
-  const ultimaGraduacaoData = aluno.ultima_graduacao_data ?? null
+  const ultimaGraduacaoData = original.ultima_graduacao_data ?? null
 
   // Selos: o que o professor precisa olhar. Lidos do aluno SALVO (não do form):
   // são fatos do banco, não do que está sendo digitado.
-  const alerta = alertaGraduacao(aluno, ultimaGraduacaoData, presencasPorGrau)
+  const alerta = alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null, presencasPorGrau)
   const afastado = estaAfastado(aluno)
 
   useEffect(() => {
@@ -88,7 +96,7 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, origem, onAlter
     return () => clearTimeout(id)
   }, [])
 
-  const alterado = podeEditar && alunoAlterado(aluno, form)
+  const alterado = podeEditar && alunoAlterado(original, form)
   useEffect(() => { onAlteradoMudou(alterado) }, [alterado])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Foco na folha ao abrir: leitor de tela e teclado começam dentro dela.
@@ -102,7 +110,7 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, origem, onAlter
   // Cancelar, ✕ e Esc: com alteração não salva, pergunta antes — um toque sem
   // querer no tatame não pode jogar fora o que foi digitado.
   const pedirFechar = () => {
-    if (podeEditar && !saving && alunoAlterado(aluno, form) &&
+    if (podeEditar && !saving && alunoAlterado(original, form) &&
         !window.confirm(`Descartar as alterações em ${aluno.nome}?`)) return
     handleClose()
   }
@@ -153,15 +161,15 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, origem, onAlter
 
     // Tempo mínimo é sugestão, nunca bloqueio (art. 3.1.3 / 4.1.5) — avisa e
     // deixa o professor decidir, ao contrário do grau de assinatura (bloqueio).
-    if (faixaAlterada && aluno.faixa !== 'preta' && !prontoParaProximaFaixa(aluno, ultimaGraduacaoData)) {
+    if (faixaAlterada && original.faixa !== 'preta' && !prontoParaProximaFaixa(original, ultimaGraduacaoData)) {
       const confirmado = window.confirm(
         'O tempo mínimo na faixa atual ainda não foi cumprido segundo o Sistema Geral de Graduação IBJJF. Graduar mesmo assim?'
       )
       if (!confirmado) return
     }
-    if (aluno.faixa === 'preta' && form.graus > aluno.graus) {
-      const anos = anosNaFaixaAtual(aluno, ultimaGraduacaoData)
-      const { pode } = podeProximoGrauPreta(anos, anos, aluno.graus)
+    if (original.faixa === 'preta' && form.graus > original.graus) {
+      const anos = anosNaFaixaAtual(original, ultimaGraduacaoData)
+      const { pode } = podeProximoGrauPreta(anos, anos, original.graus)
       if (!pode) {
         const confirmado = window.confirm(
           'O tempo mínimo para o próximo grau ainda não foi cumprido. Conceder o grau mesmo assim?'
@@ -183,13 +191,13 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, origem, onAlter
     // Registra o histórico sempre que faixa ou grau mudam (mesmo grau dentro
     // da mesma faixa), para dataInicioFaixaAtual() ter uma data real a usar.
     let novaUltimaGraduacao = ultimaGraduacaoData
-    if (form.faixa !== aluno.faixa || form.graus !== aluno.graus) {
+    if (form.faixa !== original.faixa || form.graus !== original.graus) {
       const hoje = hojeBrasil()
       const { error: gradErr } = await supabase.from('graduacoes').insert({
         aluno_id: aluno.id,
-        faixa_anterior: aluno.faixa,
+        faixa_anterior: original.faixa,
         faixa_nova: form.faixa,
-        graus_anterior: aluno.graus,
+        graus_anterior: original.graus,
         graus_novo: form.graus,
         data: hoje,
       })
@@ -359,7 +367,7 @@ export function FichaAluno({ aluno, professor, presencasPorGrau, origem, onAlter
 
           {tab === 'graduação' && (
             <AbaGraduacao
-              aluno={aluno} form={form} setForm={setForm} set={set} professor={professor}
+              aluno={original} form={form} setForm={setForm} set={set} professor={professor}
               infantilAluno={infantilAluno} faixaAlterada={faixaAlterada} aprovacao={aprovacao}
             />
           )}
