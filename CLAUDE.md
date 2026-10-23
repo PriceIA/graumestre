@@ -29,6 +29,8 @@ Whitelist em vez de descartar campo a campo: assim um campo derivado novo não v
 
 Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a lista de colunas daquele instante. Toda migration que adicionar coluna em `alunos` precisa **dropar e recriar a view** (e refazer o `grant`), senão a coluna existe na tabela e nunca chega no app. Já mordeu duas vezes — ver `005_soft_delete.sql` e `008_afastado_manual.sql`.
 
+**Toda recriação da view faz `revoke all on alunos_frequencia from anon, authenticated, public` antes do `grant select ... to authenticated`** (padrão desde a `016`). O `create view` pode receber as permissões padrão do Supabase e reabrir para o `anon` o que a 009 fechou; e a view `select a.*` é atualizável pelo Postgres, então o `authenticated` fica só com `SELECT`. Depois do Run: conferir colunas por `information_schema.columns` e privilégios por `has_table_privilege` (consultas no fim da `016`), e o md5 das contagens antes/depois quando a mudança não deve alterar resultado.
+
 ## Regra de ouro do processo
 
 **Nunca avance de fase sem a anterior funcionando e commitada.** Na prática, em toda sessão:
@@ -51,7 +53,7 @@ Desde a G0 (2026-10-21) o projeto está no **lote v2** (`docs/ROADMAP.md`).
 - **O banco é um só, o mesmo do site no ar.** Qualquer teste no `localhost` ou em preview escreve nos dados reais — dado de teste é limpo no fim e a contagem conferida contra a linha de base (33 alunos, 5 aulas, 59 presenças, 29 graduações em 2026-10-21).
 - **Cada push no `desenvolvimento` gera um deploy de Preview na Vercel** (confirmado na G0: ambiente `Preview`, status `success`; a última produção continua sendo a da `main`). Se o Preview usa as mesmas variáveis `NEXT_PUBLIC_SUPABASE_*` da produção, ele fala com o banco real — **não confirmado** (exige olhar Vercel → Settings → Environment Variables, escopo Preview); até alguém conferir, trate o Preview como produção para fins de dado de teste.
 - **Migration é avisada no plano, antes, e aplicada pelo Pedro** no SQL Editor. Só acrescenta (nunca apaga nem renomeia coluna).
-- **Backup antes de qualquer migration:** `scripts/backup-graumestre.mjs` (tabelas por API + fotos) e `pg_dump` (ver o cabeçalho do script). O backup vive **fora do repositório** (`C:\Backups\graumestre\<data>\`) e contém hash de senha e dados de crianças — nunca vai para git, nuvem ou e-mail.
+- **Backup antes de qualquer migration:** `scripts/backup-graumestre.mjs` (tabelas por API + fotos) e `pg_dump` (ver o cabeçalho do script). O backup vive **fora do repositório** (`C:\Backups\graumestre\<data>\`) e contém hash de senha e dados de crianças — nunca vai para git, nuvem ou e-mail. O `.emptyFolderPlaceholder` de 0 bytes que o painel do Supabase deixa numa pasta esvaziada não conta como órfã nem como não-JPEG; aparece numa linha própria do manifesto.
 - **O cadastro público do Supabase fica sempre desligado.** Conta de aluno só nasce por convite (G10), e nenhum convite funciona antes da RLS por papel estar pronta e testada (G9).
 
 ## A lixeira apaga de verdade (migration 011)
@@ -293,6 +295,8 @@ O app tem dois temas, **kimono branco** (claro) e **kimono preto** (escuro), com
 **Nunca leia o ano com `new Date('AAAA-MM-DD').getFullYear()`.** Texto sem hora é meia-noite UTC, que no Brasil ainda é o dia anterior: quem nasceu em 1º de janeiro ganhava um ano. Use `anoDaData()`. Datas `'AAAA-MM-DD'` se comparam certo como texto — prefira isso a montar `Date`.
 
 `lib/datas.ts` não tem import de propósito: `scripts/datas.test.mjs` o carrega direto no Node 24 (`npm run testar`), sem framework de teste. Cada caso roda em três fusos de processo.
+
+**Aula com data futura não conta como dada** (migration `016`). O professor pode lançar aula com antecedência, e a Parte 2 depende disso (prazo de 24 h do aluno). Ela aparece na lista de Aulas, mas fica fora de `total_presencas`, `total_aulas`, `presencas_desde_graduacao` e `aulas_desde_graduacao` (view), de `aulas_perdidas` e `ultima_presenca_data` (`lib/carregar-dados.ts`) e do contador "aulas deste mês". **Os dois lados usam o mesmo "hoje" de São Paulo**: no SQL é `(now() at time zone 'America/Sao_Paulo')::date`, **nunca `current_date`** — no Supabase a sessão é UTC, e `current_date` repetiria dentro do banco o defeito das 21h. Se um lado mudar o critério, mude o outro: é o que mantém o crachá e o selo AFASTADO contando a mesma história.
 
 ## Arquitetura futura que já está no dado
 

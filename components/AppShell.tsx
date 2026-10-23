@@ -2692,7 +2692,9 @@ export default function AppShell() {
     if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0, aulas_perdidas: 0 }])
   }
 
-  const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(hojeBrasil().slice(0, 7))).length
+  // Só as aulas já dadas: uma lançada para o fim do mês ainda não conta.
+  const hoje = hojeBrasil()
+  const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(hoje.slice(0, 7)) && a.data <= hoje).length
 
   // Sem isto o dashboard pisca com 0 alunos e 0% de frequência antes da carga
   // chegar, o que parece uma academia vazia em vez de uma tela carregando.

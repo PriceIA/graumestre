@@ -67,6 +67,13 @@ async function lerTudo(tabela) {
   return linhas
 }
 
+// O painel do Supabase deixa um `.emptyFolderPlaceholder` vazio na pasta de
+// onde se apagou o último arquivo. Não é foto nem perda: fica fora das
+// contagens e da lista de órfãs, mas aparece no manifesto. Só quando tem 0
+// bytes — com conteúdo, é um arquivo como outro qualquer e entra no alarme.
+const MARCADOR_PASTA = '.emptyFolderPlaceholder'
+const marcadoresIgnorados = []
+
 async function listarBucket(prefixo = '') {
   const arquivos = []
   for (let offset = 0; ; offset += 100) {
@@ -76,6 +83,7 @@ async function listarBucket(prefixo = '') {
       const caminho = prefixo ? `${prefixo}/${item.name}` : item.name
       // pasta = sem id (a API de listagem devolve id nulo para prefixos)
       if (item.id === null) arquivos.push(...(await listarBucket(caminho)))
+      else if (item.name === MARCADOR_PASTA && (item.metadata?.size ?? 0) === 0) marcadoresIgnorados.push(caminho)
       else arquivos.push(caminho)
     }
     if (data.length < 100) break
@@ -154,7 +162,9 @@ manifesto.push('', '== Fotos ==',
   `aulas com foto_path: ${esperadas.size}`,
   `foto_path SEM arquivo no bucket (perda): ${semArquivo.length}`, ...semArquivo.map((p) => `  - ${p}`),
   `arquivo SEM linha em aulas (órfão): ${orfas.length}`, ...orfas.map((p) => `  - ${p}`),
-  `arquivos que não parecem JPEG: ${jpegInvalidos.length}`, ...jpegInvalidos.map((p) => `  - ${p}`))
+  `arquivos que não parecem JPEG: ${jpegInvalidos.length}`, ...jpegInvalidos.map((p) => `  - ${p}`),
+  `marcadores de pasta vazios ignorados (${MARCADOR_PASTA}): ${marcadoresIgnorados.length}`,
+  ...marcadoresIgnorados.map((p) => `  - ${p}`))
 
 // ── Hashes de tudo que está na pasta de backup (inclui o dump.sql, se já existir) ──
 manifesto.push('', '== SHA-256 / bytes ==')
