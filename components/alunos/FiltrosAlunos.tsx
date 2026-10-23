@@ -1,29 +1,26 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Search, Filter } from 'lucide-react'
 import type { Faixa } from '@/lib/types'
 import { NOMES_FAIXA } from '@/lib/regras-ibjjf'
 import { BELT_COLORS } from '@/lib/cores-faixa'
 import { aplicarFiltros, temFiltroAtivo, FILTROS_VAZIOS, ORDEM_FAIXAS, type Filtros } from '@/lib/alunos'
 import { scrim, type Theme } from '@/lib/cores'
 
-function Chip({ label, ativo, onClick, cores, t }: {
-  label: string; ativo: boolean; onClick: () => void
-  cores?: { bg: string; text: string }; t: Theme
+type Cores = { bg: string; text: string }
+
+// Cor de faixa da IBJJF não é cor de tema: só entra no chip de faixa ativo.
+const estiloFaixa = (cores?: Cores): React.CSSProperties | undefined =>
+  cores ? { background: cores.bg, borderColor: cores.bg, color: cores.text } : undefined
+
+function Chip({ label, ativo, onClick, cores, alerta }: {
+  label: string; ativo: boolean; onClick: () => void; cores?: Cores; alerta?: boolean
 }) {
   return (
     <button
-      onClick={onClick}
-      style={{
-        padding: '6px 10px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
-        fontFamily: t.ui, textTransform: 'uppercase', letterSpacing: 0.5,
-        whiteSpace: 'nowrap',
-        background: ativo ? (cores?.bg ?? t.ativoBg) : t.surface2,
-        color:      ativo ? (cores?.text ?? t.ativo) : t.textSub,
-        border: `1px solid ${ativo ? (cores?.bg ?? t.ativo) : t.border}`,
-        fontWeight: ativo ? 700 : 400,
-        transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-      }}
+      type="button" className={`al-chip${alerta ? ' alerta' : ''}`} aria-pressed={ativo} onClick={onClick}
+      style={ativo ? estiloFaixa(cores) : undefined}
     >
       {label}
     </button>
@@ -33,25 +30,23 @@ function Chip({ label, ativo, onClick, cores, t }: {
 // Chip ativo com ✕ embutido no rótulo — tocar em qualquer parte remove esse
 // filtro. Não é um botão dentro de outro (inválido em HTML): é um único
 // <button>, o "✕" é só texto no fim do label.
-function ChipRemovivel({ label, onClick, cores, t }: {
-  label: string; onClick: () => void; cores?: { bg: string; text: string }; t: Theme
+function ChipRemovivel({ label, onClick, cores, alerta }: {
+  label: string; onClick: () => void; cores?: Cores; alerta?: boolean
 }) {
   return (
     <button
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        padding: '6px 8px 6px 10px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
-        fontFamily: t.ui, textTransform: 'uppercase', letterSpacing: 0.5,
-        whiteSpace: 'nowrap', fontWeight: 700,
-        background: cores?.bg ?? t.ativoBg, color: cores?.text ?? t.ativo,
-        border: `1px solid ${cores?.bg ?? t.ativo}`,
-      }}
+      type="button" className={`al-chip removivel${alerta ? ' alerta' : ''}`} onClick={onClick}
+      aria-label={`Tirar o filtro ${label}`} style={estiloFaixa(cores)}
     >
       {label}
-      <span style={{ opacity: 0.7, fontWeight: 400 }}>✕</span>
+      <span className="x" aria-hidden="true">✕</span>
     </button>
   )
+}
+
+// Rótulo só para leitor de tela: o placeholder some ao digitar.
+const SO_LEITOR: React.CSSProperties = {
+  position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap',
 }
 
 // setFiltros recebe atualização funcional de propósito: dois toques dentro do
@@ -61,67 +56,54 @@ function ChipRemovivel({ label, onClick, cores, t }: {
 // local, os dois mexem direto no estado real (decisão do usuário: o
 // contador ao vivo do painel já passa a mensagem de "isso já está valendo",
 // então descartar ao fechar seria a interação contradizendo a própria tela).
-export function BarraFiltros({ alunos, filtros, setFiltros, totalVisivel, onAbrirPainel, t }: {
+export function BarraFiltros({ alunos, filtros, setFiltros, busca, setBusca, totalVisivel, onAbrirPainel }: {
   alunos: any[]; filtros: Filtros; setFiltros: React.Dispatch<React.SetStateAction<Filtros>>
-  totalVisivel: number; onAbrirPainel: () => void; t: Theme
+  busca: string; setBusca: (v: string) => void
+  totalVisivel: number; onAbrirPainel: () => void
 }) {
   const qtdAtivos = (filtros.faixa ? 1 : 0) + (filtros.prontos ? 1 : 0) + (filtros.afastados ? 1 : 0) + (filtros.categoria ? 1 : 0)
 
   const removerFiltro = <K extends keyof Filtros>(chave: K) =>
     setFiltros(prev => ({ ...prev, [chave]: FILTROS_VAZIOS[chave] }))
 
-  const chipsAtivos: { chave: keyof Filtros; label: string; cores?: { bg: string; text: string } }[] = []
+  const chipsAtivos: { chave: keyof Filtros; label: string; cores?: Cores; alerta?: boolean }[] = []
   if (filtros.faixa) chipsAtivos.push({ chave: 'faixa', label: NOMES_FAIXA[filtros.faixa], cores: BELT_COLORS[filtros.faixa] })
-  if (filtros.prontos) chipsAtivos.push({ chave: 'prontos', label: 'Prontos' })
-  if (filtros.afastados) chipsAtivos.push({ chave: 'afastados', label: 'Afastados' })
+  if (filtros.prontos) chipsAtivos.push({ chave: 'prontos', label: 'Prontos', alerta: true })
+  if (filtros.afastados) chipsAtivos.push({ chave: 'afastados', label: 'Afastados', alerta: true })
   if (filtros.categoria) chipsAtivos.push({ chave: 'categoria', label: filtros.categoria === 'infantil' ? 'Infantil' : 'Adulto' })
 
+  const filtrando = temFiltroAtivo(filtros) || busca.trim() !== ''
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, alignItems: 'center' }}>
-        <button
-          onClick={onAbrirPainel}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-            padding: '6px 12px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
-            fontFamily: t.ui, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700,
-            background: t.surface2, color: t.text, border: `1px solid ${t.border2}`,
-          }}
-        >
+    <div className="al-ferramentas">
+      <div className="al-linha-busca">
+        <label className="al-busca">
+          <Search aria-hidden="true" />
+          <span style={SO_LEITOR}>Buscar aluno pelo nome</span>
+          <input
+            type="search" value={busca} onChange={e => setBusca(e.target.value)}
+            placeholder="Buscar aluno pelo nome" autoComplete="off" enterKeyHint="search"
+          />
+        </label>
+        <button type="button" className="al-btn" onClick={onAbrirPainel}>
+          <Filter aria-hidden="true" />
           Filtrar
-          {qtdAtivos > 0 && (
-            <span style={{
-              background: t.ativo, color: t.sobreAtivo, fontSize: 10, fontWeight: 800,
-              borderRadius: 999, padding: '1px 6px', minWidth: 16, textAlign: 'center',
-            }}>
-              {qtdAtivos}
-            </span>
-          )}
+          {qtdAtivos > 0 && <span className="al-badge" aria-label={`${qtdAtivos} filtros ativos`}>{qtdAtivos}</span>}
         </button>
-
-        {chipsAtivos.map(c => (
-          <ChipRemovivel key={c.chave} label={c.label} onClick={() => removerFiltro(c.chave)} cores={c.cores} t={t} />
-        ))}
-
-        {temFiltroAtivo(filtros) && (
-          <button
-            onClick={() => setFiltros(FILTROS_VAZIOS)}
-            style={{
-              marginLeft: 'auto', background: 'none', border: 'none', color: t.textMute,
-              fontSize: 11, fontFamily: t.ui, textDecoration: 'underline',
-              cursor: 'pointer', padding: 4, whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            Ver todos ({alunos.length})
-          </button>
-        )}
       </div>
 
-      {temFiltroAtivo(filtros) && (
-        <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui }}>
-          {totalVisivel} de {alunos.length} alunos
+      {chipsAtivos.length > 0 && (
+        <div className="al-chips">
+          {chipsAtivos.map(c => (
+            <ChipRemovivel key={c.chave} label={c.label} onClick={() => removerFiltro(c.chave)} cores={c.cores} alerta={c.alerta} />
+          ))}
+          <button type="button" className="al-limpar" onClick={() => setFiltros(FILTROS_VAZIOS)}>
+            Tirar filtros
+          </button>
         </div>
       )}
+
+      {filtrando && <div className="al-contagem">{totalVisivel} de {alunos.length} alunos</div>}
     </div>
   )
 }
@@ -162,10 +144,10 @@ export function PainelFiltros({ alunos, filtros, setFiltros, presencasPorGrau, o
 
   const Grupo = ({ titulo, children }: { titulo: string; children: React.ReactNode }) => (
     <div style={{ marginBottom: 22 }}>
-      <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+      <div style={{ color: t.textSub, fontSize: 12, fontWeight: 800, fontFamily: t.ui, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
         {titulo}
       </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
+      <div className="al-chips">{children}</div>
     </div>
   )
 
@@ -177,6 +159,7 @@ export function PainelFiltros({ alunos, filtros, setFiltros, presencasPorGrau, o
         background: scrim(visible),
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         transition: 'background 0.22s',
+        touchAction: 'manipulation', overscrollBehavior: 'contain',
       }}
     >
       <div
@@ -190,43 +173,38 @@ export function PainelFiltros({ alunos, filtros, setFiltros, presencasPorGrau, o
           transition: 'transform 0.22s ease, opacity 0.22s ease',
         }}
       >
-        <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>Filtrar</div>
-          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
+          <button
+            type="button" onClick={handleClose} aria-label="Fechar"
+            style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', width: 44, height: 44, marginRight: -10 }}
+          >✕</button>
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '18px 20px 8px' }}>
+        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, minHeight: 0, padding: '18px 20px 8px' }}>
           {faixasPresentes.length > 0 && (
             <Grupo titulo="Faixa">
               {faixasPresentes.map(fx => (
                 <Chip
                   key={fx} label={NOMES_FAIXA[fx]} ativo={filtros.faixa === fx}
-                  onClick={() => alterna('faixa', fx)}
-                  cores={filtros.faixa === fx ? BELT_COLORS[fx] : undefined}
-                  t={t}
+                  onClick={() => alterna('faixa', fx)} cores={BELT_COLORS[fx]}
                 />
               ))}
             </Grupo>
           )}
 
           <Grupo titulo="Situação">
-            <Chip label="Prontos"   ativo={filtros.prontos}   onClick={() => setFiltros(prev => ({ ...prev, prontos: !prev.prontos }))} t={t} />
-            <Chip label="Afastados" ativo={filtros.afastados} onClick={() => setFiltros(prev => ({ ...prev, afastados: !prev.afastados }))} t={t} />
+            <Chip alerta label="Prontos"   ativo={filtros.prontos}   onClick={() => setFiltros(prev => ({ ...prev, prontos: !prev.prontos }))} />
+            <Chip alerta label="Afastados" ativo={filtros.afastados} onClick={() => setFiltros(prev => ({ ...prev, afastados: !prev.afastados }))} />
           </Grupo>
 
           <Grupo titulo="Categoria">
-            <Chip label="Infantil" ativo={filtros.categoria === 'infantil'} onClick={() => alterna('categoria', 'infantil')} t={t} />
-            <Chip label="Adulto"   ativo={filtros.categoria === 'adulto'}   onClick={() => alterna('categoria', 'adulto')} t={t} />
+            <Chip label="Infantil" ativo={filtros.categoria === 'infantil'} onClick={() => alterna('categoria', 'infantil')} />
+            <Chip label="Adulto"   ativo={filtros.categoria === 'adulto'}   onClick={() => alterna('categoria', 'adulto')} />
           </Grupo>
 
           {ativo && (
-            <button
-              onClick={() => setFiltros(FILTROS_VAZIOS)}
-              style={{
-                background: 'none', border: 'none', color: t.textMute, fontSize: 12,
-                fontFamily: t.ui, textDecoration: 'underline', cursor: 'pointer', padding: 0,
-              }}
-            >
+            <button type="button" className="al-limpar" onClick={() => setFiltros(FILTROS_VAZIOS)} style={{ marginBottom: 8 }}>
               Limpar filtros
             </button>
           )}
@@ -234,11 +212,8 @@ export function PainelFiltros({ alunos, filtros, setFiltros, presencasPorGrau, o
 
         <div style={{ padding: 16, borderTop: `1px solid ${t.border}` }}>
           <button
-            onClick={handleClose}
-            style={{
-              width: '100%', padding: 14, borderRadius: 'var(--r)', border: 'none',
-              background: t.ativo, color: t.sobreAtivo, fontWeight: 700, fontSize: 14, cursor: 'pointer',
-            }}
+            type="button" className="al-btn cheio" onClick={handleClose}
+            style={{ width: '100%' }}
           >
             {textoBotao}
           </button>

@@ -91,9 +91,17 @@ export function aplicarFiltros(alunos: any[], f: Filtros, presencasPorGrau: numb
   })
 }
 
-// Grupos da lista de Alunos: um por faixa que tenha aluno, na ordem de
-// ORDEM_FAIXAS. Quem chama já filtrou e buscou.
+// Ordem dos grupos na lista: do topo da graduação para baixo (preta primeiro,
+// como nos prints aprovados), depois as faixas infantis na ordem de sempre.
+// ORDEM_FAIXAS, acima, continua sendo a do painel de filtros (progressão).
+const ORDEM_GRUPOS: Faixa[] = [
+  ...[...FAIXAS_ADULTAS].reverse(),
+  ...FAIXAS_INFANTIS.filter(f => !FAIXAS_ADULTAS.includes(f)),
+]
+
+// Grupos da lista de Alunos: um por faixa que tenha aluno, em ORDEM_GRUPOS.
+// Quem chama já filtrou e buscou.
 export function agruparPorFaixa(alunos: any[]): { faixa: Faixa; alunos: any[] }[] {
-  return agruparNaOrdem(alunos, a => a.faixa, ORDEM_FAIXAS)
+  return agruparNaOrdem(alunos, a => a.faixa, ORDEM_GRUPOS)
     .map(g => ({ faixa: g.chave as Faixa, alunos: g.itens }))
 }

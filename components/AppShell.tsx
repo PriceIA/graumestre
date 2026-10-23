@@ -18,12 +18,12 @@ import { theme, scrim, type Theme } from '@/lib/cores'
 import Navegacao from '@/components/Navegacao'
 import { definirTema, temaEfetivo, type Tema } from '@/lib/tema'
 import { hojeBrasil } from '@/lib/datas'
-import { FILTROS_VAZIOS, aplicarFiltros, ehInfantilAluno, type Filtros } from '@/lib/alunos'
+import { FILTROS_VAZIOS, ehInfantilAluno, type Filtros } from '@/lib/alunos'
 import { DIAS_LIXEIRA, mandarParaLixeira, restaurarDaLixeira, limiteLixeira, textoPrazo, type TabelaComLixeira } from '@/lib/lixeira'
 import { BeltBadge } from '@/components/comum/BeltBadge'
 import { Field } from '@/components/comum/Campos'
-import { AlunoCard } from '@/components/alunos/ListaAlunos'
-import { BarraFiltros, PainelFiltros } from '@/components/alunos/FiltrosAlunos'
+import { TelaAlunos } from '@/components/alunos/TelaAlunos'
+import { PainelFiltros } from '@/components/alunos/FiltrosAlunos'
 import { FichaAluno } from '@/components/alunos/FichaAluno'
 
 
@@ -1427,14 +1427,16 @@ export default function AppShell() {
   const [erroAula, setErroAula] = useState<string | null>(null)
   const [naLixeira, setNaLixeira] = useState(0)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
+  // Busca por nome da tela de Alunos: mora aqui (como os filtros) para
+  // sobreviver à troca de aba.
+  const [buscaAluno, setBuscaAluno] = useState('')
 
   // Critério de presença deste professor para "pronto para o próximo grau" —
   // único ponto de leitura, thread-ado para todo call site de alertaGraduacao
-  // (AlunoCard, aplicarFiltros, DashboardProfessor, PainelProntos) para todos
+  // (LinhaAluno, aplicarFiltros, DashboardProfessor, PainelProntos) para todos
   // lerem o mesmo número. Perfil ausente cai no padrão de lib/ritmo-graus.ts.
   const presencasPorGrau = professor?.presencas_por_grau ?? PRESENCAS_POR_GRAU_PADRAO
 
-  const alunosVisiveis = aplicarFiltros(alunos, filtros, presencasPorGrau)
 
   // Lista de prontos, computada uma vez aqui — o badge do sininho
   // (DashboardProfessor) recebe só a contagem, e o painel do sininho
@@ -1535,7 +1537,12 @@ export default function AppShell() {
       .select()
       .single()
     if (error) { alert(`Não foi possível cadastrar o aluno: ${error.message}`); return }
-    if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0, aulas_perdidas: 0 }])
+    if (data) {
+      setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0, aulas_perdidas: 0 }])
+      // Um toque a menos: a ficha do aluno recém-criado já abre, para dar o
+      // nome na hora em vez de caçar "Novo Aluno" na lista.
+      setFicha({ id: data.id, aba: 'perfil', origem: 'alunos' })
+    }
   }
 
   // Só as aulas já dadas: uma lançada para o fim do mês ainda não conta.
@@ -1633,28 +1640,13 @@ export default function AppShell() {
       {/* Conteúdo */}
       <div style={{ padding: '16px 16px 0' }}>
 
-        {/* Grade de crachás circulares */}
         {tab === 'alunos' && (
-          <>
-            <BarraFiltros
-              alunos={alunos} filtros={filtros} setFiltros={setFiltros}
-              totalVisivel={alunosVisiveis.length} onAbrirPainel={() => setFiltroAberto(true)} t={t}
-            />
-            {alunosVisiveis.length === 0 ? (
-              <div style={{
-                padding: 24, textAlign: 'center', background: t.surface,
-                border: `1px solid ${t.border}`, borderRadius: 'var(--r)', color: t.textSub, fontSize: 13,
-              }}>
-                Nenhum aluno com esses filtros.
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                {alunosVisiveis.map((a: any) => (
-                  <AlunoCard key={a.id} aluno={a} onClick={() => abrirAluno(a)} presencasPorGrau={presencasPorGrau} t={t} />
-                ))}
-              </div>
-            )}
-          </>
+          <TelaAlunos
+            alunos={alunos} filtros={filtros} setFiltros={setFiltros}
+            busca={buscaAluno} setBusca={setBuscaAluno}
+            presencasPorGrau={presencasPorGrau} idAberto={ficha?.id ?? null}
+            onAbrir={aluno => abrirAluno(aluno)} onAbrirFiltros={() => setFiltroAberto(true)}
+          />
         )}
 
         {/* Lista de aulas */}
