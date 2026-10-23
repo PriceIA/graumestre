@@ -1,4 +1,4 @@
-# PLANO-ATUAL.md — Lote v2 em andamento (G0, G1 e G2 concluídas, próxima: G3)
+# PLANO-ATUAL.md — Lote v2 em andamento (G0 a G3 concluídas, próxima: G4)
 
 **Plano mestre: `docs/ROADMAP.md`.** Branch de trabalho: `desenvolvimento`
 (a `main` é o site no ar). Plano da G0: `docs/superpowers/plans/2026-10-21-g0-preparar-terreno.md`.
@@ -8,7 +8,8 @@
 | G0 Preparar o terreno | **CONCLUÍDA** (2026-10-21, testada no `localhost` e aprovada pelo Pedro) — backup verificado, migrations 001–014 conferidas, branch criado, permissão de leitura das skills liberada |
 | G1 Ping do Supabase (vai direto para a `main`) | **CONCLUÍDA e PUBLICADA** (2026-10-22). Migration 015 aplicada; na `main` é o commit `039b3eb` (cherry-pick do `bbae981`). Em produção o Pedro rodou o cron à mão duas vezes: `GET /api/ping` 200 nos Request Logs da Vercel |
 | G2 PRODUCT.md e DESIGN.md | **CONCLUÍDA** (2026-10-22, aprovada pelo Pedro). Decisão 1: alerta âmbar (opção A). Só documento, sem código nem migration |
-| G3 em diante | PENDENTE, na ordem do ROADMAP. G3 leva os tokens do `DESIGN.md` ao `globals.css` e gera o sidecar `.impeccable/design.json` |
+| G3 Fundação visual | **CONCLUÍDA** (2026-10-22), aguardando o teste do Pedro no `localhost` (regra 6 do ROADMAP) antes da G4. Tokens e temas, `lib/cores.ts`, `checar-cores`, barra de abas e menu lateral. Sem migration. O sidecar `.impeccable/design.json` **não** foi gerado nesta fase |
+| G4 em diante | PENDENTE, na ordem do ROADMAP (G4 só com a decisão 3 aprovada pelo Pedro) |
 
 **Achado da G0 que vira requisito da G9:** a RLS está desligada em `alunos`,
 `aulas`, `graduacoes` e `presencas` em produção (só o `GRANT` protege). Ver

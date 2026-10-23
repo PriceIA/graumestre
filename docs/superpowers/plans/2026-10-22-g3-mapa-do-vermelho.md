@@ -1,5 +1,9 @@
 # G3 — Mapa do vermelho: o papel de cada ponto
 
+> **Status: aplicado** (Tasks 2 e 3 da G3, aprovado pelo Pedro em 2026-10-22,
+> A7 = alerta; N3, N4 e N5 como propostos). Ver os `Ruling:` do ledger da G3
+> para os desvios (hero do Início como etiqueta escura; `--scrim` virou token).
+
 Hoje o `accent` (`#df2531`) faz quatro trabalhos no mesmo vermelho. No
 `DESIGN.md` cada trabalho tem um token. **Nenhuma cor é trocada antes de o
 Pedro aprovar esta lista** (pedido dele, 2026-10-22).

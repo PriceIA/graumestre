@@ -119,8 +119,9 @@ do aluno não segura o resto.
 1. ✅ **Vermelho de alerta × vermelho da ponteira** *(G2, decidido
    2026-10-22)*: o alerta ganha outra cor, **âmbar**; o vermelho fica só na
    ponteira, como decoração. Valores em `DESIGN.md`.
-2. **Onde fica o botão de tema** *(G3)*: no cabeçalho de toda tela (como no
-   protótipo) ou só no menu.
+2. ✅ **Onde fica o botão de tema** *(G3, decidido 2026-10-22)*: **só no
+   menu** (Mais → "Tema"), não no cabeçalho de toda tela. Sem escolha salva, o
+   app segue o celular.
 3. **Correção de datas** *(G4)*: o FOJJ achou um defeito que também existe no
    GrauMestre (depois das 21h o app acha que já é amanhã; quem nasceu em 1º
    de janeiro ganha 1 ano). Corrigir no GrauMestre, escrito sobre o código do
@@ -317,7 +318,12 @@ Vamos fazer a fase G1 do docs/ROADMAP.md: o ping do Supabase com Vercel Cron. Me
 Vamos fazer a fase G2 do docs/ROADMAP.md. Comece com /impeccable init para o PRODUCT.md do GrauMestre. O protótipo docs/direcoes/gm-kimono.html é a referência visual. Nenhum código muda nesta fase.
 ```
 
-### G3 — Fundação visual *(tokens, temas e casca)*
+### G3 — Fundação visual *(tokens, temas e casca)* ✅ *(concluída 2026-10-22)*
+
+> **Como ficou:** a barra de abas é **Início, Alunos, Aulas, Graduar e Mais**
+> (Início, a home, entrou como aba; a Chamada continua nascendo da aula). No
+> computador (a partir de 960 px) é menu lateral de 232 px. Ver a seção "Tema
+> e navegação" do `CLAUDE.md`.
 
 > 🔁 **Modelo:** **Opus 5.5** para o plano; depois **troque para Sonnet 5.5** na execução. *(trocar com `/model`)*
 
