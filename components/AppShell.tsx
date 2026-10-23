@@ -22,6 +22,8 @@ import DashboardProfessor from '@/components/DashboardProfessor'
 import BannerInstalar from '@/components/BannerInstalar'
 import { FaixaDefs, FaixaDesenhada } from '@/components/FaixaDesenhada'
 import { theme, scrim, type Theme } from '@/lib/cores'
+import Navegacao from '@/components/Navegacao'
+import { definirTema, temaEfetivo, type Tema } from '@/lib/tema'
 
 
 // frequência alta = branco/escuro, média = cinza, baixa = vermelho
@@ -847,6 +849,15 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
   // (LoginGate monta apelido@graumestre.app) — o domínio é só identificador,
   // não recebe e-mail de verdade.
   const [apelido, setApelido] = useState<string | null>(null)
+  // O tema vale desde o primeiro frame (script no <head>, lib/tema.ts); aqui só
+  // se lê qual é para escrevê-lo no item e alternar.
+  const [tema, setTema] = useState<Tema>('claro')
+  useEffect(() => { setTema(temaEfetivo()) }, [])
+  const alternarTema = () => {
+    const proximo: Tema = tema === 'escuro' ? 'claro' : 'escuro'
+    definirTema(proximo)
+    setTema(proximo)
+  }
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
@@ -893,7 +904,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
     }
   }
 
-  const ItemMenu = ({ label, badge, onClick }: { label: string; badge?: number; onClick: () => void }) => (
+  const ItemMenu = ({ label, badge, lado, onClick }: { label: string; badge?: number; lado?: string; onClick: () => void }) => (
     <button
       onClick={onClick}
       style={{
@@ -904,6 +915,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
       }}
     >
       <span>{label}</span>
+      {lado && <span style={{ color: t.textMute, fontSize: 12, fontWeight: 400 }}>{lado}</span>}
       {!!badge && (
         <span style={{
           background: t.ativo, color: t.sobreAtivo, fontSize: 11, fontWeight: 800,
@@ -945,6 +957,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
           <ItemMenu label="Perfil do Professor" onClick={() => { onClose(); onAbrirPerfil() }} />
           <ItemMenu label="Lixeira" badge={naLixeira} onClick={() => { onClose(); onAbrirLixeira() }} />
           {eventoInstalar && <ItemMenu label="Instalar no celular" onClick={instalarApp} />}
+          <ItemMenu label={`Tema: ${tema === 'escuro' ? 'kimono preto' : 'kimono branco'}`} lado="trocar" onClick={alternarTema} />
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}` }}>
@@ -2553,7 +2566,7 @@ export default function AppShell() {
   const [erroCarga, setErroCarga] = useState<string | null>(null)
   const [erroPerfil, setErroPerfil] = useState<string | null>(null)
   const [retentando, setRetentando] = useState(false)
-  const [tab, setTab]       = useState<'alunos' | 'aulas' | 'lixeira'>('alunos')
+  const [tab, setTab]       = useState<'inicio' | 'alunos' | 'aulas' | 'lixeira'>('inicio')
   const [alunoSel, setAlunoSel]   = useState<any | null>(null)
   // aba em que o modal do aluno abre — só o card "Prontos para graduar" muda isso
   const [abaAluno, setAbaAluno]   = useState<TabAluno>('perfil')
@@ -2695,7 +2708,13 @@ export default function AppShell() {
   }
 
   return (
-    <div style={{ background: t.bg, minHeight: '100vh', fontFamily: t.ui, color: t.text, maxWidth: 480, margin: '0 auto' }}>
+    <div className="app" style={{ fontFamily: t.ui, color: t.text }}>
+      <Navegacao
+        atual={tab} onIr={setTab}
+        onGraduar={() => setPainelProntos(true)} onMais={() => setMenuAberto(true)}
+        qtdProntos={prontos.length}
+      />
+      <main className="conteudo">
 
       {/* Gradientes + trama da faixa desenhada — declarados UMA VEZ aqui,
           referenciados por url(#id) em toda faixa da tela. Monta um <svg>
@@ -2706,12 +2725,22 @@ export default function AppShell() {
           árvore não importa — fica no topo só para não se perder no meio. */}
       <BannerInstalar />
 
-      {/* Dashboard do Professor */}
-      <DashboardProfessor
-        alunos={alunos} aulasEsseMes={aulasEsseMes} qtdProntos={prontos.length} qtdLixeira={naLixeira}
-        onAbrirProntos={() => setPainelProntos(true)} onAbrirMenu={() => setMenuAberto(true)}
-        onSelectAluno={abrirAluno}
-      />
+      {/* Início: o painel com frequência, distribuição e destaques. Era a
+          cabeça da tela de Alunos; virou aba própria (G3.3). */}
+      {tab === 'inicio' && (
+        <DashboardProfessor
+          alunos={alunos} aulasEsseMes={aulasEsseMes} qtdProntos={prontos.length}
+          onAbrirProntos={() => setPainelProntos(true)}
+          onSelectAluno={abrirAluno}
+        />
+      )}
+
+      {(tab === 'alunos' || tab === 'aulas') && (
+        <header className="topo">
+          <h1>{tab === 'alunos' ? 'Alunos' : 'Aulas'}</h1>
+          <span className="sub">{tab === 'alunos' ? `${alunos.length} alunos` : `${aulas.length} aulas`}</span>
+        </header>
+      )}
 
       {/* Falha de carga: o aviso é obrigatório justamente porque a lista
           continua na tela. Sem ele o professor veria dado velho achando que é
@@ -2752,36 +2781,8 @@ export default function AppShell() {
         </div>
       )}
 
-      {/* Tabs — só duas: Lixeira saiu para o menu (Etapa 3). `tab` continua
-          podendo valer 'lixeira' (setado pelo item do menu); a barra só
-          deixa de desenhar o terceiro botão, então o resto do render que já
-          checa tab === 'lixeira' (conteúdo, FAB) não precisa mudar. */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, marginTop: 14 }}>
-        {(['alunos', 'aulas'] as const).map(tb => {
-          const contagem = tb === 'alunos' ? alunos.length : 0
-          return (
-            <button
-              key={tb} onClick={() => setTab(tb)}
-              style={{
-                flex: 1, padding: 14, border: 'none', background: 'none', cursor: 'pointer',
-                color: tab === tb ? t.ativo : t.textMute,
-                borderBottom: tab === tb ? `2px solid ${t.ativo}` : '2px solid transparent',
-                fontFamily: t.ui, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1,
-              }}
-            >
-              {tb}
-              {contagem > 0 && (
-                <span style={{ marginLeft: 6, fontSize: 11, color: tab === tb ? t.ativo : t.textMute, opacity: 0.7 }}>
-                  {contagem}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
       {/* Conteúdo */}
-      <div style={{ padding: '16px 16px 100px' }}>
+      <div style={{ padding: '16px 16px 0' }}>
 
         {/* Grade de crachás circulares */}
         {tab === 'alunos' && (
@@ -2929,13 +2930,12 @@ export default function AppShell() {
         )}
       </div>
 
-      {/* FAB — não faz sentido na lixeira */}
-      {tab !== 'lixeira' && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: '50%', transform: 'translateX(50%)',
-          maxWidth: 480, width: '100%', padding: '0 16px', boxSizing: 'border-box',
-          display: 'flex', justifyContent: 'flex-end',
-        }}>
+      </main>
+
+      {/* FAB — só onde há o que criar: Alunos e Aulas. No Início e na lixeira
+          não há (no Início o "+" abriria uma aula, o que ninguém espera). */}
+      {(tab === 'alunos' || tab === 'aulas') && (
+        <div className="fab-area">
           <FabButton
             onClick={tab === 'alunos' ? novoAluno : () => setModalAula(true)}
             t={t}

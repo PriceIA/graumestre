@@ -169,3 +169,114 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ── Casca: navegação e cabeçalho (G3.3) ─────────────────────────────────
+   Duas versões de verdade, trocadas só por CSS em 960 px (DESIGN.md, Layout).
+   Celular: barra de abas fixa embaixo. Computador: menu lateral de 232 px. */
+
+:root { --base-fixos: calc(var(--barra-aba) + env(safe-area-inset-bottom)); }
+
+.app { min-height: 100dvh; }
+
+.nav {
+  position: fixed; z-index: 20; left: 0; right: 0; bottom: 0;
+  background: var(--papel); border-top: 1.5px solid var(--controle);
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.nav .marca { display: none; }
+.nav-item {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: var(--barra-aba); padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--tinta-media);
+  font: 700 12px/1 var(--ui); font-variation-settings: 'wdth' 85;
+}
+.nav-item svg { width: 22px; height: 22px; flex: none; }
+.nav-item[aria-current="page"] { color: var(--sobre-ativo); background: var(--ativo); }
+.nav-badge {
+  position: absolute; top: 6px; left: calc(50% + 6px);
+  min-width: 18px; padding: 2px 5px; border-radius: 999px; text-align: center;
+  background: var(--ativo); color: var(--sobre-ativo);
+  font: 800 11px/1.1 var(--ui);
+}
+
+.conteudo { width: 100%; max-width: 640px; margin: 0 auto; padding-bottom: calc(var(--base-fixos) + 24px); }
+
+/* Cabeçalho de cada aba: título em estêncil e a costura dupla da barra do
+   kimono, que termina numa ponteira de faixa preta (decoração, DESIGN.md). */
+.topo {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  margin: 0 16px 14px; padding: 14px 0;
+}
+.topo::after {
+  content: ''; position: absolute; left: 0; right: 40px; bottom: 0; height: 7px;
+  border-top: 1.5px dashed var(--costura-pagina); border-bottom: 1.5px dashed var(--costura-pagina);
+  pointer-events: none;
+}
+.topo::before {
+  content: ''; position: absolute; right: 0; bottom: -3px; width: 34px; height: 13px; border-radius: 1px; z-index: 1;
+  background:
+    linear-gradient(var(--friso), var(--friso)) left 0 top 2px / 100% 1.5px no-repeat,
+    linear-gradient(var(--friso), var(--friso)) left 0 bottom 2px / 100% 1.5px no-repeat,
+    var(--ponteira-faixa);
+}
+.topo h1 { font: 900 36px/.9 var(--display); letter-spacing: .01em; margin: 0; text-transform: uppercase; color: var(--tinta); }
+.topo .sub { color: var(--tinta-media); font-weight: 600; font-size: 13px; }
+.topo .acoes-topo { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+/* Botão flutuante "+": acima da barra no celular, no canto no computador. */
+.fab-area {
+  position: fixed; z-index: 30; left: 0; right: 0; bottom: calc(var(--base-fixos) + 16px);
+  max-width: 640px; margin: 0 auto; padding: 0 16px;
+  display: flex; justify-content: flex-end; pointer-events: none;
+}
+.fab-area > * { pointer-events: auto; }
+
+@media (min-width: 960px) {
+  :root { --base-fixos: 0px; }
+  .app { display: grid; grid-template-columns: 232px minmax(0, 1fr); }
+
+  .nav {
+    position: sticky; top: 0; left: auto; right: auto; bottom: auto; height: 100dvh;
+    display: flex; flex-direction: column; gap: 4px; padding: 20px 14px 56px;
+    background: var(--etiqueta); border: 0; box-shadow: inset -1px 0 0 var(--etiqueta-borda);
+  }
+  .nav::after {
+    content: ''; position: absolute; inset: 8px 8px 44px;
+    border: 1.5px dashed var(--costura-suave); pointer-events: none;
+  }
+  .nav::before {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 36px;
+    background:
+      linear-gradient(90deg, var(--friso), var(--friso)) left 0 top 5px / 100% 2px no-repeat,
+      linear-gradient(90deg, var(--friso), var(--friso)) left 0 bottom 5px / 100% 2px no-repeat,
+      var(--ponteira-faixa);
+  }
+  .nav .marca {
+    display: flex; align-items: center; gap: 10px; color: var(--sobre-etiqueta); padding: 4px 6px 22px;
+    position: relative; z-index: 1;
+  }
+  .nav .marca .logo {
+    width: 48px; height: 48px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    border: 1.5px dashed var(--costura-etiqueta); color: var(--sobre-etiqueta-suave);
+    font: 800 13px/1 var(--ui); font-variation-settings: 'wdth' 75;
+  }
+  .nav .marca b { display: block; font: 900 30px/.86 var(--display); letter-spacing: .02em; text-transform: uppercase; }
+  .nav-item {
+    flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 14px; min-height: 48px;
+    font-size: 15px; color: var(--sobre-etiqueta-suave); border-radius: var(--r); z-index: 1; text-align: left;
+  }
+  .nav-item:hover { background: var(--realce-sobre-etiqueta); color: var(--sobre-etiqueta); }
+  .nav-item[aria-current="page"] { background: var(--destaque); color: var(--sobre-destaque); }
+  .nav :focus-visible { outline-color: var(--sobre-etiqueta); box-shadow: 0 0 0 6px var(--etiqueta); }
+  .nav-badge {
+    position: static; margin-left: auto;
+    background: var(--destaque); color: var(--sobre-destaque);
+  }
+
+  .conteudo { max-width: 720px; padding-bottom: 40px; }
+  .topo { margin: 0 36px 22px; padding: 26px 0 18px; }
+  .topo h1 { font-size: 60px; }
+  .fab-area { left: auto; right: 28px; bottom: 28px; max-width: none; margin: 0; padding: 0; }
+}

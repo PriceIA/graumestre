@@ -63,7 +63,7 @@ export default function BannerInstalar() {
         // zIndex 90: abaixo dos modais do AppShell (100 e 120) e da splash
         // (9999), acima do conteúdo. Um convite nunca deve cobrir a chamada.
         position: 'fixed', zIndex: 90,
-        left: 12, right: 12, bottom: 12,
+        left: 12, right: 12, bottom: 'calc(var(--base-fixos) + 12px)',
         maxWidth: 420, marginLeft: 'auto', marginRight: 'auto',
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '12px 14px', borderRadius: 'var(--r)',

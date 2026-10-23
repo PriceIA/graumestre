@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, Menu } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import type { Faixa, TabAluno } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -164,9 +164,9 @@ function PainelProfessor({ perto, atencao, onSelect }: {
 }
 
 // ─── Dashboard do Professor ──────────────────────────────────────────────────
-export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, qtdLixeira, onAbrirProntos, onAbrirMenu, onSelectAluno }: {
-  alunos: any[]; aulasEsseMes: number; qtdProntos: number; qtdLixeira: number
-  onAbrirProntos: () => void; onAbrirMenu: () => void
+export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, onAbrirProntos, onSelectAluno }: {
+  alunos: any[]; aulasEsseMes: number; qtdProntos: number
+  onAbrirProntos: () => void
   onSelectAluno: (aluno: any, tabInicial?: TabAluno) => void
 }) {
   const comFrequencia = alunos.filter(a => (a.total_aulas ?? 0) > 0)
@@ -195,38 +195,26 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, q
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3">
-        {/* Alvo de 44×44 (mínimo de toque) via margem negativa, mesmo princípio
-            do ✕ de apagar aula no AppShell: a área cresce para dentro do
-            padding do header (py-3/px-4), sem aumentar a altura da linha nem
-            o tamanho visual do ícone. */}
-        <button
-          onClick={onAbrirMenu}
-          aria-label="Menu"
-          className="relative -my-3 -ml-3 flex h-11 w-11 items-center justify-center"
-        >
-          <Menu size={22} className="text-tinta-media" />
-          {qtdLixeira > 0 && (
-            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-ativo px-1 font-body text-[10px] font-bold leading-none text-sobre-ativo">
-              {qtdLixeira}
-            </span>
-          )}
-        </button>
-        <span className="font-display text-2xl uppercase tracking-wide text-tinta">GrauMestre</span>
-        <button
-          onClick={onAbrirProntos}
-          aria-label="Notificações de graduação"
-          className="relative -my-3 -mr-3 flex h-11 w-11 items-center justify-center"
-        >
-          <Bell size={20} className="text-tinta-media" />
-          {qtdProntos > 0 && (
-            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-ativo px-1 font-body text-[10px] font-bold leading-none text-sobre-ativo">
-              {qtdProntos}
-            </span>
-          )}
-        </button>
-      </div>
+      {/* Cabeçalho: título em estêncil com a costura dupla (.topo, globals.css).
+          O ☰ saiu: o menu agora é a aba "Mais" da navegação. */}
+      <header className="topo">
+        <h1>GrauMestre</h1>
+        {/* Alvo de 44×44 (mínimo de toque). */}
+        <div className="acoes-topo">
+          <button
+            onClick={onAbrirProntos}
+            aria-label="Notificações de graduação"
+            className="relative flex h-11 w-11 items-center justify-center"
+          >
+            <Bell size={20} className="text-tinta-media" />
+            {qtdProntos > 0 && (
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ativo px-1 font-body text-[10px] font-bold leading-none text-sobre-ativo">
+                {qtdProntos}
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
 
       {/* Hero */}
       <div className="relative min-h-[300px] overflow-hidden">
