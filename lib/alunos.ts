@@ -3,6 +3,7 @@ import { ehInfantil, FAIXAS_INFANTIS, FAIXAS_ADULTAS } from '@/lib/regras-ibjjf'
 import { alertaGraduacao } from '@/lib/alertas-graduacao'
 import { estaAfastado } from '@/lib/afastamento'
 import { hojeBrasil } from '@/lib/datas'
+import { agruparNaOrdem } from '@/lib/busca'
 
 // ─── Colunas graváveis de `alunos` ───────────────────────────────────────────
 // O objeto do aluno carrega campos derivados que NÃO são colunas da tabela:
@@ -88,4 +89,11 @@ export function aplicarFiltros(alunos: any[], f: Filtros, presencasPorGrau: numb
     if (f.categoria === 'adulto'   &&  ehInfantilAluno(a)) return false
     return true
   })
+}
+
+// Grupos da lista de Alunos: um por faixa que tenha aluno, na ordem de
+// ORDEM_FAIXAS. Quem chama já filtrou e buscou.
+export function agruparPorFaixa(alunos: any[]): { faixa: Faixa; alunos: any[] }[] {
+  return agruparNaOrdem(alunos, a => a.faixa, ORDEM_FAIXAS)
+    .map(g => ({ faixa: g.chave as Faixa, alunos: g.itens }))
 }
