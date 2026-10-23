@@ -10,6 +10,12 @@ entrada corresponde a um commit na `main`.
 
 ## Não lançado
 
+- **G4.3 do lote v2 — registros do passado gravados com a data de amanhã (só dado; sem código nem migration).** Fecha a G4.
+  - Varredura no backup de 2026-10-23: só 3 registros tinham a data do dia UTC no lugar do dia de Brasília (das 29 graduações, 33 alunos e 5 aulas). Efeito de cada correção simulado antes sobre a view (a simulação bate com a view real nos 33 alunos); o Pedro decidiu um a um.
+  - **Corrigido:** aula "Omoplata da guarda fechada" (`13934eaa`) de quarta 09/09 para terça 08/09 (lançada e com chamada a partir das 23h42 de 08/09). Efeito: a aula passa a ficar antes das graduações de 10 alunos registradas às 00h05 de 09/09; 5 deles têm 1 presença a menos "desde o último grau" e os 10 têm 1 aula a menos nessa conta.
+  - **Corrigido:** `inicio` do Pedro Henrique (`dc16d3a4`) de 19/06 para 18/06 (cadastrado às 22h58 de 18/06, presente na aula desse dia). Frequência dele 1/4 → 2/5; Frequência geral da home 25% → 26%.
+  - Conferido depois: as duas linhas por id, a view do Pedro Henrique em 2/5, a home com só a Frequência geral diferente da linha de base, e o painel do sininho vazio ("Nenhum aluno com 40 presenças…").
+  - **Pendente:** graduação da Aninha (`17849d3e`) de 11/09 para 10/09. Não corrigida porque, na regra atual da view, aula no mesmo dia da graduação conta como depois dela, e a aula de 10/09 entraria na conta "desde o último grau" dela sem presença. Fica para resolver junto com a regra do mesmo dia (ver `docs/PLANO-ATUAL.md`).
 - **G4.2 do lote v2 — aula com data futura não conta como dada (migration 016; branch `desenvolvimento`).**
   - **Defeito 3:** a view `alunos_frequencia` e o `aulas_perdidas` contavam uma aula lançada com antecedência já no lançamento: a frequência caía e cada aluno ganhava uma aula perdida antes do treino. Com as 5 aulas de hoje, uma aula futura levaria todo aluno que nunca veio a 6 aulas perdidas, o limite de afastado.
   - **Migration 016:** recria a view com o corpo da 014 e só `au.data <= (now() at time zone 'America/Sao_Paulo')::date` nas quatro contagens (nunca `current_date`, que no Supabase é UTC). Entre `begin`/`commit`; `revoke all ... from anon, authenticated, public` antes do `grant select ... to authenticated`. Aplicada pelo Pedro em 2026-10-23, depois de backup novo (`C:\Backups\graumestre\2026-10-23`: 33/5/29/59/1/33).
