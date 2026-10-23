@@ -8,8 +8,18 @@
 | G0 Preparar o terreno | **CONCLUÍDA** (2026-10-21, testada no `localhost` e aprovada pelo Pedro) — backup verificado, migrations 001–014 conferidas, branch criado, permissão de leitura das skills liberada |
 | G1 Ping do Supabase (vai direto para a `main`) | **CONCLUÍDA e PUBLICADA** (2026-10-22). Migration 015 aplicada; na `main` é o commit `039b3eb` (cherry-pick do `bbae981`). Em produção o Pedro rodou o cron à mão duas vezes: `GET /api/ping` 200 nos Request Logs da Vercel |
 | G2 PRODUCT.md e DESIGN.md | **CONCLUÍDA** (2026-10-22, aprovada pelo Pedro). Decisão 1: alerta âmbar (opção A). Só documento, sem código nem migration |
-| G3 Fundação visual | **CONCLUÍDA** (2026-10-22), aguardando o teste do Pedro no `localhost` (regra 6 do ROADMAP) antes da G4. Tokens e temas, `lib/cores.ts`, `checar-cores`, barra de abas e menu lateral. Sem migration. O sidecar `.impeccable/design.json` **não** foi gerado nesta fase |
+| G3 Fundação visual | **CONCLUÍDA** (2026-10-22, testada no `localhost` e aprovada pelo Pedro; commits `b6ff404` a `0cadf11`). Tokens e temas, `lib/cores.ts`, `checar-cores`, barra de abas e menu lateral. Sem migration. Pendências adiadas por decisão do Pedro: ver a lista abaixo da tabela |
 | G4 em diante | PENDENTE, na ordem do ROADMAP (G4 só com a decisão 3 aprovada pelo Pedro) |
+
+**Adiado da G3 (decisão do Pedro, 2026-10-22):**
+
+- **Sidecar `.impeccable/design.json`:** não foi gerado na G3. Fica para a **G8 ou a G13**.
+- **Quatro pontos de revisão da G3, para a G5 e a G12** (a divisão entre as duas fases não foi definida; decidir ao abrir cada uma):
+  1. `maximumScale: 1` no viewport bloqueia o zoom (`app/layout.tsx`; já existia antes da G3).
+  2. Faltam `touch-action: manipulation` e `overscroll-behavior: contain` nos modais.
+  3. A meta `theme-color` segue o celular, não o tema escolhido no menu.
+  4. O histórico de graduações do modal do aluno só atualiza depois de recarregar (a gravação está certa).
+- **Dívida anterior à G3, ainda aberta:** o rodapé do modal do aluno sobrepõe o conteúdo no Chrome (`<fieldset>` com `overflowY:auto`; ver `CLAUDE.md`, "Tema e navegação").
 
 **Achado da G0 que vira requisito da G9:** a RLS está desligada em `alunos`,
 `aulas`, `graduacoes` e `presencas` em produção (só o `GRANT` protege). Ver
