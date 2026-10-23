@@ -46,7 +46,7 @@ Ela é `select a.*`, e o Postgres **expande isso na criação**, congelando a li
 
 Desde a G0 (2026-10-21) o projeto está no **lote v2** (`docs/ROADMAP.md`).
 
-- **`main` é o site no ar** (Vercel, produção). Só recebe merge quando o Pedro disser. Única exceção prevista: a G1 (ping do Supabase), que vai direto para a `main` porque o banco está dormindo.
+- **`main` é o site no ar** (Vercel, produção). Só recebe merge quando o Pedro disser. Única exceção que foi direto para a `main`: a G1 (ping do Supabase), publicada em 2026-10-22 (commit `039b3eb`; no `desenvolvimento` é o `bbae981`, mesmo conteúdo).
 - **O trabalho acontece no branch `desenvolvimento`**, com push a cada commit. Para esse branch, a regra 8 acima vale com a troca de alvo: `git push` e conferir `git log origin/desenvolvimento..desenvolvimento` vazio; o deploy de **produção** só é conferido quando algo entra na `main`.
 - **O banco é um só, o mesmo do site no ar.** Qualquer teste no `localhost` ou em preview escreve nos dados reais — dado de teste é limpo no fim e a contagem conferida contra a linha de base (33 alunos, 5 aulas, 59 presenças, 29 graduações em 2026-10-21).
 - **Cada push no `desenvolvimento` gera um deploy de Preview na Vercel** (confirmado na G0: ambiente `Preview`, status `success`; a última produção continua sendo a da `main`). Se o Preview usa as mesmas variáveis `NEXT_PUBLIC_SUPABASE_*` da produção, ele fala com o banco real — **não confirmado** (exige olhar Vercel → Settings → Environment Variables, escopo Preview); até alguém conferir, trate o Preview como produção para fins de dado de teste.

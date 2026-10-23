@@ -1,4 +1,4 @@
-# PLANO-ATUAL.md — Lote v2 em andamento (G0 concluída, próxima: G1)
+# PLANO-ATUAL.md — Lote v2 em andamento (G0 e G1 concluídas, próxima: G2)
 
 **Plano mestre: `docs/ROADMAP.md`.** Branch de trabalho: `desenvolvimento`
 (a `main` é o site no ar). Plano da G0: `docs/superpowers/plans/2026-10-21-g0-preparar-terreno.md`.
@@ -6,7 +6,7 @@
 | Fase | Estado |
 |---|---|
 | G0 Preparar o terreno | **CONCLUÍDA** (2026-10-21, testada no `localhost` e aprovada pelo Pedro) — backup verificado, migrations 001–014 conferidas, branch criado, permissão de leitura das skills liberada |
-| G1 Ping do Supabase (vai direto para a `main`) | **CÓDIGO PRONTO, testado no `localhost`** (migration 015 aplicada em 2026-10-22; 401/401/200 ok). Falta: commit, levar para a `main` quando o Pedro mandar, conferir deploy de produção e cron listado na Vercel |
+| G1 Ping do Supabase (vai direto para a `main`) | **CONCLUÍDA e PUBLICADA** (2026-10-22). Migration 015 aplicada; na `main` é o commit `039b3eb` (cherry-pick do `bbae981`). Em produção o Pedro rodou o cron à mão duas vezes: `GET /api/ping` 200 nos Request Logs da Vercel |
 | G2 em diante | PENDENTE, na ordem do ROADMAP |
 
 **Achado da G0 que vira requisito da G9:** a RLS está desligada em `alunos`,

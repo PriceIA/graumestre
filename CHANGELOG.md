@@ -16,6 +16,7 @@ entrada corresponde a um commit na `main`.
   - **Migration 015: `public.ping()`**, que devolve `1` e não lê tabela. Foi preciso porque a 009 revogou o `anon` das tabelas: um `select` ali dá `permission denied` e não há garantia de que conte como atividade. Só acrescenta uma função; sem RLS ou GRANT de tabela alterados. Aplicada pelo Pedro em 2026-10-22.
   - Testado no `localhost`: sem segredo 401, segredo errado 401, segredo certo 200 `{ok:true}`. `tsc --noEmit` limpo.
   - Única exceção à regra "sem `app/api`" (ver `CLAUDE.md`).
+  - **Publicada na `main` em 2026-10-22 (`039b3eb`, cherry-pick do `bbae981` do `desenvolvimento`).** Em produção, cron rodado à mão duas vezes pelo Pedro: `GET /api/ping` 200 nos Request Logs da Vercel.
 - **G0 do lote v2 — terreno preparado, nada visível muda (branch `desenvolvimento`).**
   - **Backup verificado antes de qualquer migration:** `pg_dump` (schemas `public` e `storage` + `auth.users`/`auth.identities`) e exportação por API em JSON e CSV, com `MANIFESTO.txt` (contagens e SHA-256). Contagens conferidas contra o banco: 33 alunos, 5 aulas, 59 presenças, 29 graduações, 1 perfil; bucket `aulas-fotos` vazio (0 fotos). Guardado fora do repositório.
   - `scripts/backup-graumestre.mjs` (novo): lê credenciais só do ambiente, recusa gravar dentro do repo e aborta se o login falhar ou `alunos` vier vazia.
