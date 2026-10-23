@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { eventoAtual, inscrever, descartarEvento, type EventoInstalacao } from '@/lib/instalacao'
+import { theme as t } from '@/lib/cores'
 
 // Convite para instalar o app no celular. Suporte técnico a PWA sozinho não
 // resolve: sem um convite visível o professor continua abrindo pelo navegador,
@@ -18,14 +19,6 @@ import { eventoAtual, inscrever, descartarEvento, type EventoInstalacao } from '
 // instalar amanhã, e o custo de rever o banner é um toque.
 const CHAVE_DISPENSADO = 'graumestre:banner-instalar-dispensado'
 
-const t = {
-  surface: '#161616',
-  border2: 'rgba(255,255,255,0.18)',
-  text: '#FFFFFF',
-  textSub: 'rgba(255,255,255,0.6)',
-  textMute: 'rgba(255,255,255,0.4)',
-  accent: '#df2531',
-}
 
 export default function BannerInstalar() {
   const [evento, setEvento] = useState<EventoInstalacao | null>(null)
@@ -73,7 +66,7 @@ export default function BannerInstalar() {
         left: 12, right: 12, bottom: 12,
         maxWidth: 420, marginLeft: 'auto', marginRight: 'auto',
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 14px', borderRadius: 10,
+        padding: '12px 14px', borderRadius: 'var(--r)',
         background: t.surface, border: `1px solid ${t.border2}`,
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
       }}
@@ -90,8 +83,8 @@ export default function BannerInstalar() {
       <button
         onClick={instalar}
         style={{
-          flexShrink: 0, padding: '10px 16px', borderRadius: 8, border: 'none',
-          background: t.accent, color: '#fff', fontWeight: 800, fontSize: 13,
+          flexShrink: 0, padding: '10px 16px', borderRadius: 'var(--r)', border: 'none',
+          background: t.accent, color: t.sobreAtivo, fontWeight: 800, fontSize: 13,
           cursor: 'pointer',
         }}
       >
@@ -102,7 +95,7 @@ export default function BannerInstalar() {
         onClick={dispensar}
         aria-label="Dispensar"
         style={{
-          flexShrink: 0, width: 32, height: 32, borderRadius: 8,
+          flexShrink: 0, width: 32, height: 32, borderRadius: 'var(--r)',
           border: `1px solid ${t.border2}`, background: 'transparent',
           color: t.textMute, fontSize: 16, lineHeight: 1, cursor: 'pointer',
         }}

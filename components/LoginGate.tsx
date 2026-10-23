@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useSessao } from '@/lib/auth'
+import { theme as t } from '@/lib/cores'
 
 // Gate no topo do app: sem sessão, nada do app é montado — nem a UI, nem as
 // queries. Não há redirect nem middleware porque o app é de uma rota só; um
@@ -13,13 +14,6 @@ import { useSessao } from '@/lib/auth'
 // contornasse esta tela, o PostgREST recusaria toda leitura e escrita sem um
 // token válido.
 
-// Paleta fixa do GrauMestre, igual à do AppShell — inline styles, sem Tailwind.
-const t = {
-  bg: '#0a0a0a', surface: '#161616',
-  border: 'rgba(255,255,255,0.12)', border2: 'rgba(255,255,255,0.18)',
-  text: '#FFFFFF', textSub: 'rgba(255,255,255,0.6)', textMute: 'rgba(255,255,255,0.4)',
-  accent: '#df2531', accentBg: 'rgba(223,37,49,0.1)', inputBg: '#161616',
-}
 
 // O professor entra com um apelido, não com e-mail: é o que ele lembra e o que
 // se digita rápido no celular. O Supabase Auth exige e-mail, então montamos um
@@ -83,14 +77,14 @@ function TelaLogin() {
           }}>
             GrauMestre
           </div>
-          <div style={{ color: t.textMute, fontSize: 12, fontFamily: 'monospace', marginTop: 6 }}>
+          <div style={{ color: t.textMute, fontSize: 12, fontFamily: t.ui, marginTop: 6 }}>
             Acesso do professor
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>
               Usuário
             </div>
             <input
@@ -100,14 +94,14 @@ function TelaLogin() {
               onKeyDown={e => { if (e.key === 'Enter') entrar() }}
               style={{
                 width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`,
-                borderRadius: 8, padding: '12px 14px', color: t.text, fontSize: 15,
+                borderRadius: 'var(--r)', padding: '12px 14px', color: t.text, fontSize: 15,
                 boxSizing: 'border-box',
               }}
             />
           </div>
 
           <div>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>
               Senha
             </div>
             <input
@@ -116,7 +110,7 @@ function TelaLogin() {
               onKeyDown={e => { if (e.key === 'Enter') entrar() }}
               style={{
                 width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`,
-                borderRadius: 8, padding: '12px 14px', color: t.text, fontSize: 15,
+                borderRadius: 'var(--r)', padding: '12px 14px', color: t.text, fontSize: 15,
                 boxSizing: 'border-box',
               }}
             />
@@ -125,7 +119,7 @@ function TelaLogin() {
 
         {erro && (
           <div style={{
-            padding: 12, borderRadius: 8, background: t.accentBg,
+            padding: 12, borderRadius: 'var(--r)', background: t.accentBg,
             border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
           }}>
             ⚠ {erro}
@@ -135,8 +129,8 @@ function TelaLogin() {
         <button
           onClick={entrar} disabled={entrando}
           style={{
-            padding: 14, borderRadius: 8, border: 'none', background: t.accent,
-            color: '#fff', fontWeight: 800, fontSize: 15,
+            padding: 14, borderRadius: 'var(--r)', border: 'none', background: t.accent,
+            color: t.sobreAtivo, fontWeight: 800, fontSize: 15,
             cursor: entrando ? 'not-allowed' : 'pointer',
             opacity: entrando ? 0.7 : 1, transition: 'opacity 0.15s',
           }}
@@ -146,7 +140,7 @@ function TelaLogin() {
 
         <div style={{ color: t.textMute, fontSize: 11, textAlign: 'center', lineHeight: 1.6 }}>
           Não há cadastro público. A conta do professor é criada direto no
-          painel do Supabase, como <span style={{ fontFamily: 'monospace' }}>usuário@{DOMINIO_LOGIN}</span>.
+          painel do Supabase, como <span style={{ fontFamily: t.ui }}>usuário@{DOMINIO_LOGIN}</span>.
         </div>
       </div>
     </div>
