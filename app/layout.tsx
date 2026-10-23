@@ -4,6 +4,7 @@ import SplashGate from '@/components/SplashGate'
 import RegistroServiceWorker from '@/components/RegistroServiceWorker'
 import { SCRIPT_TEMA } from '@/lib/tema'
 import './globals.css'
+import './comum.css'
 import './alunos.css'
 
 // Archivo variável com o eixo de largura (wdth): é o que deixa caber nome longo

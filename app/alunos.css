@@ -92,3 +92,105 @@
   margin-top: 18px; padding: 24px; text-align: center; font-size: 15px; color: var(--tinta-media);
   background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r);
 }
+
+/* ── Ficha do aluno ─────────────────────────────────────────────────────────
+   Celular: folha que sobe e cobre a tela. O computador (bloco no fim do
+   arquivo, G5.4) a põe ao lado da tabela. */
+.ficha {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
+  background: var(--trama), var(--fundo); color: var(--tinta);
+  transform: translateY(100%); visibility: hidden;
+  transition: transform .22s var(--ease), visibility 0s .22s;
+  touch-action: manipulation;
+}
+.ficha:focus { outline: none; }
+.ficha.aberta { transform: none; visibility: visible; transition: transform .22s var(--ease); }
+
+.ficha-rolagem { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 24px; }
+/* sem padding no alto da rolagem: a barra de abas gruda no topo de verdade */
+.ficha-topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 14px 0 10px; }
+.ficha-fechar {
+  width: 48px; height: 48px; flex: none; display: grid; place-items: center; cursor: pointer;
+  border: 1.5px solid var(--controle); background: var(--papel); color: var(--tinta); border-radius: var(--r);
+}
+.ficha-fechar svg { width: 22px; height: 22px; }
+.ficha-nome { font: 900 40px/.92 var(--display); text-transform: uppercase; letter-spacing: .01em; margin: 4px 0 12px; overflow-wrap: anywhere; }
+.ficha-selos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.ficha-motivo { margin: 0 0 12px; font-size: 14px; color: var(--tinta-media); }
+.ficha-quadro { padding: 16px 14px 12px; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); }
+.ficha-quadro .rot { margin-top: 8px; font: 700 14px/1.2 var(--ui); color: var(--tinta-media); }
+
+/* Abas: a barra gruda no alto enquanto o conteúdo rola. */
+.ficha-abas {
+  position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: repeat(4, 1fr);
+  margin: 14px -16px 16px; padding: 0 16px; background: var(--fundo); border-bottom: 1.5px solid var(--controle);
+}
+.ficha-aba {
+  min-height: 44px; border: 0; background: none; cursor: pointer; color: var(--tinta-media);
+  font: 800 12px/1 var(--ui); font-variation-settings: 'wdth' 80; letter-spacing: .06em; text-transform: uppercase;
+}
+.ficha-aba[aria-selected="true"] { background: var(--ativo); color: var(--sobre-ativo); }
+
+/* O fieldset só desliga a edição; a rolagem é da .ficha-rolagem (G5.2). */
+.ficha-campos { border: 0; margin: 0; padding: 0; min-width: 0; }
+.ficha-conteudo { display: flex; flex-direction: column; gap: 14px; }
+.ficha-duplo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; }
+.ficha-dado dt { font-size: 13px; color: var(--tinta-media); font-weight: 600; }
+.ficha-dado dd { margin: 2px 0 0; font: 800 22px/1.1 var(--ui); font-variation-settings: 'wdth' 75; }
+.ficha-notas { min-height: 160px; padding: 12px 14px; line-height: 1.5; resize: vertical; }
+.ficha-link { background: none; border: 0; padding: 0; min-height: 44px; color: var(--tinta); text-decoration: underline; font: inherit; font-weight: 700; cursor: pointer; }
+
+.ficha-hist { padding: 10px 12px; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); }
+.ficha-hist-linha { display: flex; align-items: center; gap: 8px; }
+.ficha-hist-faixa { flex: 1; min-width: 0; font: 700 14px/1.25 var(--ui); }
+.ficha-hist-data { flex: none; font-size: 13px; color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
+.ficha-hist-x {
+  flex: none; width: 44px; height: 44px; margin: -8px -10px -8px 0; display: grid; place-items: center;
+  background: none; border: 0; color: var(--tinta-media); cursor: pointer;
+}
+.ficha-hist-x svg { width: 18px; height: 18px; }
+
+.ficha-apagar {
+  align-self: flex-start; min-height: 44px; margin-top: 8px; padding: 0 2px; background: none; border: 0; cursor: pointer;
+  color: var(--erro-texto); font: 700 14px/1 var(--ui); text-decoration: underline;
+}
+.ficha-apagar:disabled { cursor: default; opacity: .6; }
+
+.ficha-erro {
+  margin: 0 16px 10px; padding: 12px; border: 1.5px solid var(--erro); border-radius: var(--r);
+  background: color-mix(in srgb, var(--erro) 10%, var(--papel)); color: var(--erro-texto); font-size: 14px; line-height: 1.4;
+}
+.ficha-rodape {
+  display: flex; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1.5px solid var(--controle); background: var(--papel);
+}
+.ficha-rodape .al-btn { flex: 1; }
+.ficha-rodape .al-btn.cheio { flex: 2; }
+.ficha-rodape .al-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Aba Graduação */
+.fi-rot { margin: 20px 0 10px; color: var(--tinta-media); font: 800 12px/1.3 var(--ui); font-variation-settings: 'wdth' 80; letter-spacing: .06em; text-transform: uppercase; }
+.ficha-conteudo > .fi-rot:first-child { margin-top: 0; }
+.fi-grupo { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.fi-faixas { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.fi-faixa {
+  min-height: 44px; padding: 0 14px; border: 2px solid transparent; border-radius: var(--r); cursor: pointer;
+  font: 800 12px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase;
+}
+.fi-faixa[aria-pressed="true"] { border-color: var(--tinta); box-shadow: 0 0 0 2px var(--fundo), 0 0 0 4px var(--tinta); }
+.fi-graus { display: flex; flex-wrap: wrap; gap: 8px; }
+.fi-grau {
+  width: 44px; height: 44px; border-radius: var(--r); cursor: pointer; font: 800 16px/1 var(--ui);
+  border: 1.5px solid var(--controle); background: var(--papel); color: var(--tinta);
+}
+.fi-grau[aria-pressed="true"] { background: var(--ativo); border-color: var(--ativo); color: var(--sobre-ativo); }
+.fi-bloco { margin-top: 16px; padding: 14px; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); font-size: 15px; }
+.fi-bloco.ritmo { margin-top: 12px; background: transparent; border: 1.5px dashed var(--controle); }
+.fi-bloco-rot { margin-bottom: 6px; color: var(--tinta-media); font: 800 12px/1.3 var(--ui); letter-spacing: .06em; text-transform: uppercase; }
+.fi-apoio { color: var(--tinta-media); font-size: 14px; }
+.fi-ritmo-vencido { margin-top: 4px; color: var(--alerta-texto); font-size: 14px; font-weight: 600; }
+.fi-nota { margin-top: 8px; color: var(--tinta-suave); font-size: 13px; line-height: 1.5; }
+.fi-aviso {
+  margin-top: 12px; padding: 10px 12px; border: 1.5px solid var(--alerta); border-radius: var(--r);
+  background: color-mix(in srgb, var(--alerta) 10%, var(--papel)); color: var(--alerta-texto); font-size: 14px; line-height: 1.4; font-weight: 600;
+}

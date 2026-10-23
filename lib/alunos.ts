@@ -1,9 +1,19 @@
-import type { Aluno, Faixa } from '@/lib/types'
+import type { Aluno, Faixa, Graduacao } from '@/lib/types'
 import { ehInfantil, FAIXAS_INFANTIS, FAIXAS_ADULTAS } from '@/lib/regras-ibjjf'
 import { alertaGraduacao } from '@/lib/alertas-graduacao'
 import { estaAfastado } from '@/lib/afastamento'
 import { hojeBrasil } from '@/lib/datas'
 import { agruparNaOrdem } from '@/lib/busca'
+import { valoresDiferentes } from '@/lib/comparar'
+
+// O aluno como a ficha o recebe: as colunas de `alunos` mais os campos derivados
+// (view alunos_frequencia e montados em lib/carregar-dados.ts). Os derivados
+// NUNCA entram em payload de update — ver COLUNAS_ALUNO abaixo.
+export type AlunoFicha = Aluno & {
+  total_presencas?: number; total_aulas?: number
+  ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[]
+  ultima_presenca_data?: string | null; aulas_perdidas?: number
+}
 
 // ─── Colunas graváveis de `alunos` ───────────────────────────────────────────
 // O objeto do aluno carrega campos derivados que NÃO são colunas da tabela:
@@ -25,6 +35,12 @@ export function payloadAluno(form: Aluno): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const coluna of COLUNAS_ALUNO) out[coluna] = form[coluna]
   return out
+}
+
+// A ficha tem alteração não salva? Compara só as colunas graváveis: os campos
+// derivados (total_presencas etc.) nunca mudam pela ficha.
+export function alunoAlterado(original: Aluno, form: Aluno): boolean {
+  return valoresDiferentes(payloadAluno(original), payloadAluno(form))
 }
 
 // ─── Validação do formulário do aluno ────────────────────────────────────────

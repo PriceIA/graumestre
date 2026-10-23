@@ -1790,6 +1790,7 @@ export default function AppShell() {
           key={ficha.id}
           aluno={alunoAberto}
           professor={professor}
+          presencasPorGrau={presencasPorGrau}
           onClose={() => setFicha(null)}
           onSave={updated => {
             setAlunos(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
