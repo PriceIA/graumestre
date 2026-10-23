@@ -20,6 +20,7 @@
 
 import type { Aluno } from './types'
 import { dataInicioFaixaAtual, ehInfantil, grausMaximos } from './regras-ibjjf'
+import { hojeBrasil } from './datas'
 
 /** Ritmo padrão quando o professor nunca mexeu no valor. */
 export const MESES_ENTRE_GRAUS_PADRAO = 5
@@ -130,7 +131,7 @@ export function sugestaoProximoGrau(
   if (!base) return null
 
   const data = somarMeses(base, mesesEntreGraus)
-  const hoje = new Date().toISOString().split('T')[0]
+  const hoje = hojeBrasil()
   const diasRestantes = Math.ceil(
     (Date.parse(`${data}T00:00:00Z`) - Date.parse(`${hoje}T00:00:00Z`)) / 86_400_000,
   )

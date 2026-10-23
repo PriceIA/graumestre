@@ -286,6 +286,14 @@ O app tem dois temas, **kimono branco** (claro) e **kimono preto** (escuro), com
 - **Navegação (`components/Navegacao.tsx`):** barra de abas embaixo no celular (**Início, Alunos, Aulas, Graduar, Mais**) e menu lateral de 232 px no computador, trocados **só por CSS em 960 px** — o componente é o mesmo e não detecta aparelho. Início, Alunos e Aulas são telas (`aria-current`); Graduar e Mais são ações (abrem o painel de prontos e o menu) e nunca ficam "ativas". Por precisar de media query, usa classes de `globals.css` e não inline style. A coluna de conteúdo no computador é de 720 px centralizada (layouts largos reais são G5–G8). O botão flutuante "+" só aparece em Alunos e Aulas.
 - **Dívida conhecida, anterior à G3:** o `<fieldset>` com `overflowY:auto` do modal do aluno é pintado fora dos limites no Chrome e sobrepõe o rodapé (Cancelar/Salvar) com o conteúdo; idêntico antes da G3, não mexido por não ser de tema. Só foi visto no Chrome (emulação mobile); no Safari do iPhone não foi testado.
 
+## Datas: "hoje" é o dia de São Paulo (G4)
+
+**Nunca escreva `new Date().toISOString().split('T')[0]` para "hoje".** Isso é o dia em UTC: das 21h à meia-noite de Brasília já é amanhã lá, e o professor lança a chamada justamente nesse horário. Já sujou dados reais (aula de terça 08/09 gravada como quarta 09/09). Use **`hojeBrasil()`** de `lib/datas.ts`, a única fonte de "hoje" do app; ela devolve `'AAAA-MM-DD'` no fuso `America/Sao_Paulo` qualquer que seja o fuso do aparelho.
+
+**Nunca leia o ano com `new Date('AAAA-MM-DD').getFullYear()`.** Texto sem hora é meia-noite UTC, que no Brasil ainda é o dia anterior: quem nasceu em 1º de janeiro ganhava um ano. Use `anoDaData()`. Datas `'AAAA-MM-DD'` se comparam certo como texto — prefira isso a montar `Date`.
+
+`lib/datas.ts` não tem import de propósito: `scripts/datas.test.mjs` o carrega direto no Node 24 (`npm run testar`), sem framework de teste. Cada caso roda em três fusos de processo.
+
 ## Arquitetura futura que já está no dado
 
 **Login de aluno, com permissão apenas de confirmar a própria presença** — não editar mais nada. A confiança é a conduta do próprio jiu-jítsu: de propósito **não** haverá geolocalização, foto, nem dupla confirmação.
@@ -310,6 +318,7 @@ O banner é dispensável e grava em `sessionStorage` (não `localStorage`): o pe
 2. **Foto do ALUNO por upload real (Supabase Storage) — a da AULA já foi feita na migration 012.** A `referrerPolicy` acima é o remendo de curto prazo, não a solução: a foto do aluno continua sendo uma URL que o professor tem que hospedar em algum lugar e colar à mão — no celular, no tatame. O certo é bucket + policy de upload + captura pela câmera, igual ao que a `012` já entregou para a foto da aula. **É sessão própria, adiada de propósito — não esquecida.**
 3. **A purga da lixeira não apaga o arquivo no Storage.** A `011` apaga a linha da aula; o cascade do Postgres não alcança o bucket, então a foto daquela aula fica órfã. É pouco (uma por aula) e não vaza — o bucket é privado —, mas cresce devagar para sempre. Resolver exige varrer o bucket contra as linhas existentes, o que é trabalho próprio.
 4. **Fila offline da chamada.** Achado da mesma auditoria, maior do que cabe numa sessão só: hoje um toque na chamada com a rede caída se perde. Ligado à decisão de cache que o service worker adiou de propósito (ver a seção de PWA) — offline precisa de invalidação decidida antes da primeira linha de código. **Adiada de propósito — não esquecida.**
+5. **Anos contados como "dias ÷ 365,25"** em `anosNaFaixaAtual` e no prazo do provisório (`lib/regras-ibjjf.ts`). No dia exato em que o aluno completa o tempo mínimo da IBJJF, a resposta pode sair com até um dia de diferença. Achado na G4, fora do escopo aprovado — **só registrado, não corrigido**.
 
 Já resolvidas: a **purga física da lixeira** (era pendência explícita desde a 005 — ver a seção acima). `GET /manifest.json` 404 (o `metadata` do layout referenciava um manifest que nunca existiu — resolvido junto com o PWA acima). RLS aberta para `anon`, PIN morto no `.env` e o "perfil do professor não encontrado" (que era `GRANT` ausente em `professor_perfil`, não bug de leitura) — as três na migration 009. E os arquivos órfãos de `app/api/`, removidos.
 
@@ -327,6 +336,7 @@ Já resolvidas: a **purga física da lixeira** (era pendência explícita desde 
 | `lib/carregar-dados.ts` | Carga única das listagens ativas + campos derivados. Usada no server e no client |
 | `lib/regras-ibjjf.ts` | Faixas, categoria etária, tempo mínimo, quem pode assinar — **só o que a IBJJF exige** |
 | `lib/ritmo-graus.ts` | Ritmo de graus do professor — **sugestão dele**, separado do motor da IBJJF de propósito |
+| `lib/datas.ts` | `hojeBrasil()` e `anoDaData()` — única fonte de "hoje" (fuso de São Paulo); testes em `scripts/datas.test.mjs` |
 | `lib/alertas-graduacao.ts` | `alertaGraduacao()` — fonte única do "pronto para graduar"; devolve `{tipo:'grau'\|'faixa', ...} \| null`, não mais `string\|null` |
 | `lib/afastamento.ts` | `AULAS_PARA_AFASTADO`; `estaAfastado()`/`motivoAfastamento()` leem `aulas_perdidas`, não dias de calendário |
 | `lib/auth.ts` | `useSessao()` e `sair()` — estado da sessão do professor |

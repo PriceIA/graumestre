@@ -24,6 +24,7 @@ import { FaixaDefs, FaixaDesenhada } from '@/components/FaixaDesenhada'
 import { theme, scrim, type Theme } from '@/lib/cores'
 import Navegacao from '@/components/Navegacao'
 import { definirTema, temaEfetivo, type Tema } from '@/lib/tema'
+import { hojeBrasil } from '@/lib/datas'
 
 
 // frequência alta = branco/escuro, média = cinza, baixa = vermelho
@@ -129,14 +130,14 @@ function validarAluno(form: Aluno): string | null {
 
   if (form.data_nascimento) {
     // T00:00:00 força interpretação em horário local — sem isso a string ISO
-    // pura é lida como UTC e um nascimento de hoje pode cair no "futuro".
+    // pura é lida como UTC e uma data válida pode ser lida como inválida.
     const nascimento = new Date(`${form.data_nascimento}T00:00:00`)
     if (Number.isNaN(nascimento.getTime())) {
       return 'A data de nascimento não é uma data válida.'
     }
-    const hoje = new Date()
-    hoje.setHours(0, 0, 0, 0)
-    if (nascimento > hoje) {
+    // 'AAAA-MM-DD' compara certo como texto, e hojeBrasil() é o mesmo
+    // "hoje" do resto do app (lib/datas.ts).
+    if (form.data_nascimento > hojeBrasil()) {
       return 'A data de nascimento não pode estar no futuro.'
     }
   }
@@ -1232,7 +1233,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
     // da mesma faixa), para dataInicioFaixaAtual() ter uma data real a usar.
     let novaUltimaGraduacao = ultimaGraduacaoData
     if (form.faixa !== aluno.faixa || form.graus !== aluno.graus) {
-      const hoje = new Date().toISOString().split('T')[0]
+      const hoje = hojeBrasil()
       const { error: gradErr } = await supabase.from('graduacoes').insert({
         aluno_id: aluno.id,
         faixa_anterior: aluno.faixa,
@@ -1555,7 +1556,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                   onChange={v => setForm(f => ({
                     ...f,
                     status_graduacao: v ? 'provisorio' : 'regular',
-                    provisorio_desde: v ? (f.provisorio_desde ?? new Date().toISOString().split('T')[0]) : null,
+                    provisorio_desde: v ? (f.provisorio_desde ?? hojeBrasil()) : null,
                   }))}
                   t={t}
                 />
@@ -1855,7 +1856,7 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
 }) {
   const editando = !!aula
   const [form, setForm]   = useState({
-    data:         aula?.data         ?? new Date().toISOString().split('T')[0],
+    data:         aula?.data         ?? hojeBrasil(),
     tecnica:      aula?.tecnica      ?? '',
     posicao:      aula?.posicao      ?? '',
     notas:        aula?.notas        ?? '',
@@ -2684,14 +2685,14 @@ export default function AppShell() {
   const novoAluno = async () => {
     const { data, error } = await supabase
       .from('alunos')
-      .insert({ nome: 'Novo Aluno', faixa: 'branca', graus: 0, inicio: new Date().toISOString().split('T')[0] })
+      .insert({ nome: 'Novo Aluno', faixa: 'branca', graus: 0, inicio: hojeBrasil() })
       .select()
       .single()
     if (error) { alert(`Não foi possível cadastrar o aluno: ${error.message}`); return }
     if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0, aulas_perdidas: 0 }])
   }
 
-  const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(new Date().toISOString().slice(0, 7))).length
+  const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(hojeBrasil().slice(0, 7))).length
 
   // Sem isto o dashboard pisca com 0 alunos e 0% de frequência antes da carga
   // chegar, o que parece uma academia vazia em vez de uma tela carregando.

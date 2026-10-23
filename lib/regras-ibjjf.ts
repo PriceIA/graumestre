@@ -8,6 +8,7 @@
 // ============================================================
 
 import type { Aluno, Faixa, ProfessorPerfil, StatusGraduacao } from './types'
+import { hojeBrasil, anoDaData } from './datas'
 
 // ─── Categoria etária (art. 2.2.1 / 2.2.2) ────────────────────────────────
 
@@ -25,9 +26,10 @@ export const CATEGORIAS = [
 ] as const
 
 /** ano corrente − ano de nascimento = idade do atleta (art. 2.2.1) */
-export function calcularIdade(dataNascimento: string, anoReferencia = new Date().getFullYear()): number {
-  const anoNascimento = new Date(dataNascimento).getFullYear()
-  return anoReferencia - anoNascimento
+// O ano sai do texto (anoDaData), nunca de new Date('AAAA-01-01'): isso é
+// meia-noite UTC, ainda 31/12 no Brasil, e quem nasceu em 1º/01 ganhava um ano.
+export function calcularIdade(dataNascimento: string, anoReferencia = anoDaData(hojeBrasil())): number {
+  return anoReferencia - anoDaData(dataNascimento)
 }
 
 export function calcularCategoria(dataNascimento: string): string {

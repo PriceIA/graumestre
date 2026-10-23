@@ -9,7 +9,8 @@
 | G1 Ping do Supabase (vai direto para a `main`) | **CONCLUÍDA e PUBLICADA** (2026-10-22). Migration 015 aplicada; na `main` é o commit `039b3eb` (cherry-pick do `bbae981`). Em produção o Pedro rodou o cron à mão duas vezes: `GET /api/ping` 200 nos Request Logs da Vercel |
 | G2 PRODUCT.md e DESIGN.md | **CONCLUÍDA** (2026-10-22, aprovada pelo Pedro). Decisão 1: alerta âmbar (opção A). Só documento, sem código nem migration |
 | G3 Fundação visual | **CONCLUÍDA** (2026-10-22, testada no `localhost` e aprovada pelo Pedro; commits `b6ff404` a `0cadf11`). Tokens e temas, `lib/cores.ts`, `checar-cores`, barra de abas e menu lateral. Sem migration. Pendências adiadas por decisão do Pedro: ver a lista abaixo da tabela |
-| G4 em diante | PENDENTE, na ordem do ROADMAP (G4 só com a decisão 3 aprovada pelo Pedro) |
+| G4 Correção de datas | **EM ANDAMENTO.** Decisão 3 aprovada pelo Pedro em 2026-10-23. **G4.1** (`lib/datas.ts`, `hojeBrasil()`/`anoDaData()`, 18 testes; só código): pronta, aguardando conferência do Pedro antes do commit. **G4.2** (migration 016: aula futura não conta; `begin`/`commit`, `revoke all ... from anon, public` antes do `grant`, md5 das 4 colunas antes/depois, checagem de segurança da G0 depois do Run, **backup novo pedido antes de aplicar**): pendente. **G4.3** (3 registros errados do passado: aula 09/09, graduação 11/09, `inicio` 19/06): um `UPDATE` por id, decisão um a um do Pedro; nada corrigido até lá |
+| G5 em diante | PENDENTE, na ordem do ROADMAP |
 
 **Adiado da G3 (decisão do Pedro, 2026-10-22):**
 
