@@ -119,8 +119,8 @@ function TelaLogin() {
 
         {erro && (
           <div style={{
-            padding: 12, borderRadius: 'var(--r)', background: t.accentBg,
-            border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+            padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+            border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
           }}>
             ⚠ {erro}
           </div>
@@ -129,7 +129,7 @@ function TelaLogin() {
         <button
           onClick={entrar} disabled={entrando}
           style={{
-            padding: 14, borderRadius: 'var(--r)', border: 'none', background: t.accent,
+            padding: 14, borderRadius: 'var(--r)', border: 'none', background: t.ativo,
             color: t.sobreAtivo, fontWeight: 800, fontSize: 15,
             cursor: entrando ? 'not-allowed' : 'pointer',
             opacity: entrando ? 0.7 : 1, transition: 'opacity 0.15s',

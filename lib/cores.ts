@@ -35,12 +35,11 @@ export const theme = {
 
   ui: 'var(--ui)',
   display: 'var(--display)',
-
-  // Provisórios: o vermelho antigo ainda é lido por ~70 pontos. A Task 3 da
-  // G3 distribui cada um entre ativo, alerta e erro (docs/superpowers/plans/
-  // 2026-10-22-g3-mapa-do-vermelho.md) e apaga estas duas linhas.
-  accent: 'var(--ativo)',
-  accentBg: bg('--ativo'),
 }
+
+// Pano de fundo dos modais (folhas que sobem). O alfa muda para o fade de
+// entrada e saída; o token --scrim é o preto do pano, igual nos dois temas.
+export const scrim = (visivel: boolean) =>
+  `color-mix(in srgb, var(--scrim) ${visivel ? 75 : 0}%, transparent)`
 
 export type Theme = typeof theme

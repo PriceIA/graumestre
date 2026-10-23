@@ -16,6 +16,10 @@ module.exports = {
         linha: 'var(--linha)',
         controle: 'var(--controle)',
         ativo: 'var(--ativo)',
+        'ativo-hover': 'var(--ativo-hover)',
+        etiqueta: 'var(--etiqueta)',
+        'sobre-etiqueta': 'var(--sobre-etiqueta)',
+        'sobre-etiqueta-suave': 'var(--sobre-etiqueta-suave)',
         'sobre-ativo': 'var(--sobre-ativo)',
         alerta: 'var(--alerta)',
         'sobre-alerta': 'var(--sobre-alerta)',
@@ -25,14 +29,6 @@ module.exports = {
         'erro-texto': 'var(--erro-texto)',
         sucesso: 'var(--sucesso)',
         'sucesso-texto': 'var(--sucesso-texto)',
-        // Legado, só até a Task 3 da G3: o Dashboard e components/ui ainda são
-        // escuros por dentro (text-white), então estes quatro mantêm os valores
-        // de antes em vez de seguir o tema. Apontar para os tokens agora daria
-        // branco sobre branco no tema claro.
-        bg: '#0a0a0a',
-        surface: '#161616',
-        'surface-hover': '#1f1f1f',
-        accent: '#df2531',
       },
       fontFamily: {
         display: ['var(--display)'],

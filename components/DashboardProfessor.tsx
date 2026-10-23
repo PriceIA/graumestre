@@ -32,16 +32,16 @@ function DonutProgress({ value }: { value: number }) {
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(223,37,49,0.2)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="color-mix(in srgb, var(--sobre-etiqueta) 20%, transparent)" strokeWidth={stroke} />
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none"
-          stroke="#df2531" strokeWidth={stroke} strokeLinecap="round"
+          stroke="var(--sobre-etiqueta)" strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={dash}
           style={{ transition: 'stroke-dashoffset 0.8s ease-out' }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-display text-[32px] leading-none text-white">{value}%</span>
+        <span className="font-display text-[32px] leading-none text-sobre-etiqueta">{value}%</span>
       </div>
     </div>
   )
@@ -69,7 +69,7 @@ function DistribuicaoFaixas({ alunos }: { alunos: any[] }) {
 
   return (
     <div className="px-4 pb-4">
-      <div className="mb-3 font-body text-[11px] font-semibold uppercase tracking-wide text-white/60">
+      <div className="mb-3 font-body text-[11px] font-semibold uppercase tracking-wide text-tinta-media">
         Distribuição por faixa
       </div>
       <div className="flex h-24 gap-3">
@@ -82,8 +82,8 @@ function DistribuicaoFaixas({ alunos }: { alunos: any[] }) {
             <div
               className={cn(
                 'w-6 rounded-t transition-[height] duration-500 ease-out',
-                i === maxIdx ? 'bg-accent/65' : 'bg-accent/45',
-                selecionada === c.key && 'ring-1 ring-accent'
+                i === maxIdx ? 'bg-[color-mix(in_srgb,var(--ativo)_65%,transparent)]' : 'bg-[color-mix(in_srgb,var(--ativo)_45%,transparent)]',
+                selecionada === c.key && 'ring-1 ring-ativo'
               )}
               style={{
                 height: mounted ? `${Math.max((c.count / maxCount) * 100, c.count > 0 ? 8 : 2)}%` : '0%',
@@ -95,19 +95,19 @@ function DistribuicaoFaixas({ alunos }: { alunos: any[] }) {
       </div>
       <div className="mt-2 flex gap-3">
         {counts.map(c => (
-          <div key={c.key} className="flex-1 text-center font-body text-[11px] uppercase tracking-wide text-white/60">
+          <div key={c.key} className="flex-1 text-center font-body text-[11px] uppercase tracking-wide text-tinta-media">
             {c.label} · {c.count}
           </div>
         ))}
       </div>
       {selecionada && (
-        <div className="mt-3 rounded-xl border border-accent/65 bg-surface p-3">
+        <div className="mt-3 rounded border-[1.5px] border-controle bg-papel p-3">
           {nomesFaixa.length === 0 ? (
-            <div className="text-sm text-white/60">Nenhum aluno nessa faixa.</div>
+            <div className="text-sm text-tinta-media">Nenhum aluno nessa faixa.</div>
           ) : (
             <div className="flex flex-col gap-1.5">
               {nomesFaixa.map(nome => (
-                <div key={nome} className="text-sm text-white">{nome}</div>
+                <div key={nome} className="text-sm text-tinta">{nome}</div>
               ))}
             </div>
           )}
@@ -130,32 +130,32 @@ function PainelProfessor({ perto, atencao, onSelect }: {
 
   return (
     <div className="px-4 pb-4">
-      <div className="mb-3 font-body text-[11px] font-semibold uppercase tracking-wide text-white/60">
+      <div className="mb-3 font-body text-[11px] font-semibold uppercase tracking-wide text-tinta-media">
         Painel do professor
       </div>
       <div className="grid grid-cols-2 gap-3">
         {perto && (
           <Card
             onClick={() => onSelect(perto.aluno)}
-            className="cursor-pointer p-4 transition-colors hover:bg-surface-hover"
+            className="cursor-pointer p-4 transition-colors hover:bg-fundo"
           >
-            <div className="mb-2 font-body text-[11px] font-semibold uppercase tracking-wide text-white/60">
+            <div className="mb-2 font-body text-[11px] font-semibold uppercase tracking-wide text-tinta-media">
               Perto da faixa
             </div>
-            <div className="mb-1 truncate font-body text-sm font-bold text-white">{perto.aluno.nome}</div>
-            <div className="font-body text-xs text-accent">{Math.round(perto.pct * 100)}% freq</div>
+            <div className="mb-1 truncate font-body text-sm font-bold text-tinta">{perto.aluno.nome}</div>
+            <div className="font-body text-xs text-tinta-media">{Math.round(perto.pct * 100)}% freq</div>
           </Card>
         )}
         {atencao && (
           <Card
             onClick={() => onSelect(atencao.aluno)}
-            className="cursor-pointer p-4 transition-colors hover:bg-surface-hover"
+            className="cursor-pointer p-4 transition-colors hover:bg-fundo"
           >
-            <div className="mb-2 font-body text-[11px] font-semibold uppercase tracking-wide text-white/60">
+            <div className="mb-2 font-body text-[11px] font-semibold uppercase tracking-wide text-tinta-media">
               Atenção
             </div>
-            <div className="mb-1 truncate font-body text-sm font-bold text-white">{atencao.aluno.nome}</div>
-            <div className="truncate font-body text-xs text-accent">{atencao.motivo}</div>
+            <div className="mb-1 truncate font-body text-sm font-bold text-tinta">{atencao.aluno.nome}</div>
+            <div className="truncate font-body text-xs text-alerta-texto">{atencao.motivo}</div>
           </Card>
         )}
       </div>
@@ -194,7 +194,7 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, q
   const atencao = atencaoList[0] ? { aluno: atencaoList[0], motivo: motivoAfastamento(atencaoList[0]) } : null
 
   return (
-    <div className="bg-[radial-gradient(ellipse_at_top,#2a0505_0%,#0a0a0a_55%)]">
+    <div>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         {/* Alvo de 44×44 (mínimo de toque) via margem negativa, mesmo princípio
@@ -206,22 +206,22 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, q
           aria-label="Menu"
           className="relative -my-3 -ml-3 flex h-11 w-11 items-center justify-center"
         >
-          <Menu size={22} className="text-white/60" />
+          <Menu size={22} className="text-tinta-media" />
           {qtdLixeira > 0 && (
-            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-body text-[10px] font-bold leading-none text-white">
+            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-ativo px-1 font-body text-[10px] font-bold leading-none text-sobre-ativo">
               {qtdLixeira}
             </span>
           )}
         </button>
-        <span className="font-display text-2xl uppercase tracking-wide text-white">GrauMestre</span>
+        <span className="font-display text-2xl uppercase tracking-wide text-tinta">GrauMestre</span>
         <button
           onClick={onAbrirProntos}
           aria-label="Notificações de graduação"
           className="relative -my-3 -mr-3 flex h-11 w-11 items-center justify-center"
         >
-          <Bell size={20} className="text-white/60" />
+          <Bell size={20} className="text-tinta-media" />
           {qtdProntos > 0 && (
-            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-body text-[10px] font-bold leading-none text-white">
+            <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-ativo px-1 font-body text-[10px] font-bold leading-none text-sobre-ativo">
               {qtdProntos}
             </span>
           )}
@@ -234,10 +234,10 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, q
           src="/images/lutador-faixa.jpg" alt=""
           className="absolute inset-0 h-full w-full object-cover object-top"
         />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_25%,rgba(223,37,49,0.35)_0%,rgba(10,10,10,0.6)_50%,rgba(10,10,10,0.95)_85%)]" />
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 50% 25%, color-mix(in srgb, var(--etiqueta) 35%, transparent) 0%, color-mix(in srgb, var(--etiqueta) 60%, transparent) 50%, color-mix(in srgb, var(--etiqueta) 95%, transparent) 85%)' }} />
         <div className="relative flex flex-col items-center gap-4 px-4 pb-6 pt-8">
           <DonutProgress value={freqMedia} />
-          <div className="font-body text-[11px] font-semibold uppercase tracking-wide text-white/60">
+          <div className="font-body text-[11px] font-semibold uppercase tracking-wide text-sobre-etiqueta-suave">
             Frequência geral
           </div>
           <div className="flex w-full max-w-[220px] flex-col gap-2">
@@ -246,9 +246,9 @@ export default function DashboardProfessor({ alunos, aulasEsseMes, qtdProntos, q
               { label: 'Prontos p/ graduar', value: qtdProntos },
               { label: 'Precisa atenção', value: atencaoList.length },
             ].map(s => (
-              <div key={s.label} className="flex items-center justify-between font-body text-sm text-white">
-                <span className="flex items-center gap-2 text-white/80">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              <div key={s.label} className="flex items-center justify-between font-body text-sm text-sobre-etiqueta">
+                <span className="flex items-center gap-2 text-sobre-etiqueta-suave">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sobre-etiqueta" />
                   {s.label}
                 </span>
                 <span className="font-semibold">{s.value}</span>

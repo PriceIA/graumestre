@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "checar-cores": "node scripts/checar-cores.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.6",

@@ -68,7 +68,7 @@ export default function BannerInstalar() {
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '12px 14px', borderRadius: 'var(--r)',
         background: t.surface, border: `1px solid ${t.border2}`,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        boxShadow: 'var(--sombra-menu)',
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -84,7 +84,7 @@ export default function BannerInstalar() {
         onClick={instalar}
         style={{
           flexShrink: 0, padding: '10px 16px', borderRadius: 'var(--r)', border: 'none',
-          background: t.accent, color: t.sobreAtivo, fontWeight: 800, fontSize: 13,
+          background: t.ativo, color: t.sobreAtivo, fontWeight: 800, fontSize: 13,
           cursor: 'pointer',
         }}
       >

@@ -40,9 +40,11 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
+  // cor-ok-inicio: a meta theme-color precisa de valor literal (não lê var(--token))
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#F4F4F1' },
     { media: '(prefers-color-scheme: dark)', color: '#131312' },
+    // cor-ok-fim
   ],
   width: 'device-width',
   initialScale: 1,

@@ -42,6 +42,7 @@
   --ponteira-faixa: #BE1622;
   --friso: #F3F1EC;
   --sombra-menu: 0 10px 24px rgba(20,20,20,.14);
+  --scrim: #000000;
   color-scheme: light;
   --r: 2px;
   --barra: 64px;
@@ -88,6 +89,7 @@
   --ponteira-faixa: #C41A25;
   --friso: #F3F1EC;
   --sombra-menu: 0 10px 24px rgba(0,0,0,.5);
+  --scrim: #000000;
   color-scheme: dark;
 }
 
@@ -127,6 +129,7 @@
     --ponteira-faixa: #C41A25;
     --friso: #F3F1EC;
     --sombra-menu: 0 10px 24px rgba(0,0,0,.5);
+  --scrim: #000000;
     color-scheme: dark;
   }
 }

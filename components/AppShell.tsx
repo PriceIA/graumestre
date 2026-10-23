@@ -21,17 +21,18 @@ import { subirFotoAula, removerFotoAula, assinarUrl } from '@/lib/foto-aula'
 import DashboardProfessor from '@/components/DashboardProfessor'
 import BannerInstalar from '@/components/BannerInstalar'
 import { FaixaDefs, FaixaDesenhada } from '@/components/FaixaDesenhada'
-import { theme, type Theme } from '@/lib/cores'
+import { theme, scrim, type Theme } from '@/lib/cores'
 
 
 // frequência alta = branco/escuro, média = cinza, baixa = vermelho
 function freqColor(ratio: number, t: Theme) {
   if (ratio >= 0.75) return t.text
   if (ratio >= 0.5)  return t.textSub
-  return t.accent
+  return t.alerta
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
+// cor-ok-inicio: cores de faixa da IBJJF (regulamento), não são cores de tema
 const BELT_COLORS: Record<Faixa, { bg: string; text: string }> = {
   branca: { bg: '#FFFFFF', text: '#0D0D0D' },
   cinza_branca:   { bg: '#BDBDBD', text: '#0D0D0D' },
@@ -51,6 +52,7 @@ const BELT_COLORS: Record<Faixa, { bg: string; text: string }> = {
   marrom: { bg: '#4E342E', text: '#fff' },
   preta:  { bg: '#0D0D0D', text: '#C9A84C' },
 }
+// cor-ok-fim
 
 const POSITIONS = [
   'Guarda Fechada', 'Meia Guarda', 'Passagem de Guarda', 'Montada',
@@ -156,7 +158,7 @@ function BeltBadge({ faixa, graus, infantil, size = 'md', t }: { faixa: Faixa; g
       <span style={{
         background: belt.bg, color: belt.text, padding: px, borderRadius: 'var(--r)',
         fontWeight: 700, fontSize: fs, letterSpacing: 1, textTransform: 'uppercase',
-        border: faixa === 'branca' ? '1px solid #ccc' : 'none', fontFamily: t.ui,
+        border: faixa === 'branca' ? `1px solid ${t.border}` : 'none', fontFamily: t.ui,
         flexShrink: 0,
       }}>
         {label}
@@ -219,7 +221,7 @@ function AlunoCard({ aluno, onClick, presencasPorGrau, t }: { aluno: any; onClic
       style={{
         position: 'relative',
         background: t.surface,
-        border: `1px solid ${hovered ? t.accent : t.border}`,
+        border: `1px solid ${hovered ? t.ativo : t.border}`,
         borderRadius: 'var(--r)',
         padding: '18px 10px 14px',
         cursor: 'pointer',
@@ -246,7 +248,7 @@ function AlunoCard({ aluno, onClick, presencasPorGrau, t }: { aluno: any; onClic
       {alerta && (
         <div title={alerta.msg} style={{
           position: 'absolute', top: 8, right: 8,
-          background: t.accent, color: t.sobreAtivo, fontSize: 8, fontWeight: 800,
+          background: t.alerta, color: t.sobreAlerta, fontSize: 8, fontWeight: 800,
           padding: '2px 6px', borderRadius: 'var(--r)', fontFamily: t.ui, letterSpacing: 0.5,
         }}>
           PRONTO
@@ -279,7 +281,7 @@ function AlunoCard({ aluno, onClick, presencasPorGrau, t }: { aluno: any; onClic
               dela recebe o endereço do app a cada carregamento */}
           {aluno.foto_url
             ? <img src={aluno.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <span style={{ fontSize: 26, fontWeight: 900, color: t.accent, fontFamily: t.ui }}>{aluno.nome[0]}</span>
+            : <span style={{ fontSize: 26, fontWeight: 900, color: t.textSub, fontFamily: t.ui }}>{aluno.nome[0]}</span>
           }
         </div>
       </div>
@@ -300,7 +302,7 @@ function AlunoCard({ aluno, onClick, presencasPorGrau, t }: { aluno: any; onClic
         padding: '2px 8px', borderRadius: 'var(--r)',
         fontWeight: 700, fontSize: 9, letterSpacing: 1,
         textTransform: 'uppercase', fontFamily: t.ui,
-        border: aluno.faixa === 'branca' ? '1px solid #ccc' : 'none',
+        border: aluno.faixa === 'branca' ? `1px solid ${t.border}` : 'none',
         textAlign: 'center',
       }}>
         {nomeFaixaExibicao(aluno.faixa, aluno.graus)}
@@ -374,9 +376,9 @@ function Chip({ label, ativo, onClick, cores, t }: {
         padding: '6px 10px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
         fontFamily: t.ui, textTransform: 'uppercase', letterSpacing: 0.5,
         whiteSpace: 'nowrap',
-        background: ativo ? (cores?.bg ?? t.accentBg) : t.surface2,
-        color:      ativo ? (cores?.text ?? t.accent) : t.textSub,
-        border: `1px solid ${ativo ? (cores?.bg ?? t.accent) : t.border}`,
+        background: ativo ? (cores?.bg ?? t.ativoBg) : t.surface2,
+        color:      ativo ? (cores?.text ?? t.ativo) : t.textSub,
+        border: `1px solid ${ativo ? (cores?.bg ?? t.ativo) : t.border}`,
         fontWeight: ativo ? 700 : 400,
         transition: 'background 0.15s, color 0.15s, border-color 0.15s',
       }}
@@ -400,8 +402,8 @@ function ChipRemovivel({ label, onClick, cores, t }: {
         padding: '6px 8px 6px 10px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
         fontFamily: t.ui, textTransform: 'uppercase', letterSpacing: 0.5,
         whiteSpace: 'nowrap', fontWeight: 700,
-        background: cores?.bg ?? t.accentBg, color: cores?.text ?? t.accent,
-        border: `1px solid ${cores?.bg ?? t.accent}`,
+        background: cores?.bg ?? t.ativoBg, color: cores?.text ?? t.ativo,
+        border: `1px solid ${cores?.bg ?? t.ativo}`,
       }}
     >
       {label}
@@ -447,7 +449,7 @@ function BarraFiltros({ alunos, filtros, setFiltros, totalVisivel, onAbrirPainel
           Filtrar
           {qtdAtivos > 0 && (
             <span style={{
-              background: t.accent, color: t.sobreAtivo, fontSize: 10, fontWeight: 800,
+              background: t.ativo, color: t.sobreAtivo, fontSize: 10, fontWeight: 800,
               borderRadius: 999, padding: '1px 6px', minWidth: 16, textAlign: 'center',
             }}>
               {qtdAtivos}
@@ -530,7 +532,7 @@ function PainelFiltros({ alunos, filtros, setFiltros, presencasPorGrau, onClose,
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         transition: 'background 0.22s',
       }}
@@ -593,7 +595,7 @@ function PainelFiltros({ alunos, filtros, setFiltros, presencasPorGrau, onClose,
             onClick={handleClose}
             style={{
               width: '100%', padding: 14, borderRadius: 'var(--r)', border: 'none',
-              background: t.accent, color: t.sobreAtivo, fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              background: t.ativo, color: t.sobreAtivo, fontWeight: 700, fontSize: 14, cursor: 'pointer',
             }}
           >
             {textoBotao}
@@ -628,13 +630,13 @@ function Toggle({ label, checked, onChange, t }: { label: string; checked: boole
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         padding: '10px 12px', borderRadius: 'var(--r)', cursor: 'pointer',
-        background: checked ? t.accentBg : t.surface, border: `1px solid ${checked ? t.accent : t.border}`,
+        background: checked ? t.ativoBg : t.surface, border: `1px solid ${checked ? t.ativo : t.border}`,
       }}
     >
       <span style={{ color: t.text, fontSize: 13 }}>{label}</span>
       <div style={{
         width: 40, height: 22, borderRadius: 20, flexShrink: 0,
-        background: checked ? t.accent : t.surface2, border: `1px solid ${t.border}`,
+        background: checked ? t.ativo : t.surface2, border: `1px solid ${t.border}`,
         position: 'relative', transition: 'background 0.2s',
       }}>
         <div style={{
@@ -692,7 +694,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         transition: 'background 0.22s',
       }}
@@ -726,7 +728,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
               {Array.from({ length: 10 }, (_, g) => g).map(g => (
                 <button key={g} onClick={() => setGraus(g)} style={{
                   width: 40, height: 40, borderRadius: 'var(--r)', cursor: 'pointer', fontWeight: 700,
-                  background: graus === g ? t.accent : t.surface2,
+                  background: graus === g ? t.ativo : t.surface2,
                   color: graus === g ? t.sobreAtivo : t.textMute,
                   border: `1px solid ${t.border}`, fontSize: 14,
                 }}>{g}</button>
@@ -814,7 +816,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
           </button>
           <button
             onClick={handleSave} disabled={saving}
-            style={{ flex: 2, padding: 12, borderRadius: 'var(--r)', border: 'none', background: t.accent, color: t.sobreAtivo, fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
+            style={{ flex: 2, padding: 12, borderRadius: 'var(--r)', border: 'none', background: t.ativo, color: t.sobreAtivo, fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
           >
             {saving ? 'Salvando…' : 'Salvar alterações'}
           </button>
@@ -904,7 +906,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
       <span>{label}</span>
       {!!badge && (
         <span style={{
-          background: t.accent, color: t.sobreAtivo, fontSize: 11, fontWeight: 800,
+          background: t.ativo, color: t.sobreAtivo, fontSize: 11, fontWeight: 800,
           borderRadius: 999, padding: '2px 7px', minWidth: 18, textAlign: 'center',
         }}>
           {badge}
@@ -918,7 +920,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'stretch', justifyContent: 'flex-start',
         transition: 'background 0.22s',
       }}
@@ -1001,7 +1003,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         transition: 'background 0.22s',
       }}
@@ -1063,7 +1065,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
                         host dela recebe o endereço do app a cada carregamento */}
                     {aluno.foto_url
                       ? <img src={aluno.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 15, fontWeight: 900, color: t.accent, fontFamily: t.ui }}>{aluno.nome[0]}</span>
+                      : <span style={{ fontSize: 15, fontWeight: 900, color: t.textSub, fontFamily: t.ui }}>{aluno.nome[0]}</span>
                     }
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1071,7 +1073,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
                       {aluno.nome}
                     </div>
                     <div style={{ marginBottom: 4 }}><BeltBadge faixa={aluno.faixa} graus={aluno.graus} infantil={ehInfantilAluno(aluno)} size="sm" t={t} /></div>
-                    <div style={{ color: t.accent, fontWeight: 700, fontSize: 12 }}>{alerta.msg}</div>
+                    <div style={{ color: t.alertaTexto, fontWeight: 700, fontSize: 12 }}>{alerta.msg}</div>
                     <div style={{ color: t.textMute, fontSize: 11 }}>{evidencia}</div>
                   </div>
                   <span style={{ color: t.textMute, fontSize: 20, flexShrink: 0 }}>›</span>
@@ -1246,7 +1248,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         transition: 'background 0.22s',
       }}
@@ -1274,10 +1276,10 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
             {tabs.map(tb => (
               <button key={tb} onClick={() => setTab(tb)} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: tab === tb ? t.accent : t.textMute,
+                color: tab === tb ? t.ativo : t.textMute,
                 fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', letterSpacing: 1,
                 padding: '8px 10px',
-                borderBottom: tab === tb ? `2px solid ${t.accent}` : '2px solid transparent',
+                borderBottom: tab === tb ? `2px solid ${t.ativo}` : '2px solid transparent',
               }}>{tb}</button>
             ))}
           </div>
@@ -1332,7 +1334,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                         Definido manualmente como {form.afastado_manual ? 'afastado' : 'ativo'}.{' '}
                         <button
                           onClick={() => set('afastado_manual', null)}
-                          style={{ background: 'none', border: 'none', color: t.accent, fontSize: 11, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                          style={{ background: 'none', border: 'none', color: t.ativo, fontSize: 11, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
                         >
                           Voltar ao automático
                         </button>
@@ -1422,7 +1424,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                   }))} style={{
                     padding: '8px 14px', borderRadius: 'var(--r)', cursor: 'pointer',
                     background: BELT_COLORS[fx].bg, color: BELT_COLORS[fx].text, fontWeight: 700, fontSize: 12,
-                    border: form.faixa === fx ? `2px solid ${t.accent}` : '2px solid transparent',
+                    border: form.faixa === fx ? `2px solid ${t.ativo}` : '2px solid transparent',
                     textTransform: 'uppercase', letterSpacing: 1,
                   }}>{NOMES_FAIXA[fx]}</button>
                 ))}
@@ -1432,7 +1434,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                 {Array.from({ length: maxGrausFaixa + 1 }, (_, g) => g).map(g => (
                   <button key={g} onClick={() => set('graus', g)} style={{
                     width: 44, height: 44, borderRadius: 'var(--r)', cursor: 'pointer', fontWeight: 700,
-                    background: form.graus === g ? t.accent : t.surface2,
+                    background: form.graus === g ? t.ativo : t.surface2,
                     color: form.graus === g ? t.sobreAtivo : t.textMute,
                     border: `1px solid ${t.border}`, fontSize: 15,
                   }}>{g}</button>
@@ -1446,13 +1448,13 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
               <div style={{ marginTop: 16, padding: 14, background: t.surface, borderRadius: 'var(--r)', border: `1px solid ${t.border}` }}>
                 <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, marginBottom: 6 }}>PRÓXIMO PASSO</div>
                 {form.graus < maxGrausFaixa ? (
-                  <div style={{ color: t.accent, fontSize: 13 }}>+1 grau → {nomeFaixaExibicao(form.faixa, form.graus + 1)}</div>
+                  <div style={{ color: t.text, fontSize: 13 }}>+1 grau → {nomeFaixaExibicao(form.faixa, form.graus + 1)}</div>
                 ) : proxFaixa ? (
-                  <div style={{ color: t.accent, fontSize: 13 }}>
+                  <div style={{ color: t.text, fontSize: 13 }}>
                     {maxGrausFaixa}º grau completo → promover para Faixa {NOMES_FAIXA[proxFaixa]}
                   </div>
                 ) : (
-                  <div style={{ color: t.accent, fontSize: 13 }}>
+                  <div style={{ color: t.text, fontSize: 13 }}>
                     {form.faixa === 'preta'
                       ? 'Topo da progressão de graus solicitáveis'
                       : 'Pronto para subir de faixa'}
@@ -1480,7 +1482,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                   <div style={{ color: t.text, fontSize: 13 }}>
                     {ritmo.proximoGrau}º grau sugerido em <strong>{ritmo.dataFormatada}</strong>
                   </div>
-                  <div style={{ color: ritmo.vencido ? t.accent : t.textSub, fontSize: 12, marginTop: 4 }}>
+                  <div style={{ color: ritmo.vencido ? t.alertaTexto : t.textSub, fontSize: 12, marginTop: 4 }}>
                     {ritmo.vencido
                       ? `Já passou ${Math.abs(ritmo.diasRestantes)} dia(s) do seu ritmo de ${mesesEntreGraus} meses por grau.`
                       : `Faltam ${ritmo.diasRestantes} dia(s) — seu ritmo é de ${mesesEntreGraus} meses por grau.`}
@@ -1553,8 +1555,8 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
                     {form.provisorio_desde && (
                       <div style={{
                         alignSelf: 'flex-start', padding: '6px 12px', borderRadius: 'var(--r)',
-                        background: t.accentBg, border: `1px solid ${t.accent}`,
-                        color: t.accent, fontSize: 12, fontFamily: t.ui,
+                        background: t.alertaBg, border: `1px solid ${t.alerta}`,
+                        color: t.alertaTexto, fontSize: 12, fontFamily: t.ui,
                       }}>
                         {diasRestantesProvisorio(form.provisorio_desde)} dias restantes
                       </div>
@@ -1571,7 +1573,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
               {professor && faixaAlterada && !aprovacao.ok && (
                 <div style={{
                   marginTop: 12, padding: 12, borderRadius: 'var(--r)',
-                  background: t.accentBg, border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+                  background: t.alertaBg, border: `1px solid ${t.alerta}`, color: t.alertaTexto, fontSize: 12, lineHeight: 1.5,
                 }}>
                   ⚠ {aprovacao.motivo}
                 </div>
@@ -1583,8 +1585,8 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
         {erro && (
           <div style={{
             margin: '0 20px', padding: 12, borderRadius: 'var(--r)',
-            background: t.accentBg, border: `1px solid ${t.accent}`,
-            color: t.accent, fontSize: 12, lineHeight: 1.5,
+            background: t.erroBg, border: `1px solid ${t.erro}`,
+            color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
           }}>
             ⚠ {erro}
           </div>
@@ -1602,7 +1604,7 @@ function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGradu
               onClick={handleSave} disabled={saving || (faixaAlterada && !aprovacao.ok)}
               style={{
                 flex: 2, padding: 12, borderRadius: 'var(--r)', border: 'none',
-                background: t.accent, color: t.sobreAtivo, fontWeight: 800, fontSize: 14,
+                background: t.ativo, color: t.sobreAtivo, fontWeight: 800, fontSize: 14,
                 cursor: saving || (faixaAlterada && !aprovacao.ok) ? 'not-allowed' : 'pointer',
                 opacity: saving || (faixaAlterada && !aprovacao.ok) ? 0.5 : 1,
                 transition: 'opacity 0.15s',
@@ -1769,8 +1771,8 @@ function MiniaturaYoutube({ id, link, style, t }: {
         onClick={e => e.stopPropagation()}
         style={{
           ...style,
-          background: t.accentBg, border: `1px solid ${t.accent}`,
-          color: t.accent, fontWeight: 700, fontSize: 12, textDecoration: 'none',
+          background: t.ativoBg, border: `1px solid ${t.ativo}`,
+          color: t.ativo, fontWeight: 700, fontSize: 12, textDecoration: 'none',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
         }}
       >
@@ -1804,12 +1806,14 @@ function MiniaturaYoutube({ id, link, style, t }: {
           o vídeo tocando, o toque desperdiçado que este app evita. */}
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{
+          // cor-ok: ▶ sobre a miniatura do vídeo; independe do tema
           width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,0,0,0.55)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <div style={{
             width: 0, height: 0, marginLeft: 3,
             borderTop: '7px solid transparent', borderBottom: '7px solid transparent',
+            // cor-ok: triângulo do ▶ sobre a miniatura
             borderLeft: '11px solid #fff',
           }} />
         </div>
@@ -1950,7 +1954,7 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         transition: 'background 0.22s',
       }}
@@ -1980,9 +1984,9 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
               {POSITIONS.map(p => (
                 <button key={p} onClick={() => set('posicao', p)} style={{
                   padding: '6px 10px', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer',
-                  background: form.posicao === p ? t.accentBg : t.surface2,
-                  color: form.posicao === p ? t.accent : t.textSub,
-                  border: form.posicao === p ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
+                  background: form.posicao === p ? t.ativoBg : t.surface2,
+                  color: form.posicao === p ? t.ativo : t.textSub,
+                  border: form.posicao === p ? `1px solid ${t.ativo}` : `1px solid ${t.border}`,
                 }}>{p}</button>
               ))}
             </div>
@@ -2050,8 +2054,8 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
                       onClick={apagarFoto} disabled={fotoOcupada}
                       style={{
                         padding: '10px 12px', borderRadius: 'var(--r)', fontSize: 13,
-                        background: 'none', color: t.accent,
-                        border: `1px solid ${t.accent}`, cursor: fotoOcupada ? 'default' : 'pointer',
+                        background: 'none', color: t.erroTexto,
+                        border: `1px solid ${t.erro}`, cursor: fotoOcupada ? 'default' : 'pointer',
                       }}
                     >
                       Remover
@@ -2074,8 +2078,8 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
 
               {erroFoto && (
                 <div style={{
-                  marginTop: 8, padding: 10, borderRadius: 'var(--r)', background: t.accentBg,
-                  border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+                  marginTop: 8, padding: 10, borderRadius: 'var(--r)', background: t.erroBg,
+                  border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
                 }}>
                   ⚠ {erroFoto}
                 </div>
@@ -2100,8 +2104,8 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {erro && (
             <div style={{
-              padding: 12, borderRadius: 'var(--r)', background: t.accentBg,
-              border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+              padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+              border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
             }}>
               ⚠ {erro}
             </div>
@@ -2115,7 +2119,7 @@ function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
             </button>
             <button
               onClick={handleSave} disabled={saving}
-              style={{ flex: 2, padding: 12, borderRadius: 'var(--r)', border: 'none', background: t.accent, color: t.sobreAtivo, fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
+              style={{ flex: 2, padding: 12, borderRadius: 'var(--r)', border: 'none', background: t.ativo, color: t.sobreAtivo, fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
             >
               {editando
                 ? (saving ? 'Salvando…' : 'Salvar alterações')
@@ -2286,7 +2290,7 @@ function Chamada({ aula, alunos, onClose, t }: {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <div style={{ color: t.accent, fontWeight: 800, fontSize: 22, fontFamily: t.ui }}>
+          <div style={{ color: t.ativo, fontWeight: 800, fontSize: 22, fontFamily: t.ui }}>
             {totalPresentes}
           </div>
           <div style={{ color: t.textSub, fontSize: 13 }}>de {alunos.length} presentes</div>
@@ -2294,7 +2298,7 @@ function Chamada({ aula, alunos, onClose, t }: {
             onClick={marcarTodos}
             style={{
               marginLeft: 'auto', padding: '8px 12px', borderRadius: 'var(--r)',
-              border: `1px solid ${t.accent}`, background: t.accentBg, color: t.accent,
+              border: `1px solid ${t.ativo}`, background: t.ativoBg, color: t.ativo,
               fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0,
             }}
           >
@@ -2315,8 +2319,8 @@ function Chamada({ aula, alunos, onClose, t }: {
 
       {erro && (
         <div style={{
-          margin: '12px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.accentBg,
-          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5, flexShrink: 0,
+          margin: '12px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+          border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5, flexShrink: 0,
         }}>
           ⚠ {erro}
         </div>
@@ -2341,8 +2345,8 @@ function Chamada({ aula, alunos, onClose, t }: {
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '12px 14px', borderRadius: 'var(--r)', cursor: 'pointer',
-                background: presente ? t.accentBg : t.surface,
-                border: presente ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
+                background: presente ? t.ativoBg : t.surface,
+                border: presente ? `1px solid ${t.ativo}` : `1px solid ${t.border}`,
                 opacity: emVoo ? 0.6 : 1,
                 transition: 'background 0.15s, border-color 0.15s, opacity 0.15s',
               }}
@@ -2354,7 +2358,7 @@ function Chamada({ aula, alunos, onClose, t }: {
               }}>
                 {a.foto_url
                   ? <img src={a.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 16, fontWeight: 900, color: t.accent, fontFamily: t.ui }}>{a.nome[0]}</span>
+                  : <span style={{ fontSize: 16, fontWeight: 900, color: t.textSub, fontFamily: t.ui }}>{a.nome[0]}</span>
                 }
               </div>
 
@@ -2365,8 +2369,8 @@ function Chamada({ aula, alunos, onClose, t }: {
 
               <div style={{
                 width: 28, height: 28, borderRadius: '50%', border: '2px solid',
-                borderColor: presente ? t.accent : t.border2,
-                background: presente ? t.accent : 'transparent',
+                borderColor: presente ? t.ativo : t.border2,
+                background: presente ? t.ativo : 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 15, color: t.sobreAtivo, flexShrink: 0,
                 transition: 'background 0.15s, border-color 0.15s',
@@ -2476,8 +2480,8 @@ function Lixeira({ t, onRestaurado, onVoltar }: { t: Theme; onRestaurado: () => 
 
       {erro && (
         <div style={{
-          padding: 12, borderRadius: 'var(--r)', background: t.accentBg,
-          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+          padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+          border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
         }}>
           ⚠ {erro}
         </div>
@@ -2514,7 +2518,7 @@ function Lixeira({ t, onRestaurado, onVoltar }: { t: Theme; onRestaurado: () => 
             onClick={() => restaurar(item)} disabled={ocupado === item.id}
             style={{
               flexShrink: 0, padding: '9px 14px', borderRadius: 'var(--r)',
-              border: `1px solid ${t.accent}`, background: t.accentBg, color: t.accent,
+              border: `1px solid ${t.ativo}`, background: t.ativoBg, color: t.ativo,
               fontWeight: 700, fontSize: 12, cursor: ocupado === item.id ? 'not-allowed' : 'pointer',
               opacity: ocupado === item.id ? 0.5 : 1, transition: 'opacity 0.15s',
             }}
@@ -2715,8 +2719,8 @@ export default function AppShell() {
           rede que já voltou. */}
       {erroCarga && (
         <div style={{
-          margin: '14px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.accentBg,
-          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+          margin: '14px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+          border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
           display: 'flex', alignItems: 'flex-start', gap: 10,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>⚠ {erroCarga}</div>
@@ -2729,8 +2733,8 @@ export default function AppShell() {
             disabled={retentando}
             style={{
               flexShrink: 0, padding: '6px 10px', borderRadius: 'var(--r)',
-              border: `1px solid ${t.accent}`, background: 'transparent',
-              color: t.accent, fontSize: 11, fontWeight: 700,
+              border: `1px solid ${t.erro}`, background: 'transparent',
+              color: t.erroTexto, fontSize: 11, fontWeight: 700,
               cursor: retentando ? 'not-allowed' : 'pointer', opacity: retentando ? 0.6 : 1,
             }}
           >
@@ -2741,8 +2745,8 @@ export default function AppShell() {
 
       {erroPerfil && (
         <div style={{
-          margin: '14px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.accentBg,
-          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+          margin: '14px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+          border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
         }}>
           ⚠ {erroPerfil}
         </div>
@@ -2760,14 +2764,14 @@ export default function AppShell() {
               key={tb} onClick={() => setTab(tb)}
               style={{
                 flex: 1, padding: 14, border: 'none', background: 'none', cursor: 'pointer',
-                color: tab === tb ? t.accent : t.textMute,
-                borderBottom: tab === tb ? `2px solid ${t.accent}` : '2px solid transparent',
+                color: tab === tb ? t.ativo : t.textMute,
+                borderBottom: tab === tb ? `2px solid ${t.ativo}` : '2px solid transparent',
                 fontFamily: t.ui, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1,
               }}
             >
               {tb}
               {contagem > 0 && (
-                <span style={{ marginLeft: 6, fontSize: 11, color: tab === tb ? t.accent : t.textMute, opacity: 0.7 }}>
+                <span style={{ marginLeft: 6, fontSize: 11, color: tab === tb ? t.ativo : t.textMute, opacity: 0.7 }}>
                   {contagem}
                 </span>
               )}
@@ -2808,8 +2812,8 @@ export default function AppShell() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {erroAula && (
               <div style={{
-                padding: 12, borderRadius: 'var(--r)', background: t.accentBg,
-                border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+                padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+                border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
               }}>
                 ⚠ {erroAula}
               </div>
@@ -2866,7 +2870,7 @@ export default function AppShell() {
                   </div>
                 </div>
                 {a.posicao && (
-                  <div style={{ color: t.accent, fontSize: 12, fontFamily: t.ui, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
+                  <div style={{ color: t.textSub, fontSize: 12, fontFamily: t.ui, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
                     {a.posicao}
                   </div>
                 )}
@@ -3053,7 +3057,7 @@ function FabButton({ onClick, t }: { onClick: () => void; t: Theme }) {
       onTouchStart={() => setPressed(true)}
       onTouchEnd={() => setPressed(false)}
       style={{
-        background: t.accent, color: t.sobreAtivo, border: 'none',
+        background: t.ativo, color: t.sobreAtivo, border: 'none',
         borderRadius: '50%', width: 56, height: 56,
         fontSize: 28, cursor: 'pointer', fontWeight: 900,
         transform: pressed ? 'scale(0.95)' : 'scale(1)',
