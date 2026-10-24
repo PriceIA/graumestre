@@ -35,7 +35,7 @@ export function EtiquetaAulaDoDia({ aula, onAbrirChamada, onEditar, onNovaAula, 
   const presentes = (aula.presencas ?? []).filter((p: any) => p.presente).length
   return (
     <>
-    <article className="au-etq toque" aria-label="Aula do dia" onClick={() => onAbrirChamada(aula)}>
+    <article className={`au-etq toque${aula.foto_path || aula.link_youtube ? ' com-imagens' : ''}`} aria-label="Aula do dia" onClick={() => onAbrirChamada(aula)}>
       <div className="au-etq-pos">
         <span>Aula do dia</span>
         {aula.posicao && <span>{aula.posicao}</span>}

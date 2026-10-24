@@ -162,25 +162,11 @@ export function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, 
   }
 
   return (
-    <div
-      onClick={handleClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 100,
-        background: scrim(visible),
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        transition: 'background 0.22s',
-      }}
-    >
+    <div className="au-scrim" onClick={handleClose} style={{ background: scrim(visible) }}>
       <div
+        className={`au-folha${visible ? ' aberta' : ''}`} role="dialog" aria-modal="true"
+        aria-label={editando ? 'Editar aula' : 'Registrar aula'}
         onClick={e => e.stopPropagation()}
-        style={{
-          background: t.bg, width: '100%', maxWidth: 480,
-          borderRadius: 'var(--r) var(--r) 0 0', border: `1px solid ${t.border}`,
-          maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', touchAction: 'manipulation',
-          transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
-          opacity: visible ? 1 : 0,
-          transition: 'transform 0.22s ease, opacity 0.22s ease',
-        }}
       >
         <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>{editando ? 'Editar Aula' : 'Registrar Aula'}</div>

@@ -1115,7 +1115,7 @@ export default function AppShell() {
         onGraduar={() => setPainelProntos(true)} onMais={() => setMenuAberto(true)}
         qtdProntos={prontos.length}
       />
-      <main className={`conteudo${tab === 'alunos' ? ' larga' : ''}`}>
+      <main className={`conteudo${tab === 'alunos' ? ' larga' : ''}${tab === 'aulas' ? ' aulas-larga' : ''}`}>
 
       {/* Gradientes + trama da faixa desenhada — declarados UMA VEZ aqui,
           referenciados por url(#id) em toda faixa da tela. Monta um <svg>
@@ -1143,6 +1143,11 @@ export default function AppShell() {
           {tab === 'alunos' && (
             <span className="acoes-topo">
               <button type="button" className="al-btn cheio al-novo" onClick={novoAluno}>+ Novo aluno</button>
+            </span>
+          )}
+          {tab === 'aulas' && (
+            <span className="acoes-topo">
+              <button type="button" className="al-btn cheio al-novo" onClick={() => setModalAula(true)}>+ Nova aula</button>
             </span>
           )}
         </header>
@@ -1226,7 +1231,7 @@ export default function AppShell() {
       {/* FAB — só onde há o que criar: Alunos e Aulas. No Início e na lixeira
           não há (no Início o "+" abriria uma aula, o que ninguém espera). */}
       {(tab === 'alunos' || tab === 'aulas') && (
-        <div className={`fab-area${tab === 'alunos' ? ' so-celular' : ''}`}>
+        <div className="fab-area so-celular">
           <FabButton
             onClick={tab === 'alunos' ? novoAluno : () => setModalAula(true)}
             t={t}
