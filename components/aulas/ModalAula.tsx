@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { DIAS_LIXEIRA, mandarParaLixeira } from '@/lib/lixeira'
 import { subirFotoAula, removerFotoAula } from '@/lib/foto-aula'
 import { validarLinkYoutube } from '@/lib/youtube'
 import { hojeBrasil } from '@/lib/datas'
@@ -24,12 +25,14 @@ const POSITIONS = [
 // nenhuma presença é tocada. É o caminho para cadastrar o link do YouTube
 // depois, que é como acontece na prática — grava a aula, sobe o vídeo, e só
 // então tem link para colar.
-export function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
+export function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, onApagada, t }: {
   aula?: any; onClose: () => void; onCriada: (aula: any) => void; onEditada: (aula: any) => void;
   // Avisa a lista que a foto mudou, SEM fechar o modal. Não dá para reusar
   // onEditada aqui: ela desmonta o modal, e o professor que acabou de escolher
   // uma foto ainda está no meio da edição.
   onFotoAlterada?: (aulaId: string, fotoPath: string | null, fotoUrl: string | null) => void;
+  // Aula mandada para a lixeira (só na edição). Quem chama tira da lista e fecha.
+  onApagada?: (aulaId: string) => void;
   t: Theme
 }) {
   const editando = !!aula
@@ -41,6 +44,7 @@ export function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, 
     link_youtube: aula?.link_youtube ?? '',
   })
   const [saving, setSaving] = useState(false)
+  const [apagando, setApagando] = useState(false)
   const [erro, setErro]   = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
   const set    = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -100,6 +104,22 @@ export function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, 
     setTimeout(onClose, 220)
   }
 
+  const apagar = async () => {
+    if (!aula) return
+    if (!window.confirm(`Apagar a aula de ${aula.data}? Ela vai para a lixeira e pode ser restaurada por ${DIAS_LIXEIRA} dias.`)) return
+    setApagando(true)
+    setErro(null)
+    const { error } = await mandarParaLixeira('aulas', aula.id)
+    if (error) {
+      // o erro aparece AQUI, com o modal aberto — na tela de trás ninguém veria
+      setErro(`Não foi possível apagar a aula: ${error.message}`)
+      setApagando(false)
+      return
+    }
+    onApagada?.(aula.id)
+    handleClose()
+  }
+
   const handleSave = async () => {
     const linkInvalido = validarLinkYoutube(form.link_youtube)
     if (linkInvalido) {
@@ -156,7 +176,7 @@ export function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, 
         style={{
           background: t.bg, width: '100%', maxWidth: 480,
           borderRadius: 'var(--r) var(--r) 0 0', border: `1px solid ${t.border}`,
-          maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', touchAction: 'manipulation',
           transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
           opacity: visible ? 1 : 0,
           transition: 'transform 0.22s ease, opacity 0.22s ease',
@@ -167,7 +187,7 @@ export function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, 
           <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
 
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: 20, overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Field label="Data" value={form.data} onChange={v => set('data', v)} type="date" t={t} />
           <Field label="Técnica ensinada" value={form.tecnica} onChange={v => set('tecnica', v)} placeholder="Ex: Triângulo, Kimura..." t={t} />
           <div>
@@ -291,6 +311,12 @@ export function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, 
               style={{ width: '100%', minHeight: 80, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 'var(--r)', padding: 10, color: t.text, fontSize: 16, resize: 'none', boxSizing: 'border-box' }}
             />
           </div>
+
+          {editando && (
+            <button type="button" className="au-apagar" onClick={apagar} disabled={apagando || saving}>
+              {apagando ? 'Apagando…' : 'Apagar aula'}
+            </button>
+          )}
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>

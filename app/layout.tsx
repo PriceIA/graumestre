@@ -6,6 +6,7 @@ import { SCRIPT_TEMA } from '@/lib/tema'
 import './globals.css'
 import './comum.css'
 import './alunos.css'
+import './aulas.css'
 
 // Archivo variável com o eixo de largura (wdth): é o que deixa caber nome longo
 // de aluno sem encolher a letra. Estêncil só para título e número (DESIGN.md).

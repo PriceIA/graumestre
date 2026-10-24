@@ -926,7 +926,6 @@ export default function AppShell() {
   const [painelProntos, setPainelProntos] = useState(false)
   const [menuAberto, setMenuAberto] = useState(false)
   const [filtroAberto, setFiltroAberto] = useState(false)
-  const [erroAula, setErroAula] = useState<string | null>(null)
   const [naLixeira, setNaLixeira] = useState(0)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
   // Busca por nome da tela de Alunos: mora aqui (como os filtros) para
@@ -1042,15 +1041,6 @@ export default function AppShell() {
   }
   // aluno apagado (ou sumido da lista): a ficha não pode ficar aberta sobre nada
   useEffect(() => { if (ficha && !alunoAberto) setFicha(null) }, [ficha, alunoAberto])
-
-  const apagarAula = async (aula: any) => {
-    if (!window.confirm(`Apagar a aula de ${aula.data}? Ela vai para a lixeira e pode ser restaurada por ${DIAS_LIXEIRA} dias.`)) return
-    const { error } = await mandarParaLixeira('aulas', aula.id)
-    if (error) { setErroAula(`Não foi possível apagar a aula: ${error.message}`); return }
-    setErroAula(null)
-    setAulas(prev => prev.filter(a => a.id !== aula.id))
-    contarLixeira()
-  }
 
   const novoAluno = async () => {
     if (!confirmarDescarte()) return
@@ -1208,8 +1198,9 @@ export default function AppShell() {
         {/* Lista de aulas */}
         {tab === 'aulas' && (
           <TelaAulas
-            aulas={aulas} erro={erroAula} t={t}
-            onAbrirChamada={setChamadaAula} onEditar={setAulaEdicao} onApagar={apagarAula}
+            aulas={aulas}
+            onAbrirChamada={setChamadaAula} onEditar={setAulaEdicao}
+            onNovaAula={() => setModalAula(true)}
             onUrlRenovada={(id, nova) =>
               setAulas(prev => prev.map(x => x.id === id ? { ...x, foto_url: nova } : x))}
           />
@@ -1264,6 +1255,11 @@ export default function AppShell() {
           // acompanhar sem esperar o "Salvar alterações" — e sem fechar o modal.
           onFotoAlterada={(id, foto_path, foto_url) => {
             setAulas(prev => prev.map(a => a.id === id ? { ...a, foto_path, foto_url } : a))
+          }}
+          // apagar pelo modal: a aula sai da lista e o contador da lixeira sobe
+          onApagada={id => {
+            setAulas(prev => prev.filter(a => a.id !== id))
+            contarLixeira()
           }}
           t={t}
         />
