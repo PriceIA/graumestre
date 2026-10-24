@@ -1,17 +1,26 @@
 'use client'
 
-import { Play, Pencil } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Play, Pencil, Camera } from 'lucide-react'
 import { ImagensAula } from '@/components/aulas/CartaoAula'
+import { ConfirmarFotoAula } from '@/components/aulas/ConfirmarFotoAula'
 
 // A etiqueta "Aula do dia": aparece sempre. Sem aula hoje convida a lançar uma;
 // com aula, o toque abre a chamada e os botões ficam à mão.
-export function EtiquetaAulaDoDia({ aula, onAbrirChamada, onEditar, onNovaAula, onUrlRenovada }: {
+export function EtiquetaAulaDoDia({ aula, onAbrirChamada, onEditar, onNovaAula, onUrlRenovada, onFotoAlterada }: {
   aula: any | null
   onAbrirChamada: (aula: any) => void
   onEditar: (aula: any) => void
   onNovaAula: () => void
   onUrlRenovada: (id: string, url: string) => void
+  onFotoAlterada: (id: string, fotoPath: string | null, fotoUrl: string | null) => void
 }) {
+  // Foto escolhida, esperando a confirmação. O input e a folha ficam FORA da
+  // <article>: um click() programático no input, ou um toque dentro da folha,
+  // subiria até a etiqueta e abriria a chamada.
+  const inputFoto = useRef<HTMLInputElement>(null)
+  const [arquivoFoto, setArquivoFoto] = useState<File | null>(null)
+
   if (!aula) {
     return (
       <section className="au-etq" aria-label="Aula do dia">
@@ -25,6 +34,7 @@ export function EtiquetaAulaDoDia({ aula, onAbrirChamada, onEditar, onNovaAula, 
 
   const presentes = (aula.presencas ?? []).filter((p: any) => p.presente).length
   return (
+    <>
     <article className="au-etq toque" aria-label="Aula do dia" onClick={() => onAbrirChamada(aula)}>
       <div className="au-etq-pos">
         <span>Aula do dia</span>
@@ -45,6 +55,12 @@ export function EtiquetaAulaDoDia({ aula, onAbrirChamada, onEditar, onNovaAula, 
         )}
         <button
           type="button" className="au-btn-etq"
+          onClick={e => { e.stopPropagation(); inputFoto.current?.click() }}
+        >
+          <Camera aria-hidden="true" /> Foto
+        </button>
+        <button
+          type="button" className="au-btn-etq"
           onClick={e => { e.stopPropagation(); onEditar(aula) }}
         >
           <Pencil aria-hidden="true" /> Editar
@@ -52,5 +68,25 @@ export function EtiquetaAulaDoDia({ aula, onAbrirChamada, onEditar, onNovaAula, 
       </div>
       <ImagensAula aula={aula} onUrlRenovada={url => onUrlRenovada(aula.id, url)} />
     </article>
+
+    {/* sem `capture`: com ele o Android abre direto a câmera e a galeria some */}
+    <input
+      ref={inputFoto} type="file" accept="image/*" style={{ display: 'none' }}
+      onChange={e => {
+        const arquivo = e.target.files?.[0]
+        // zera: escolher o MESMO arquivo de novo depois de um erro tem que disparar change
+        e.target.value = ''
+        if (arquivo) setArquivoFoto(arquivo)
+      }}
+    />
+    {arquivoFoto && (
+      <ConfirmarFotoAula
+        key={arquivoFoto.name + arquivoFoto.lastModified}
+        aula={aula} arquivo={arquivoFoto}
+        onClose={() => setArquivoFoto(null)}
+        onGravada={(foto_path, foto_url) => onFotoAlterada(aula.id, foto_path, foto_url)}
+      />
+    )}
+    </>
   )
 }

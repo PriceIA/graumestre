@@ -1042,6 +1042,11 @@ export default function AppShell() {
   // aluno apagado (ou sumido da lista): a ficha não pode ficar aberta sobre nada
   useEffect(() => { if (ficha && !alunoAberto) setFicha(null) }, [ficha, alunoAberto])
 
+  // A foto da aula é gravada no momento do upload (modal de edição ou botão Foto
+  // da etiqueta), então a lista acompanha sem esperar nenhum "Salvar".
+  const fotoAulaAlterada = (id: string, foto_path: string | null, foto_url: string | null) =>
+    setAulas(prev => prev.map(a => a.id === id ? { ...a, foto_path, foto_url } : a))
+
   const novoAluno = async () => {
     if (!confirmarDescarte()) return
     const { data, error } = await supabase
@@ -1200,7 +1205,7 @@ export default function AppShell() {
           <TelaAulas
             aulas={aulas}
             onAbrirChamada={setChamadaAula} onEditar={setAulaEdicao}
-            onNovaAula={() => setModalAula(true)}
+            onNovaAula={() => setModalAula(true)} onFotoAlterada={fotoAulaAlterada}
             onUrlRenovada={(id, nova) =>
               setAulas(prev => prev.map(x => x.id === id ? { ...x, foto_url: nova } : x))}
           />
@@ -1253,9 +1258,7 @@ export default function AppShell() {
           }}
           // A foto é gravada no momento do upload, então a lista precisa
           // acompanhar sem esperar o "Salvar alterações" — e sem fechar o modal.
-          onFotoAlterada={(id, foto_path, foto_url) => {
-            setAulas(prev => prev.map(a => a.id === id ? { ...a, foto_path, foto_url } : a))
-          }}
+          onFotoAlterada={fotoAulaAlterada}
           // apagar pelo modal: a aula sai da lista e o contador da lixeira sobe
           onApagada={id => {
             setAulas(prev => prev.filter(a => a.id !== id))

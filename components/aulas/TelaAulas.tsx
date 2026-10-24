@@ -8,12 +8,13 @@ import { CartaoAula } from '@/components/aulas/CartaoAula'
 // A tela de Aulas: a etiqueta "Aula do dia" e, embaixo, "Próximas" (só se
 // houver) e "Aulas dadas". As aulas e o estado dos modais moram no AppShell;
 // aqui só se decide o que mostrar e se avisa o que foi tocado.
-export function TelaAulas({ aulas, onAbrirChamada, onEditar, onNovaAula, onUrlRenovada }: {
+export function TelaAulas({ aulas, onAbrirChamada, onEditar, onNovaAula, onUrlRenovada, onFotoAlterada }: {
   aulas: any[]
   onAbrirChamada: (aula: any) => void
   onEditar: (aula: any) => void
   onNovaAula: () => void
   onUrlRenovada: (id: string, url: string) => void
+  onFotoAlterada: (id: string, fotoPath: string | null, fotoUrl: string | null) => void
 }) {
   // "hoje" a cada render, nunca guardado: o app aberto às 23h50 vira o dia.
   const hoje = hojeBrasil()
@@ -31,7 +32,7 @@ export function TelaAulas({ aulas, onAbrirChamada, onEditar, onNovaAula, onUrlRe
     <div>
       <EtiquetaAulaDoDia
         aula={doDia} onAbrirChamada={onAbrirChamada} onEditar={onEditar}
-        onNovaAula={onNovaAula} onUrlRenovada={onUrlRenovada}
+        onNovaAula={onNovaAula} onUrlRenovada={onUrlRenovada} onFotoAlterada={onFotoAlterada}
       />
 
       {proximas.length > 0 && (

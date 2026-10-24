@@ -88,3 +88,37 @@
   color: var(--erro-texto); font: 700 14px/1 var(--ui); text-decoration: underline; touch-action: manipulation;
 }
 .au-apagar:disabled { cursor: default; opacity: .6; }
+
+/* ── Folha de confirmação da foto (celular: sobe de baixo) ─────────────────
+   O computador a centraliza no bloco do fim (G6.5). */
+.au-scrim {
+  position: fixed; inset: 0; z-index: 110; display: flex; align-items: flex-end; justify-content: center;
+  transition: background .22s; touch-action: manipulation;
+}
+.au-folha {
+  width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--fundo); color: var(--tinta); border: 1.5px solid var(--controle); border-radius: var(--r) var(--r) 0 0;
+  transform: translateY(40px); opacity: 0; transition: transform .22s var(--ease), opacity .22s var(--ease);
+}
+.au-folha.aberta { transform: none; opacity: 1; }
+.au-folha-topo { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1.5px solid var(--linha); }
+.au-folha-tit { font: 800 18px/1.1 var(--ui); font-variation-settings: 'wdth' 85; }
+.au-folha-fechar {
+  width: 44px; height: 44px; margin: -6px -8px -6px 0; background: none; border: 0; cursor: pointer;
+  color: var(--tinta-media); font-size: 20px; touch-action: manipulation;
+}
+.au-folha-fechar:disabled { opacity: .4; cursor: default; }
+.au-folha-corpo {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.au-folha-previa { width: 100%; max-height: 50vh; object-fit: contain; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); }
+.au-folha-aviso { padding: 18px 0; text-align: center; color: var(--tinta-media); font-size: 15px; }
+.au-folha-erro {
+  padding: 12px; border: 1.5px solid var(--erro); border-radius: var(--r); font-size: 14px; line-height: 1.4;
+  background: color-mix(in srgb, var(--erro) 10%, var(--papel)); color: var(--erro-texto);
+}
+.au-folha-cheio { width: 100%; }
+.au-folha-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.au-folha button:disabled { opacity: .6; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .au-folha, .au-scrim { transition: none; } }

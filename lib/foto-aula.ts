@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { comprimirImagem } from '@/lib/comprimir-imagem'
+import { comprimirImagem, type ImagemComprimida } from '@/lib/comprimir-imagem'
 
 // Foto da aula: upload, troca, remoção e leitura.
 //
@@ -51,7 +51,21 @@ export async function subirFotoAula(
   arquivo: File,
   pathAnterior: string | null
 ): Promise<ResultadoUpload> {
-  const comprimida = await comprimirImagem(arquivo)
+  return enviarFotoComprimida(aulaId, await comprimirImagem(arquivo), pathAnterior)
+}
+
+/**
+ * A segunda metade de `subirFotoAula`: envia uma imagem JÁ comprimida. Existe
+ * separada para a confirmação da foto (botão Foto da etiqueta) mostrar ao
+ * professor exatamente o blob que vai subir, e subir esse mesmo blob em vez de
+ * comprimir de novo. A ordem segura vale para os dois caminhos porque o código
+ * é um só.
+ */
+export async function enviarFotoComprimida(
+  aulaId: string,
+  comprimida: ImagemComprimida,
+  pathAnterior: string | null
+): Promise<ResultadoUpload> {
   const caminho = novoCaminho(aulaId)
 
   const { error: erroUpload } = await supabase.storage
