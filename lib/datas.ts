@@ -31,3 +31,21 @@ export function hojeBrasil(agora: Date = new Date()): string {
 export function anoDaData(data: string): number {
   return Number(data.slice(0, 4))
 }
+
+const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+/**
+ * Data curta para o card de aula: "sex, 23 out". O ano só aparece quando não é
+ * o do `hoje` ("qua, 31 dez 2025"). O dia da semana sai do calendário em UTC
+ * (Date.UTC + getUTCDay), nunca de `new Date('AAAA-MM-DD')`, que ainda é o dia
+ * anterior no Brasil.
+ */
+export function dataCurta(data: string, hoje: string): string {
+  const ano = anoDaData(data)
+  const mes = Number(data.slice(5, 7))
+  const dia = Number(data.slice(8, 10))
+  const semana = DIAS_SEMANA[new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay()]
+  const base = `${semana}, ${dia} ${MESES[mes - 1]}`
+  return ano === anoDaData(hoje) ? base : `${base} ${ano}`
+}

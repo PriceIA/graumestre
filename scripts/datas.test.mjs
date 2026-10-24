@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { hojeBrasil, anoDaData } from '../lib/datas.ts'
+import { hojeBrasil, anoDaData, dataCurta } from '../lib/datas.ts'
 
 // Cada caso roda com o processo em três fusos: o resultado não pode depender
 // do relógio da máquina, só do instante. O Node relê process.env.TZ a cada
@@ -80,3 +80,19 @@ test('o jeito antigo erra 1º de janeiro no fuso do Brasil', () => {
     else process.env.TZ = original
   }
 })
+
+// Data curta do card de aula (G6): dia da semana vem do calendário, nunca de
+// new Date('AAAA-MM-DD'), então não pode depender do fuso do processo.
+const casosDataCurta = [
+  ['mesmo ano, hoje',              '2026-10-23', '2026-10-23', 'sex, 23 out'],
+  ['mesmo ano, dia sem zero',      '2026-09-08', '2026-10-23', 'ter, 8 set'],
+  ['1º de janeiro do mesmo ano',   '2026-01-01', '2026-10-23', 'qui, 1 jan'],
+  ['ano passado mostra o ano',     '2025-12-31', '2026-10-23', 'qua, 31 dez 2025'],
+  ['ano que vem mostra o ano',     '2027-01-04', '2026-10-23', 'seg, 4 jan 2027'],
+]
+
+for (const [nome, data, hoje, esperado] of casosDataCurta) {
+  test(`dataCurta: ${nome}`, () => {
+    emCadaFuso(tz => assert.equal(dataCurta(data, hoje), esperado, `TZ=${tz}`))
+  })
+}
