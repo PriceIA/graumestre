@@ -18,7 +18,8 @@ export function ConfirmarFotoAula({ aula, arquivo, onClose, onGravada }: {
   aula: any
   arquivo: File
   onClose: () => void
-  onGravada: (fotoPath: string, fotoUrl: string) => void
+  // fotoUrl null: gravou, mas a URL não pôde ser assinada agora (lib/envio-foto.ts)
+  onGravada: (fotoPath: string, fotoUrl: string | null) => void
 }) {
   const [arquivoAtual, setArquivoAtual] = useState(arquivo)
   const [fase, setFase] = useState<Fase>('preparando')

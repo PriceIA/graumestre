@@ -419,7 +419,7 @@ Vamos fazer a fase G4 do docs/ROADMAP.md. Me mostre no código do GrauMestre ond
 Vamos fazer a fase G5 do docs/ROADMAP.md, tela de Alunos. Use só o código do GrauMestre: tire a tela do AppShell, mantenha todas as funções e aplique o visual do gm-kimono.html. Comece com /impeccable shape tela de alunos.
 ```
 
-### G6 — Tela de Aulas *(a do GrauMestre, reorganizada)*
+### G6 — Tela de Aulas *(a do GrauMestre, reorganizada)* ✅ *(concluída 2026-10-30; ver a seção "Tela de Aulas (G6)" do `CLAUDE.md`)*
 
 > 🔁 **Modelo:** **Opus 5.5** para o plano; depois **troque para Sonnet 5.5** na execução. *(trocar com `/model`)*
 

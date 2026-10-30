@@ -1,4 +1,4 @@
-# PLANO-ATUAL.md — Lote v2 em andamento (G0 a G5 concluídas, próxima: G6)
+# PLANO-ATUAL.md — Lote v2 em andamento (G0 a G6 concluídas, próxima: G7)
 
 **Plano mestre: `docs/ROADMAP.md`.** Branch de trabalho: `desenvolvimento`
 (a `main` é o site no ar). Plano da G0: `docs/superpowers/plans/2026-10-21-g0-preparar-terreno.md`.
@@ -12,7 +12,7 @@
 | G4 Correção de datas | **CONCLUÍDA** (2026-10-23), com uma pendência (ver abaixo da tabela). Decisão 3 aprovada pelo Pedro em 2026-10-23. **G4.1** (`lib/datas.ts`, `hojeBrasil()`/`anoDaData()`, 18 testes; só código): **CONCLUÍDA**, conferida pelo Pedro, commit `3898fa6`. **G4.2** (migration 016: aula futura não conta): **CONCLUÍDA.** Backup novo em `C:\Backups\graumestre\2026-10-23` antes; 016 aplicada pelo Pedro; md5 das 4 contagens idêntico antes/depois (`55d51351…`); 24 colunas na ordem; anon sem nada e authenticated só `SELECT` (SQL e API); teste com aula `ZZ-TESTE-G4` em 26/10 sem mudar nada na tela nem na view, apagada de vez pelo Pedro, linha de base 33/5/59/29. **G4.3** (3 registros errados do passado, um `UPDATE` por id, decisão um a um do Pedro): **2 corrigidos, 1 pendente.** Aula `13934eaa` de 09/09 para 08/09 e `inicio` do Pedro Henrique (`dc16d3a4`) de 19/06 para 18/06, rodados pelo Pedro em 2026-10-23 e conferidos por id; Frequência geral 25% → 26%, como previsto. A graduação da Aninha (`17849d3e`, 11/09) **não** foi corrigida |
 
 | G5 Tela de Alunos | **CONCLUÍDA** (2026-10-23, conferida pelo Pedro tarefa a tarefa no `localhost` e no iPhone; commits `189fc7a` a `beab72d` e o de fechamento). Sem migration. Design e plano em `docs/superpowers/specs/2026-10-23-g5-alunos-design.md` e `docs/superpowers/plans/2026-10-23-g5-alunos.md`. Teste completo no banco real com `ZZ-TESTE-G5` em 390 px e 1280 px; apagado de vez pelo Pedro; linha de base 33/5/59/29. Revisão final por revisor de fora: 1 Importante corrigido, 6 Menores registrados (abaixo) |
-| G6 Tela de Aulas | **PLANEJADA** (2026-10-23, spec aprovada pelo Pedro). Design em `docs/superpowers/specs/2026-10-23-g6-aulas-design.md`, plano em `docs/superpowers/plans/2026-10-23-g6-aulas.md` (7 tasks). Sem migration. Próximo: Task 1 (G6.1), no Sonnet 5.5 |
+| G6 Tela de Aulas | **CONCLUÍDA** (2026-10-30, conferida pelo Pedro tarefa a tarefa no `localhost`; commits `5c03ac1` a `698e2a0` e o de fechamento). Sem migration. Design e plano em `docs/superpowers/specs/2026-10-23-g6-aulas-design.md` e `docs/superpowers/plans/2026-10-23-g6-aulas.md`. Teste completo no banco real com `ZZ-TESTE-G6` (A, B, FUTURA), cada passo conferido por `select`; fotos removidas, bucket limpo. **Limpeza final pendente da purga:** as quatro aulas `ZZ-TESTE-G6` (A, B, FUTURA e a C da conferência do upload) estão na lixeira e saem sozinhas por volta de 01:00 de 07/11/2026; depois dela, conferir 34 alunos, 5 aulas, 59 presenças, 29 graduações e nenhuma ZZ-TESTE. Revisão final por revisor de fora: 1 Importante corrigido, Menores registrados (abaixo) |
 | G7 em diante | PENDENTE, na ordem do ROADMAP |
 
 **Adiado da G3 (decisão do Pedro, 2026-10-22):**
@@ -20,7 +20,7 @@
 - **Sidecar `.impeccable/design.json`:** não foi gerado na G3. Fica para a **G8 ou a G13**.
 - **Pontos de revisão da G3 (resolvidos na G5, exceto o `theme-color`):**
   1. ~~`maximumScale: 1` bloqueia o zoom~~ — **fechado na G5.2** (campos em 16 px, testado no iPhone).
-  2. `touch-action: manipulation` e `overscroll-behavior: contain`: **feitos nas folhas de Alunos** (ficha, painel de filtros); **faltam** nos modais de Aulas, Chamada, Perfil, Prontos e Menu — entram na G6 a G8, com cada tela.
+  2. `touch-action: manipulation` e `overscroll-behavior: contain`: **feitos nas folhas de Alunos** (ficha, painel de filtros) **e de Aulas** (modal de aula, folha da foto, G6); **faltam** nos modais de Chamada, Perfil, Prontos e Menu — entram na G7 e G8, com cada tela.
   3. A meta `theme-color` segue o celular, não o tema escolhido no menu — **continua para a G12**.
   4. ~~Histórico de graduações do modal só atualiza ao recarregar~~ — **fechado na G5.2** (recarrega depois de graduar e de apagar graduação).
 - ~~**Dívida anterior à G3:** rodapé do modal do aluno sobreposto~~ — **fechada na G5.2** (rolagem numa `<div>` por fora do `<fieldset>`).
@@ -38,6 +38,18 @@
 - `LinhaAluno`: a foto quebrada não é reavaliada quando `foto_url` muda (mostra a inicial até recarregar).
 - "Ver N alunos" do `PainelFiltros` ignora a busca (com busca ativa o número não bate com a lista).
 - Celular: a ficha aberta pela tela de Alunos cobre tudo mas não tem `aria-modal`, e o foco não volta à linha ao fechar.
+
+**Menores da G6 (registrados, não corrigidos — decisão do Pedro quando quiser):**
+
+- **A Lixeira não tem "apagar de vez"** (só restaurar): a remoção física é só a purga de 7 dias. Visto no teste da G6.
+- **Apagar uma aula com foto não avisa** que a foto fica no bucket depois da purga (pendência 3 do `CLAUDE.md`), e a Lixeira não mostra que a aula tem foto. No teste da G6 a foto só não ficou órfã porque foi removida pelo modal antes.
+- O modal de aula fecha pelo pano escuro e pelo Cancelar sem perguntar sobre alteração não salva (já era assim antes da G6; spec §2).
+- O pano escuro fecha o modal no meio do "Apagar aula" e o erro, se houver, se perde; "Salvar" não fica desligado enquanto apaga.
+- A miniatura do vídeo na etiqueta guarda o "falhou" da aula anterior quando a aula do dia troca (falta `key={aula.id}`): mostra o botão de texto em vez da capa até recarregar.
+- Computador: técnica longa sem espaço corta sem reticências na etiqueta; observação enorme num card estica a linha inteira da grade.
+- A folha da foto troca o rótulo para "Trocar a foto atual" durante os 220 ms do fechamento (cosmético).
+- Acessibilidade (`web-design-guidelines`): o card não abre a chamada pelo teclado (já era assim antes); a folha da foto não anuncia "Preparando…"/"Enviando…"/erro ao leitor de tela, não leva o foco para dentro nem fecha com Esc; card e ✎ sem efeito de hover.
+- O "Novo Aluno" de 2026-10-23 (o 34º aluno, de antes da G6, provavelmente do "+" da G5 durante os testes) continua no banco: apagar ou não é com o Pedro.
 
 **Achado da G0 que vira requisito da G9:** a RLS está desligada em `alunos`,
 `aulas`, `graduacoes` e `presencas` em produção (só o `GRANT` protege). Ver
