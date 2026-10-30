@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import { comprimirImagem } from '@/lib/comprimir-imagem'
+import { comprimirImagem, type ImagemComprimida } from '@/lib/comprimir-imagem'
+import { enviarComOrdemSegura } from '@/lib/envio-foto'
 
 // Foto da aula: upload, troca, remoção e leitura.
 //
@@ -25,7 +26,8 @@ function novoCaminho(aulaId: string): string {
 
 export type ResultadoUpload = {
   foto_path: string
-  foto_url: string
+  // null: a foto foi gravada, mas a URL não pôde ser assinada agora
+  foto_url: string | null
   bytesOriginais: number
   bytesFinais: number
 }
@@ -51,36 +53,43 @@ export async function subirFotoAula(
   arquivo: File,
   pathAnterior: string | null
 ): Promise<ResultadoUpload> {
-  const comprimida = await comprimirImagem(arquivo)
-  const caminho = novoCaminho(aulaId)
+  return enviarFotoComprimida(aulaId, await comprimirImagem(arquivo), pathAnterior)
+}
 
-  const { error: erroUpload } = await supabase.storage
-    .from(BUCKET)
-    .upload(caminho, comprimida.blob, { contentType: 'image/jpeg' })
-  if (erroUpload) throw new Error(`Não foi possível enviar a foto: ${erroUpload.message}`)
-
-  // Whitelist explícita, como todo insert/update do projeto: só a coluna que
-  // esta operação tem o direito de mexer. O objeto da aula carrega `presencas`
-  // do join da listagem, que não é coluna e derrubaria a request (PGRST204).
-  const { error: erroBanco } = await supabase
-    .from('aulas')
-    .update({ foto_path: caminho })
-    .eq('id', aulaId)
-  if (erroBanco) {
-    // O banco não sabe do arquivo que acabou de subir: apaga para não deixar
-    // lixo que ninguém mais consegue alcançar.
-    await supabase.storage.from(BUCKET).remove([caminho])
-    throw new Error(`A foto subiu, mas não foi possível associá-la à aula: ${erroBanco.message}`)
-  }
-
-  if (pathAnterior) await supabase.storage.from(BUCKET).remove([pathAnterior])
-
-  const foto_url = await assinarUrl(caminho)
-  if (!foto_url) throw new Error('A foto foi salva, mas não foi possível exibi-la agora. Recarregue a tela.')
+/**
+ * A segunda metade de `subirFotoAula`: envia uma imagem JÁ comprimida. Existe
+ * separada para a confirmação da foto (botão Foto da etiqueta) mostrar ao
+ * professor exatamente o blob que vai subir, e subir esse mesmo blob em vez de
+ * comprimir de novo. A ordem segura vale para os dois caminhos porque o código
+ * é um só.
+ */
+export async function enviarFotoComprimida(
+  aulaId: string,
+  comprimida: ImagemComprimida,
+  pathAnterior: string | null
+): Promise<ResultadoUpload> {
+  // A ordem (sobe → grava → apaga a anterior → assina) mora em
+  // lib/envio-foto.ts, testada no Node; aqui só as operações reais.
+  const r = await enviarComOrdemSegura({
+    subir: async caminho => {
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(caminho, comprimida.blob, { contentType: 'image/jpeg' })
+      return error ? error.message : null
+    },
+    // Whitelist explícita, como todo insert/update do projeto: só a coluna que
+    // esta operação tem o direito de mexer. O objeto da aula carrega `presencas`
+    // do join da listagem, que não é coluna e derrubaria a request (PGRST204).
+    gravarCaminho: async caminho => {
+      const { error } = await supabase.from('aulas').update({ foto_path: caminho }).eq('id', aulaId)
+      return error ? error.message : null
+    },
+    remover: async caminho => { await supabase.storage.from(BUCKET).remove([caminho]) },
+    assinar: assinarUrl,
+  }, novoCaminho(aulaId), pathAnterior)
 
   return {
-    foto_path: caminho,
-    foto_url,
+    ...r,
     bytesOriginais: comprimida.bytesOriginais,
     bytesFinais: comprimida.bytesFinais,
   }

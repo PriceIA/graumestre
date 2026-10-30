@@ -1,0 +1,1072 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GrauMestre · Kimono</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=Big+Shoulders+Stencil+Display:wght@700;800;900&display=swap" rel="stylesheet">
+<script>
+  /* Tema antes de pintar: ?tema=claro|escuro > escolha salva > sistema. */
+  (function () {
+    var t = new URLSearchParams(location.search).get('tema')
+    if (!t) { try { t = localStorage.getItem('gm-tema') } catch (e) {} }
+    if (t === 'claro' || t === 'escuro') document.documentElement.dataset.tema = t
+  })()
+</script>
+<style>
+/* GRAUMESTRE v2 · PROTÓTIPO "KIMONO"
+   Base: direção A do FOJJ (etiqueta tecida, costura tracejada, estêncil no
+   placar). O que é do GrauMestre:
+   1. TRAMA DE KIMONO no fundo (trançado pérola, os "grãos de arroz" do tecido).
+   2. Dois temas: KIMONO BRANCO (claro) e KIMONO PRETO (escuro). No preto a
+      costura continua branca de propósito: é o que mostra que é tecido.
+   3. Costura dupla na "barra" do cabeçalho, como o reforço do kimono.
+   A ponteira vermelha com friso é ACABAMENTO de faixa preta (decoração), não alerta.
+   O vermelho de alerta é provisório (vai ser revisto com o UI UX Pro Max).
+   Logo provisório: o Pedro vai desenhar o definitivo. */
+
+/* ── Kimono branco (claro) ─────────────────────────────────────────── */
+:root {
+  --fundo: #F4F4F1;
+  --trama: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cellipse cx='2.5' cy='2.1' rx='2.3' ry='1.25' fill='rgba%2820%2C20%2C20%2C0.05%29'/%3E%3Cellipse cx='2.5' cy='1.75' rx='2.3' ry='1.2' fill='rgba%2820%2C20%2C20%2C0.045%29'/%3E%3Cellipse cx='2.2' cy='1.3' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.75%29'/%3E%3Cellipse cx='7.5' cy='5.6' rx='2.3' ry='1.25' fill='rgba%2820%2C20%2C20%2C0.05%29'/%3E%3Cellipse cx='7.5' cy='5.25' rx='2.3' ry='1.2' fill='rgba%2820%2C20%2C20%2C0.045%29'/%3E%3Cellipse cx='7.2' cy='4.8' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.75%29'/%3E%3Cellipse cx='-2.5' cy='5.6' rx='2.3' ry='1.25' fill='rgba%2820%2C20%2C20%2C0.05%29'/%3E%3Cellipse cx='-2.5' cy='5.25' rx='2.3' ry='1.2' fill='rgba%2820%2C20%2C20%2C0.045%29'/%3E%3Cellipse cx='-2.8' cy='4.8' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.75%29'/%3E%3Cellipse cx='12.5' cy='2.1' rx='2.3' ry='1.25' fill='rgba%2820%2C20%2C20%2C0.05%29'/%3E%3Cellipse cx='12.5' cy='1.75' rx='2.3' ry='1.2' fill='rgba%2820%2C20%2C20%2C0.045%29'/%3E%3Cellipse cx='12.2' cy='1.3' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.75%29'/%3E%3C/svg%3E");
+  --papel: #FFFFFF;
+  --tinta: #141414;              /* texto principal */
+  --tinta-media: #4B4B47;
+  --tinta-suave: #6B6B66;
+  --linha: #D9D9D4;
+  --controle: #141414;           /* borda de campo e botão */
+  --etiqueta: #141414;           /* etiqueta tecida */
+  --etiqueta-borda: transparent;
+  --etiqueta-hover: #2B2B2B;
+  --sobre-etiqueta: #FFFFFF;
+  --sobre-etiqueta-suave: rgba(255,255,255,.82);
+  --costura: rgba(255,255,255,.55);
+  --costura-suave: rgba(255,255,255,.35);
+  --contorno-sobre-etiqueta: rgba(255,255,255,.7);
+  --realce-sobre-etiqueta: rgba(255,255,255,.08);
+  --destaque: #FFFFFF;           /* o que fica selecionado DENTRO da etiqueta */
+  --sobre-destaque: #141414;
+  --sobre-destaque-suave: #4B4B47;
+  --ativo: #141414;              /* presença, filtro ativo, botão cheio */
+  --sobre-ativo: #FFFFFF;
+  --sobre-ativo-suave: rgba(255,255,255,.82);
+  --ativo-hover: #2B2B2B;
+  --alerta: #BE1622;             /* provisório */
+  --sobre-alerta: #FFFFFF;
+  --alerta-texto: #8E0F18;
+  --costura-pagina: rgba(20,20,20,.85);   /* kimono branco: costura PRETA */
+  --ponteira-faixa: #BE1622;              /* acabamento de faixa preta (decorativo) */
+  --friso: #F3F1EC;
+  --sombra-menu: 0 10px 24px rgba(20,20,20,.14);
+  --display: 'Big Shoulders Stencil Display', 'Archivo', sans-serif;
+  --ui: 'Archivo', system-ui, sans-serif;
+  --r: 2px;
+  --ease: cubic-bezier(.16,1,.3,1);
+  --barra: 64px;
+  color-scheme: light;
+}
+
+/* ── Kimono preto (escuro) ─────────────────────────────────────────── */
+:root[data-tema="escuro"] {
+  --fundo: #131312;
+  --trama: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cellipse cx='2.5' cy='2.1' rx='2.3' ry='1.25' fill='rgba%280%2C0%2C0%2C0.55%29'/%3E%3Cellipse cx='2.5' cy='1.75' rx='2.3' ry='1.2' fill='rgba%28255%2C255%2C255%2C0.045%29'/%3E%3Cellipse cx='2.2' cy='1.3' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.07%29'/%3E%3Cellipse cx='7.5' cy='5.6' rx='2.3' ry='1.25' fill='rgba%280%2C0%2C0%2C0.55%29'/%3E%3Cellipse cx='7.5' cy='5.25' rx='2.3' ry='1.2' fill='rgba%28255%2C255%2C255%2C0.045%29'/%3E%3Cellipse cx='7.2' cy='4.8' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.07%29'/%3E%3Cellipse cx='-2.5' cy='5.6' rx='2.3' ry='1.25' fill='rgba%280%2C0%2C0%2C0.55%29'/%3E%3Cellipse cx='-2.5' cy='5.25' rx='2.3' ry='1.2' fill='rgba%28255%2C255%2C255%2C0.045%29'/%3E%3Cellipse cx='-2.8' cy='4.8' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.07%29'/%3E%3Cellipse cx='12.5' cy='2.1' rx='2.3' ry='1.25' fill='rgba%280%2C0%2C0%2C0.55%29'/%3E%3Cellipse cx='12.5' cy='1.75' rx='2.3' ry='1.2' fill='rgba%28255%2C255%2C255%2C0.045%29'/%3E%3Cellipse cx='12.2' cy='1.3' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.07%29'/%3E%3C/svg%3E");
+  --papel: #1D1D1B;
+  --tinta: #F2F1EC;
+  --tinta-media: #C4C3BC;
+  --tinta-suave: #9C9B94;
+  --linha: #2F2F2C;
+  --controle: #B9B8B1;
+  --etiqueta: #262624;
+  --etiqueta-borda: #3A3A37;
+  --etiqueta-hover: #31312E;
+  --sobre-etiqueta: #F7F6F1;
+  --sobre-etiqueta-suave: rgba(247,246,241,.82);
+  --costura: rgba(255,255,255,.62);
+  --costura-suave: rgba(255,255,255,.40);
+  --contorno-sobre-etiqueta: rgba(255,255,255,.7);
+  --realce-sobre-etiqueta: rgba(255,255,255,.07);
+  --destaque: #F2F1EC;
+  --sobre-destaque: #131312;
+  --sobre-destaque-suave: #4B4B47;
+  --ativo: #F2F1EC;
+  --sobre-ativo: #131312;
+  --sobre-ativo-suave: rgba(19,19,18,.75);
+  --ativo-hover: #FFFFFF;
+  --alerta: #D42A33;
+  --sobre-alerta: #FFFFFF;
+  --alerta-texto: #FF9A9A;
+  --costura-pagina: rgba(255,255,255,.80); /* kimono preto: costura BRANCA */
+  --ponteira-faixa: #C41A25;
+  --friso: #F3F1EC;
+  --sombra-menu: 0 10px 24px rgba(0,0,0,.5);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --fundo: #131312;
+    --trama: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cellipse cx='2.5' cy='2.1' rx='2.3' ry='1.25' fill='rgba%280%2C0%2C0%2C0.55%29'/%3E%3Cellipse cx='2.5' cy='1.75' rx='2.3' ry='1.2' fill='rgba%28255%2C255%2C255%2C0.045%29'/%3E%3Cellipse cx='2.2' cy='1.3' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.07%29'/%3E%3Cellipse cx='7.5' cy='5.6' rx='2.3' ry='1.25' fill='rgba%280%2C0%2C0%2C0.55%29'/%3E%3Cellipse cx='7.5' cy='5.25' rx='2.3' ry='1.2' fill='rgba%28255%2C255%2C255%2C0.045%29'/%3E%3Cellipse cx='7.2' cy='4.8' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.07%29'/%3E%3Cellipse cx='-2.5' cy='5.6' rx='2.3' ry='1.25' fill='rgba%280%2C0%2C0%2C0.55%29'/%3E%3Cellipse cx='-2.5' cy='5.25' rx='2.3' ry='1.2' fill='rgba%28255%2C255%2C255%2C0.045%29'/%3E%3Cellipse cx='-2.8' cy='4.8' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.07%29'/%3E%3Cellipse cx='12.5' cy='2.1' rx='2.3' ry='1.25' fill='rgba%280%2C0%2C0%2C0.55%29'/%3E%3Cellipse cx='12.5' cy='1.75' rx='2.3' ry='1.2' fill='rgba%28255%2C255%2C255%2C0.045%29'/%3E%3Cellipse cx='12.2' cy='1.3' rx='1.3' ry='0.35' fill='rgba%28255%2C255%2C255%2C0.07%29'/%3E%3C/svg%3E");
+    --papel: #1D1D1B;
+    --tinta: #F2F1EC;
+    --tinta-media: #C4C3BC;
+    --tinta-suave: #9C9B94;
+    --linha: #2F2F2C;
+    --controle: #B9B8B1;
+    --etiqueta: #262624;
+    --etiqueta-borda: #3A3A37;
+    --etiqueta-hover: #31312E;
+    --sobre-etiqueta: #F7F6F1;
+    --sobre-etiqueta-suave: rgba(247,246,241,.82);
+    --costura: rgba(255,255,255,.62);
+    --costura-suave: rgba(255,255,255,.40);
+    --contorno-sobre-etiqueta: rgba(255,255,255,.7);
+    --realce-sobre-etiqueta: rgba(255,255,255,.07);
+    --destaque: #F2F1EC;
+    --sobre-destaque: #131312;
+    --sobre-destaque-suave: #4B4B47;
+    --ativo: #F2F1EC;
+    --sobre-ativo: #131312;
+    --sobre-ativo-suave: rgba(19,19,18,.75);
+    --ativo-hover: #FFFFFF;
+    --alerta: #D42A33;
+    --sobre-alerta: #FFFFFF;
+    --alerta-texto: #FF9A9A;
+    --costura-pagina: rgba(255,255,255,.80); /* kimono preto: costura BRANCA */
+  --ponteira-faixa: #C41A25;
+  --friso: #F3F1EC;
+    --sombra-menu: 0 10px 24px rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; background: var(--fundo); }
+body { margin: 0; background: var(--trama), var(--fundo); background-attachment: fixed; color: var(--tinta); font: 400 16px/1.45 var(--ui); font-variation-settings: 'wdth' 92; transition: background-color .25s, color .25s; }
+::selection { background: var(--ativo); color: var(--sobre-ativo); }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; box-shadow: 0 0 0 6px var(--fundo); }
+.etq :focus-visible, .nav-pc :focus-visible, #aviso :focus-visible { outline-color: var(--sobre-etiqueta); box-shadow: 0 0 0 6px var(--etiqueta); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+.num { font-variant-numeric: tabular-nums; }
+svg.lucide { width: 20px; height: 20px; flex: none; }
+
+/* Faixas escuras (preta, marrom) somem no kimono preto: um contorno claro bem leve. */
+:root[data-tema="escuro"] svg.faixa { filter: drop-shadow(0 0 1px rgba(255,255,255,.35)); }
+@media (prefers-color-scheme: dark) { :root:not([data-tema="claro"]) svg.faixa { filter: drop-shadow(0 0 1px rgba(255,255,255,.35)); } }
+
+/* ── Acabamento de FAIXA PRETA ─────────────────────────────────────────
+   A ponta da etiqueta vira a ponteira vermelha da faixa preta, com o friso
+   branco em cima e embaixo (o mesmo desenho da faixa preta desenhada). A
+   costura para antes da ponteira, como numa faixa de verdade. */
+.ponta { --pw: 22px; padding-right: calc(var(--pw) + 10px) !important; }
+.ponta::before { content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: var(--pw); border-radius: 0 var(--r) var(--r) 0;
+  background:
+    linear-gradient(var(--friso), var(--friso)) left 0 top 4px / 100% 2px no-repeat,
+    linear-gradient(var(--friso), var(--friso)) left 0 bottom 4px / 100% 2px no-repeat,
+    var(--ponteira-faixa); pointer-events: none; }
+.ponta::after { right: calc(var(--pw) + 4px) !important; }
+/* Barra do cabeçalho: a costura dupla termina numa ponteira de faixa preta. */
+.topo::before { content: ''; position: absolute; right: 0; bottom: -3px; width: 34px; height: 13px; border-radius: 1px;
+  background:
+    linear-gradient(var(--friso), var(--friso)) left 0 top 2px / 100% 1.5px no-repeat,
+    linear-gradient(var(--friso), var(--friso)) left 0 bottom 2px / 100% 1.5px no-repeat,
+    var(--ponteira-faixa); z-index: 1; }
+.topo::after { right: 40px !important; }
+
+/* ── Etiqueta tecida ───────────────────────────────────────────────── */
+.etq { position: relative; background: var(--etiqueta); color: var(--sobre-etiqueta); border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--etiqueta-borda); }
+.etq::after { content: ''; position: absolute; inset: 5px; border: 1.5px dashed var(--costura); border-radius: var(--r); pointer-events: none; }
+.etq-mini { display: inline-flex; align-items: center; gap: 6px; font: 800 12px/1 var(--ui); font-variation-settings: 'wdth' 80; letter-spacing: .06em; text-transform: uppercase; padding: 6px 8px; border-radius: var(--r); white-space: nowrap; }
+.etq-mini.alerta { background: var(--alerta); color: var(--sobre-alerta); }
+.etq-mini.alerta-contorno { border: 1.5px solid var(--alerta); color: var(--alerta-texto); background: var(--papel); }
+.etq-mini.contorno { border: 1.5px solid var(--tinta-media); color: var(--tinta-media); }
+
+/* ── Estrutura ─────────────────────────────────────────────────────── */
+.app { min-height: 100dvh; }
+.nav { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; background: var(--papel); border-top: 1.5px solid var(--controle); display: grid; grid-template-columns: repeat(5, 1fr); padding-bottom: env(safe-area-inset-bottom); }
+.nav .marca, .nav .tema-pc { display: none; }
+.nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 60px; text-decoration: none; color: var(--tinta-media); font: 700 12px/1 var(--ui); font-variation-settings: 'wdth' 85; }
+.nav a[aria-current] { color: var(--sobre-ativo); background: var(--ativo); }
+main { padding: 12px 16px 96px; max-width: 640px; margin: 0 auto; }
+
+/* Cabeçalho com a costura dupla da barra do kimono embaixo. */
+.topo { position: relative; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 14px; }
+.topo::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 7px; border-top: 1.5px dashed var(--costura-pagina); border-bottom: 1.5px dashed var(--costura-pagina); pointer-events: none; }
+.logo { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--papel); border: 1.5px dashed var(--tinta-suave); color: var(--tinta-media); font: 800 13px/1 var(--ui); font-variation-settings: 'wdth' 75; letter-spacing: .02em; }
+.topo h1 { font: 900 36px/.9 var(--display); letter-spacing: .01em; margin: 0; text-transform: uppercase; }
+.topo .data { color: var(--tinta-media); font-weight: 600; font-size: 13px; }
+.topo .acoes-topo { margin-left: auto; display: flex; gap: 8px; }
+.tema { width: 48px; height: 48px; display: grid; place-items: center; padding: 0; border-radius: var(--r); border: 1.5px solid var(--controle); background: var(--papel); color: var(--tinta); }
+.tema .lua { display: none; }
+:root[data-tema="escuro"] .tema .lua { display: block; } :root[data-tema="escuro"] .tema .sol { display: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-tema="claro"]) .tema .lua { display: block; } :root:not([data-tema="claro"]) .tema .sol { display: none; } }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 18px; border-radius: var(--r); border: 1.5px solid var(--controle); background: var(--papel); font-weight: 750; font-variation-settings: 'wdth' 85; text-decoration: none; color: var(--tinta); transition: transform .15s var(--ease), background .15s; white-space: nowrap; }
+.btn:active { transform: translateY(1px); }
+.btn.cheio { background: var(--ativo); border-color: var(--ativo); color: var(--sobre-ativo); }
+.btn.cheio:hover { background: var(--ativo-hover); }
+.etq .btn { background: transparent; border-color: var(--contorno-sobre-etiqueta); color: var(--sobre-etiqueta); position: relative; z-index: 1; }
+.etq .btn:hover { background: var(--realce-sobre-etiqueta); }
+
+/* ── Chamada ───────────────────────────────────────────────────────── */
+.aula { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 10px; padding: 10px 10px 10px 14px; margin-bottom: 10px; }
+.aula .pos { font: 700 12px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--sobre-etiqueta-suave); }
+.aula .pos span + span { display: none; }
+.aula h2 { font: 900 24px/1.05 var(--display); text-transform: uppercase; margin: 4px 0 0; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aula p { display: none; }
+.aula .acoes { grid-row: 1 / span 2; grid-column: 2; display: grid; grid-template-columns: 44px 44px; gap: 6px; }
+.aula .acoes .btn { min-height: 44px; padding: 0; }
+.aula .acoes .btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+.placar { padding: 8px; margin-bottom: 4px; }
+.pl-rot { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 8px; margin: 2px 6px 6px; font: 700 12px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--sobre-etiqueta-suave); }
+.pl-n-rot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.pl-horarios { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; position: relative; z-index: 1; }
+.hor { display: grid; justify-items: center; align-content: center; gap: 1px; min-height: 64px; padding: 6px 2px 5px; border: 0; border-radius: var(--r); background: transparent; color: var(--sobre-etiqueta); }
+.hor:hover { background: var(--realce-sobre-etiqueta); }
+.hor .h { font: 800 15px/1 var(--ui); font-variation-settings: 'wdth' 75; color: var(--sobre-etiqueta-suave); }
+.hor .p { display: none; }
+.hor .n { font: 900 34px/.95 var(--display); }
+.hor[aria-pressed="true"] { background: var(--destaque); color: var(--sobre-destaque); }
+.hor[aria-pressed="true"] .h { color: var(--sobre-destaque-suave); }
+.pl-rot .agora { text-transform: none; letter-spacing: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hor .tot { display: none; font: 800 16px/1 var(--ui); font-variation-settings: 'wdth' 75; color: var(--sobre-destaque-suave); margin-left: 1px; }
+.hor[aria-pressed="true"] .tot { display: inline; }
+.pl-total { display: none; position: relative; z-index: 1; align-items: center; gap: 12px; padding: 8px 8px 4px; margin-top: 4px; border-top: 1.5px dashed var(--costura-suave); }
+.pl-total .grande { display: flex; align-items: baseline; gap: 4px; }
+.pl-total .grande b { font: 900 46px/.85 var(--display); }
+.pl-total .grande span { font: 800 24px/1 var(--ui); font-variation-settings: 'wdth' 75; color: var(--sobre-etiqueta-suave); }
+.pl-total .rot { font-size: 13px; line-height: 1.3; color: var(--sobre-etiqueta-suave); }
+.pl-total .rot strong { display: block; color: var(--sobre-etiqueta); font: 800 12px/1.2 var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+
+/* A busca presa no topo leva a mesma trama, presa à tela, para não "cortar" o tecido. */
+.barra { position: sticky; top: 0; z-index: 6; background: var(--trama), var(--fundo); background-attachment: fixed; padding: 8px 0; height: var(--barra); }
+.entrada { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; background: var(--papel); border: 1.5px solid var(--controle); border-radius: var(--r); }
+.entrada input { border: 0; outline: 0; background: none; width: 100%; font-size: 16px; min-height: 44px; }
+.entrada:focus-within { outline: 3px solid var(--tinta); outline-offset: 2px; }
+.entrada input::placeholder { color: var(--tinta-suave); }
+
+.ch-corpo { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 4px; }
+.letra { font: 800 15px/1 var(--ui); font-variation-settings: 'wdth' 75; color: var(--tinta-media); padding: 8px 0 3px; border-bottom: 1.5px solid var(--controle); scroll-margin-top: calc(var(--barra) + 4px); }
+.linha { width: 100%; display: grid; grid-template-columns: 56px minmax(0, 1fr) 96px; align-items: center; gap: 10px; min-height: 52px; padding: 4px 0; background: none; border: 0; border-bottom: 1px solid var(--linha); text-align: left; }
+.linha .faixa { width: 56px; }
+.linha .txt { min-width: 0; }
+.nome { display: block; font-weight: 700; font-size: 16px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.linha small { display: block; color: var(--tinta-suave); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.linha small .alerta { color: var(--alerta-texto); font-weight: 700; }
+.caixa { height: 44px; border-radius: var(--r); border: 1.5px dashed var(--tinta-suave); background: var(--papel); display: flex; align-items: center; justify-content: center; gap: 5px; font: 800 12px/1 var(--ui); font-variation-settings: 'wdth' 80; letter-spacing: .05em; text-transform: uppercase; color: var(--tinta-media); }
+.caixa svg.lucide { width: 17px; height: 17px; }
+.linha:hover .caixa { border-color: var(--controle); color: var(--tinta); }
+.linha[aria-pressed="true"] .caixa { border: 0; background: var(--ativo); color: var(--sobre-ativo); }
+
+#ch-indice { position: sticky; top: calc(var(--barra) + 2px); align-self: start; display: flex; flex-direction: column; touch-action: none; user-select: none; }
+#ch-indice button { height: 44px; width: 44px; border: 0; padding: 0; background: none; border-radius: var(--r); font: 800 16px/1 var(--ui); font-variation-settings: 'wdth' 75; color: var(--tinta); }
+#ch-indice button:hover, #ch-indice button.ativo { background: var(--ativo); color: var(--sobre-ativo); }
+#ch-indice button.duplo { font-size: 13px; }
+
+.outros { border: 1.5px solid var(--controle); background: var(--papel); padding: 4px 12px 8px; margin-bottom: 10px; border-radius: var(--r); }
+.outros h3 { margin: 8px 0 2px; font-size: 14.5px; }
+.item-outro { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 56px; border-bottom: 1px solid var(--linha); }
+.item-outro:last-child { border-bottom: 0; }
+.item-outro .faixa { width: 56px; }
+.item-outro .txt { min-width: 0; }
+.item-outro .btn { min-height: 44px; padding: 0 12px; }
+.vazio { padding: 16px 2px; color: var(--tinta-media); }
+
+/* ── Alunos ────────────────────────────────────────────────────────── */
+.filtros { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 6px; }
+.filtro { flex: none; min-height: 44px; padding: 0 14px; border-radius: var(--r); border: 1.5px solid var(--tinta-suave); background: var(--papel); font-weight: 700; font-size: 14.5px; font-variation-settings: 'wdth' 85; display: inline-flex; align-items: center; gap: 6px; }
+.filtro em { font-style: normal; color: var(--tinta-suave); font-weight: 600; }
+.filtro[aria-pressed="true"] { background: var(--ativo); border-color: var(--ativo); color: var(--sobre-ativo); }
+.filtro[aria-pressed="true"] em { color: var(--sobre-ativo-suave); }
+.filtro.alerta { border-color: var(--alerta); color: var(--alerta-texto); }
+.filtro.alerta[aria-pressed="true"] { background: var(--alerta); color: var(--sobre-alerta); }
+.filtro.alerta[aria-pressed="true"] em { color: var(--sobre-alerta); }
+
+.fx-menu { position: relative; }
+.fx-botao svg.lucide { width: 18px; height: 18px; transition: transform .2s var(--ease); }
+.fx-botao[aria-expanded="true"] svg.lucide { transform: rotate(180deg); }
+.fx-botao.ativo { background: var(--ativo); border-color: var(--ativo); color: var(--sobre-ativo); }
+.fx-painel { display: none; position: absolute; z-index: 8; top: calc(100% + 6px); left: 0; width: max-content; max-width: calc(100vw - 32px); padding: 8px; gap: 8px; flex-wrap: wrap; background: var(--papel); border: 1.5px solid var(--controle); border-radius: var(--r); box-shadow: var(--sombra-menu); }
+.fx-painel.aberto { display: flex; }
+@media (max-width: 420px) { .fx-menu { position: static; } .filtros { position: relative; } .fx-painel { left: 0; right: 0; width: auto; max-width: none; } }
+.grupo { margin-top: 18px; }
+.grupo > h3 { margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+.al { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 4px 14px; min-height: 64px; padding: 10px 2px; background: none; border: 0; border-bottom: 1px solid var(--linha); text-align: left; }
+.al .nome { font-size: 16px; }
+.al .meta { grid-column: 1; color: var(--tinta-suave); font-size: 13px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.al .faixa { grid-column: 2; grid-row: 1 / span 2; width: 96px; }
+.al .col { display: none; }
+.cab-tabela { display: none; }
+.al[aria-current="true"] { background: var(--papel); box-shadow: inset 0 0 0 1.5px var(--controle); }
+
+.detalhe { position: fixed; inset: 0; z-index: 30; background: var(--trama), var(--fundo); overflow-y: auto; padding: 16px 16px 40px; transform: translateY(100%); visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; }
+.detalhe-aberto .detalhe { transform: none; visibility: visible; transition: transform .32s var(--ease); }
+.det-topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.fechar { width: 48px; height: 48px; border: 1.5px solid var(--controle); background: var(--papel); border-radius: var(--r); display: grid; place-items: center; }
+.det-nome { font: 900 46px/.92 var(--display); text-transform: uppercase; margin: 6px 0 14px; letter-spacing: .01em; }
+.det-faixa { padding: 18px 16px 16px; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); }
+.det-faixa .faixa { width: 100%; }
+.det-dados { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--linha); border: 1px solid var(--linha); margin: 14px 0; }
+.det-dados div { background: var(--fundo); padding: 12px 10px; }
+.det-dados dt { font-size: 13px; color: var(--tinta-media); font-weight: 600; }
+.det-dados dd { margin: 2px 0 0; font: 800 24px/1.05 var(--ui); font-variation-settings: 'wdth' 75; }
+.bloco { padding: 16px 16px 14px; margin-bottom: 10px; border-radius: var(--r); }
+.bloco h4 { margin: 0 0 6px; font: 800 12px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.bloco p { margin: 0; }
+.bloco.ibjjf p { color: var(--sobre-etiqueta-suave); position: relative; z-index: 1; }
+.bloco.ritmo { border: 1.5px solid var(--controle); background: var(--papel); }
+.ritmo .contas { display: flex; align-items: baseline; gap: 6px; margin-top: 8px; }
+.ritmo .contas b { font: 800 24px/1 var(--ui); font-variation-settings: 'wdth' 75; }
+.ritmo .contas span { color: var(--tinta-media); font-weight: 600; }
+.det-alerta { margin: 0 0 10px; }
+.det-acoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.det-acoes .btn:first-child { grid-column: 1 / -1; }
+
+#aviso { position: fixed; z-index: 40; left: 50%; bottom: 76px; transform: translate(-50%, 20px); opacity: 0; background: var(--etiqueta); box-shadow: inset 0 0 0 1px var(--etiqueta-borda); color: var(--sobre-etiqueta); padding: 6px 6px 6px 16px; min-height: 52px; border-radius: var(--r); font-weight: 700; font-size: 14.5px; display: flex; align-items: center; gap: 14px; pointer-events: none; transition: opacity .2s, transform .25s var(--ease); white-space: nowrap; }
+#aviso.ver { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+#aviso-desfazer { min-height: 44px; padding: 0 12px; border: 1.5px solid var(--contorno-sobre-etiqueta); background: none; color: var(--sobre-etiqueta); font-weight: 800; border-radius: var(--r); }
+.rodape-nota { margin-top: 24px; font-size: 13px; color: var(--tinta-suave); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .acabou-de-marcar .caixa { animation: costura .34s var(--ease); }
+  @keyframes costura { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ── Computador ────────────────────────────────────────────────────── */
+@media (min-width: 960px) {
+  .app { display: grid; grid-template-columns: 232px 1fr; }
+  .nav { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 4px; padding: 20px 14px; background: var(--etiqueta); border: 0; box-shadow: inset -1px 0 0 var(--etiqueta-borda); }
+  .nav::after { content: ''; position: absolute; inset: 8px 8px 44px; border: 1.5px dashed var(--costura-suave); pointer-events: none; }
+  .nav::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 36px;
+    background:
+      linear-gradient(90deg, var(--friso), var(--friso)) left 0 top 5px / 100% 2px no-repeat,
+      linear-gradient(90deg, var(--friso), var(--friso)) left 0 bottom 5px / 100% 2px no-repeat,
+      var(--ponteira-faixa); }
+  .ponta { --pw: 30px; }
+  .nav .marca { display: flex; align-items: center; gap: 10px; color: var(--sobre-etiqueta); padding: 4px 6px 22px; }
+  .nav .marca .logo { width: 48px; height: 48px; background: transparent; border-color: var(--costura); color: var(--sobre-etiqueta-suave); }
+  .nav .marca b { display: block; font: 900 30px/.86 var(--display); letter-spacing: .02em; }
+  .nav a { flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 14px; min-height: 48px; font-size: 15px; color: var(--sobre-etiqueta-suave); border-radius: var(--r); position: relative; z-index: 1; }
+  .nav a:hover { background: var(--realce-sobre-etiqueta); color: var(--sobre-etiqueta); }
+  .nav a[aria-current] { background: var(--destaque); color: var(--sobre-destaque); }
+  .nav :focus-visible { outline-color: var(--sobre-etiqueta); box-shadow: 0 0 0 6px var(--etiqueta); }
+  main { max-width: none; margin: 0; padding: 26px 36px 40px; }
+  .topo { margin-bottom: 22px; padding-bottom: 18px; }
+  .topo > .logo { display: none; }
+  .topo h1 { font-size: 60px; }
+  #aviso { bottom: 28px; left: auto; right: 28px; transform: translateY(20px); }
+  #aviso.ver { transform: none; }
+
+  .ch-grade { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: "placar placar" "lista aula"; gap: 22px 32px; align-items: start; }
+  .placar { grid-area: placar; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 8px; padding: 10px; margin: 0; }
+  .ch-lista-area { grid-area: lista; }
+  .aula { grid-area: aula; position: sticky; top: 26px; display: block; padding: 20px 20px 18px; margin: 0; }
+  .aula .pos { display: flex; justify-content: space-between; font-size: 12px; }
+  .aula .pos span + span { display: inline; }
+  .aula h2 { font-size: 36px; white-space: normal; margin: 10px 0 8px; line-height: .95; }
+  .aula p { display: block; margin: 0 0 16px; color: var(--sobre-etiqueta-suave); font-size: 15px; position: relative; z-index: 1; }
+  .aula .acoes { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .aula .acoes .btn { min-height: 48px; padding: 0 12px; }
+  .aula .acoes .btn span { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .pl-horarios { gap: 6px; }
+  .hor { grid-template-columns: auto 1fr; grid-template-rows: auto auto; justify-items: start; align-items: end; column-gap: 10px; min-height: 96px; padding: 12px 14px; text-align: left; }
+  .hor .h { font-size: 24px; color: var(--sobre-etiqueta); }
+  .hor .p { display: block; font: 600 13px/1.2 var(--ui); color: var(--sobre-etiqueta-suave); align-self: center; }
+  .hor .n { grid-column: 1 / -1; font-size: 52px; }
+  .hor .tot { display: none !important; }
+  .hor .n .pl-n-rot { position: static; width: auto; height: auto; overflow: visible; clip: auto; font: 700 13px/1 var(--ui); margin-left: 6px; letter-spacing: 0; }
+  .pl-rot { display: none; }
+  .hor[aria-pressed="true"] .h { color: var(--sobre-destaque); }
+  .hor[aria-pressed="true"] .p { color: var(--sobre-destaque-suave); }
+  .pl-total { display: flex; margin: 0; padding: 12px 16px; border-top: 0; border-left: 1.5px dashed var(--costura-suave); flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; }
+  .pl-total .grande b { font-size: 76px; }
+  .barra { position: static; height: auto; padding: 0 0 10px; background: none; }
+  .barra .entrada { max-width: 560px; }
+  .ch-corpo { display: flex; flex-direction: column; }
+  #ch-indice { order: -1; position: static; flex-direction: row; flex-wrap: wrap; gap: 2px; margin-bottom: 6px; }
+  #ch-lista { columns: 2 320px; column-gap: 32px; }
+  #ch-lista > div { break-inside: avoid; }
+  .linha { grid-template-columns: 80px minmax(0, 1fr) 104px; min-height: 54px; }
+  .linha .faixa { width: 80px; }
+
+  .al-grade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 400px); gap: 32px; align-items: start; }
+  .filtros { margin: 14px 0 6px; }
+  .fx-menu { display: contents; }
+  .fx-botao { display: none; }
+  .fx-painel { display: contents; }
+  .al { grid-template-columns: minmax(180px, 1.4fr) 120px 90px 110px 150px; min-height: 56px; }
+  .al .faixa { grid-row: auto; grid-column: 2; width: 110px; }
+  .al .meta { display: none; }
+  .al .col { display: block; color: var(--tinta-media); font-size: 14.5px; }
+  .al .col.st { display: flex; }
+  .cab-tabela { display: grid; grid-template-columns: minmax(180px, 1.4fr) 120px 90px 110px 150px; gap: 14px; padding: 0 2px 8px; font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-media); border-bottom: 1.5px solid var(--controle); margin-top: 10px; }
+  .detalhe { position: sticky; top: 26px; inset: auto; transform: none; visibility: visible; transition: none; background: var(--papel); border: 1.5px solid var(--controle); border-radius: var(--r); padding: 20px; max-height: calc(100dvh - 52px); }
+  .detalhe .fechar { display: none; }
+  .det-nome { font-size: 40px; }
+}
+@media (min-width: 960px) and (max-width: 1180px) {
+  .al, .cab-tabela { grid-template-columns: minmax(160px, 1fr) 110px 90px; }
+  .al .col.h2, .al .col.st, .cab-tabela .h2, .cab-tabela .st { display: none; }
+  .placar { grid-template-columns: 1fr; }
+  .ch-grade { grid-template-columns: 1fr; grid-template-areas: "placar" "aula" "lista"; }
+  .aula { position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 20px; align-items: end; }
+  .aula .acoes { grid-column: 2; grid-row: 1 / span 3; }
+  .pl-total { border-left: 0; border-top: 1.5px dashed var(--costura-suave); flex-direction: row; align-items: center; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="nav" aria-label="Principal">
+    <div class="marca"><span class="logo" aria-hidden="true">GM</span><b>Grau<br>Mestre</b></div>
+    <a href="#chamada" data-nav="chamada"><i data-lucide="list-checks"></i>Chamada</a>
+    <a href="#alunos" data-nav="alunos"><i data-lucide="users"></i>Alunos</a>
+    <a href="#" data-nav="aulas" data-acao="Essa tela não faz parte deste protótipo"><i data-lucide="calendar-days"></i>Aulas</a>
+    <a href="#" data-nav="graduar" data-acao="Essa tela não faz parte deste protótipo"><i data-lucide="award"></i>Graduar</a>
+    <a href="#" data-nav="mais" data-acao="Essa tela não faz parte deste protótipo"><i data-lucide="menu"></i>Mais</a>
+  </nav>
+
+  <main>
+    <section data-tela="chamada" aria-labelledby="t-ch">
+      <header class="topo">
+        <span class="logo" aria-hidden="true">GM</span>
+        <div><h1 id="t-ch">Chamada</h1><div class="data">Terça, 29 de setembro</div></div>
+        <div class="acoes-topo">
+          <button class="tema" type="button" data-tema-troca aria-label="Trocar entre kimono branco e kimono preto"><i class="sol" data-lucide="sun"></i><i class="lua" data-lucide="moon"></i></button>
+        </div>
+      </header>
+
+      <div class="ch-grade">
+        <article class="aula etq ponta" aria-labelledby="t-aula">
+          <div class="pos"><span>Aula do dia</span><span>Passagem de guarda</span></div>
+          <h2 id="t-aula">Toreando da De La Riva</h2>
+          <p>Controle da calça, quebra do gancho, passa pelo lado do pé solto.</p>
+          <div class="acoes">
+            <button class="btn" data-acao="Abrindo o vídeo da aula"><i data-lucide="play"></i><span>Vídeo</span></button>
+            <button class="btn" data-acao="Abrindo a câmera para a foto da aula"><i data-lucide="camera"></i><span>Pôr foto</span></button>
+          </div>
+        </article>
+
+        <div class="placar etq ponta">
+          <h2 class="pl-rot"><span>Presentes por horário</span><span class="agora">agora: <span data-hora-atual></span></span></h2>
+          <div id="horarios" class="pl-horarios" role="group" aria-label="Escolher horário"></div>
+          <div class="pl-total">
+            <div class="grande"><b class="num" data-presentes>0</b><span class="num">/<span data-total>0</span></span></div>
+            <div class="rot"><strong>Presentes</strong>na turma das <span data-hora-atual></span></div>
+          </div>
+        </div>
+
+        <div class="ch-lista-area">
+          <div class="barra">
+            <div class="entrada"><i data-lucide="search"></i><label class="sr" for="ch-busca">Buscar na chamada</label><input id="ch-busca" type="search" placeholder="Buscar aluno, até de outro horário" autocomplete="off"></div>
+          </div>
+          <div id="ch-extra"></div>
+          <div class="ch-corpo">
+            <div id="ch-lista"></div>
+            <nav id="ch-indice" aria-label="Índice alfabético"></nav>
+          </div>
+        </div>
+      </div>
+      <p class="rodape-nota">Protótipo GrauMestre v2 (trama de kimono, kimono branco e kimono preto). Dados fictícios. Logo e vermelho de alerta provisórios.</p>
+    </section>
+
+    <section data-tela="alunos" aria-labelledby="t-al" hidden>
+      <header class="topo">
+        <span class="logo" aria-hidden="true">GM</span>
+        <div><h1 id="t-al">Alunos</h1><div class="data"><span data-achados class="num">0</span> na lista</div></div>
+        <div class="acoes-topo">
+          <button class="btn cheio" data-acao="Abrindo o cadastro de aluno"><i data-lucide="plus"></i>Novo</button>
+          <button class="tema" type="button" data-tema-troca aria-label="Trocar entre kimono branco e kimono preto"><i class="sol" data-lucide="sun"></i><i class="lua" data-lucide="moon"></i></button>
+        </div>
+      </header>
+
+      <div class="al-grade">
+        <div>
+          <div class="entrada"><i data-lucide="search"></i><label class="sr" for="al-busca">Buscar aluno</label><input id="al-busca" type="search" placeholder="Buscar aluno" autocomplete="off"></div>
+          <div id="filtros" class="filtros" role="group" aria-label="Filtrar alunos"></div>
+          <div class="cab-tabela" aria-hidden="true"><span>Nome</span><span>Faixa</span><span class="h2">Horário</span><span class="h2">30 dias</span><span class="st">Situação</span></div>
+          <div id="al-lista"></div>
+        </div>
+        <aside id="al-detalhe" class="detalhe" aria-label="Aluno selecionado"></aside>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="aviso"></div>
+
+<script>/* comum/dados.js (copiado do FOJJ) */
+// Dados FICTÍCIOS para as direções visuais da Fase 1. Não são alunos reais.
+// Nomes gerados por combinação; números sorteados de forma fixa (semente),
+// para as três direções mostrarem exatamente a mesma turma.
+
+(function () {
+  let s = 20260929
+  const rnd = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296)
+  const pick = arr => arr[Math.floor(rnd() * arr.length)]
+
+  const nomes = ['Ana', 'Bruno', 'Caio', 'Davi', 'Eduarda', 'Felipe', 'Gabriel', 'Helena', 'Igor', 'Júlia',
+    'Kaique', 'Larissa', 'Mateus', 'Nicole', 'Otávio', 'Paula', 'Rafael', 'Sabrina', 'Tiago', 'Vitória',
+    'Wesley', 'Yasmin', 'Arthur', 'Beatriz', 'Cauã', 'Diego', 'Enzo', 'Fernanda', 'Gustavo', 'Heitor',
+    'Isabela', 'João', 'Lucas', 'Marina', 'Nathan', 'Pedro', 'Renan', 'Samuel', 'Thaís', 'Vinícius',
+    'Alice', 'Bernardo', 'Camila', 'Danilo', 'Emanuel', 'Luan', 'Miguel', 'Rodrigo', 'Letícia', 'Murilo']
+  const sobrenomes = ['Almeida', 'Barbosa', 'Cardoso', 'Duarte', 'Esteves', 'Farias', 'Gomes', 'Honorato',
+    'Lacerda', 'Machado', 'Nogueira', 'Oliveira', 'Pacheco', 'Queiroz', 'Rezende', 'Siqueira', 'Teixeira',
+    'Valadares', 'Xavier', 'Moura', 'Brandão', 'Coutinho', 'Freitas', 'Lima', 'Paiva', 'Rocha']
+
+  // Horários: PROPOSTA da Fase 3 (o banco ainda não tem). Professores fictícios.
+  const horarios = [
+    { id: 'h1', hora: '06:30', rotulo: 'Manhã', professor: 'Pedro', turma: 'geral' },
+    { id: 'h2', hora: '12:00', rotulo: 'Almoço', professor: 'Pedro', turma: 'geral' },
+    { id: 'h3', hora: '18:30', rotulo: 'Kids', professor: 'Pedro', turma: 'geral' },
+    { id: 'h4', hora: '20:00', rotulo: 'Noite', professor: 'Pedro', turma: 'geral' },
+  ]
+
+  const adultas = [['branca', 24], ['azul', 17], ['roxa', 9], ['marrom', 5], ['preta', 3]]
+  const infantis = [['branca', 5], ['cinza_branca', 2], ['cinza', 3], ['cinza_preta', 2], ['amarela_branca', 2],
+    ['amarela', 3], ['amarela_preta', 2], ['laranja_branca', 1], ['laranja', 2], ['laranja_preta', 1],
+    ['verde_branca', 1], ['verde', 1]]
+
+  const alunos = []
+  const usados = new Set()
+  function novoNome() {
+    let n
+    do { n = pick(nomes) + ' ' + pick(sobrenomes) } while (usados.has(n))
+    usados.add(n)
+    return n
+  }
+  function gerar(lista, infantil) {
+    for (const [faixa, qtd] of lista) {
+      for (let i = 0; i < qtd; i++) {
+        const max = FOJJ.grausMaximos(faixa, infantil)
+        const graus = Math.floor(rnd() * (Math.min(max, 4) + 1))
+        const h = infantil ? (rnd() < 0.6 ? 'h3' : pick(['h1', 'h2', 'h4'])) : pick(['h1', 'h2', 'h2', 'h3', 'h3', 'h4', 'h4', 'h4'])
+        const presencas30 = Math.floor(rnd() * 17)
+        const idade = infantil ? 6 + Math.floor(rnd() * 10) : 17 + Math.floor(rnd() * 30)
+        alunos.push({
+          id: 'a' + alunos.length,
+          nome: novoNome(),
+          faixa, graus, infantil, idade,
+          horario: h,
+          presencas30,
+          afastado: presencas30 === 0 && rnd() < 0.8,
+          pronto: presencas30 > 11 && rnd() < 0.3 && graus < max,
+          desde: 2019 + Math.floor(rnd() * 7),
+        })
+      }
+    }
+  }
+
+  window.FOJJ = window.FOJJ || {}
+  // Espelho de lib/regras-ibjjf.ts para o protótipo: branca existe nas duas
+  // progressões, por isso sempre recebe `infantil`.
+  FOJJ.grausMaximos = (faixa, infantil) => faixa === 'preta' ? 9 : (infantil ? 3 : 4)
+  FOJJ.nomeFaixa = f => ({
+    branca: 'Branca', azul: 'Azul', roxa: 'Roxa', marrom: 'Marrom', preta: 'Preta',
+    cinza_branca: 'Cinza e branca', cinza: 'Cinza', cinza_preta: 'Cinza e preta',
+    amarela_branca: 'Amarela e branca', amarela: 'Amarela', amarela_preta: 'Amarela e preta',
+    laranja_branca: 'Laranja e branca', laranja: 'Laranja', laranja_preta: 'Laranja e preta',
+    verde_branca: 'Verde e branca', verde: 'Verde', verde_preta: 'Verde e preta',
+  })[f]
+  // Ordem do quadro: da mais alta para a mais baixa.
+  const ORDEM = ['preta', 'marrom', 'roxa', 'azul', 'verde_preta', 'verde', 'verde_branca', 'laranja_preta', 'laranja',
+    'laranja_branca', 'amarela_preta', 'amarela', 'amarela_branca', 'cinza_preta', 'cinza', 'cinza_branca', 'branca']
+  FOJJ.rank = a => ORDEM.indexOf(a.faixa) * 10 - a.graus + (a.infantil ? 0.5 : 0)
+  FOJJ.grupo = a => a.infantil ? 'Kids' : FOJJ.nomeFaixa(a.faixa)
+
+  gerar(adultas, false)
+  gerar(infantis, true)
+  // Quem já está marcado na chamada de hoje (para a tela não abrir vazia).
+  FOJJ.alunos = alunos
+  FOJJ.horarios = horarios
+  FOJJ.aulaDoDia = {
+    dia: 'Terça, 29 de setembro',
+    tecnica: 'Toreando da De La Riva',
+    posicao: 'Passagem de guarda',
+    notas: 'Controle da calça, quebra do gancho, passa pelo lado do pé solto.',
+    video: true,
+    foto: false,
+  }
+  FOJJ.iniciais = n => n.split(' ').map(p => p[0]).slice(0, 2).join('')
+  FOJJ.semAcento = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+})()
+
+</script>
+<script>/* comum/faixa.js (copiado do FOJJ) */
+// Porte fiel de components/FaixaDesenhada.tsx para os protótipos HTML.
+// Mesmas regras de desenho: corpo + listra central longitudinal (art. 1.3.1),
+// ponteira preta (vermelha com friso na preta), um esparadrapo por posição do
+// teto da faixa, 7º/8º/9º da preta como construções próprias.
+// `opts.fundo` ('claro' | 'escuro') só ajusta o contorno dos espaços vazios
+// para o fundo de cada direção.
+
+(function () {
+  const TONS = {
+    branco: ['#F3F1EC', '#FFFFFF', '#D9D4C7'], cinza: ['#9AA0A6', '#C3C7CB', '#6C7075'],
+    amarelo: ['#F2C317', '#FCDD57', '#B4900E'], laranja: ['#EF7B1A', '#FFA34E', '#B3560D'],
+    verde: ['#2E7D32', '#4E9A52', '#1B4E1E'], azul: ['#1565C0', '#3F8DE0', '#0C3E76'],
+    roxo: ['#6A1B9A', '#8F41C0', '#3E0F5C'], marrom: ['#4E342E', '#6E4A42', '#2C1C18'],
+    preto: ['#161616', '#2E2E2E', '#000000'], vermelho: ['#B71C1C', '#E53935', '#7A1010'],
+    prata: ['#C9CDD1', '#EDEFF1', '#8A8E92'], dourado: ['#C9A84C', '#E6C876', '#8F7530'],
+  }
+  const CLAROS = new Set(['branco', 'cinza', 'amarelo', 'prata', 'dourado'])
+  const CONSTR = {
+    branca: ['branco'], azul: ['azul'], roxa: ['roxo'], marrom: ['marrom'], preta: ['preto'],
+    cinza_branca: ['cinza', 'branco'], cinza: ['cinza'], cinza_preta: ['cinza', 'preto'],
+    amarela_branca: ['amarelo', 'branco'], amarela: ['amarelo'], amarela_preta: ['amarelo', 'preto'],
+    laranja_branca: ['laranja', 'branco'], laranja: ['laranja'], laranja_preta: ['laranja', 'preto'],
+    verde_branca: ['verde', 'branco'], verde: ['verde'], verde_preta: ['verde', 'preto'],
+  }
+
+  function defs() {
+    const g = Object.entries(TONS).map(([id, [b, r, s]]) =>
+      `<linearGradient id="fg-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${r}"/><stop offset="45%" stop-color="${b}"/><stop offset="100%" stop-color="${s}"/></linearGradient>`).join('')
+    return `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>${g}
+      <pattern id="ft-escura" width="4" height="3" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="4" y2="0" stroke="rgba(0,0,0,0.10)" stroke-width="1"/></pattern>
+      <pattern id="ft-clara" width="4" height="3" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="4" y2="0" stroke="rgba(255,255,255,0.08)" stroke-width="1"/></pattern>
+    </defs></svg>`
+  }
+
+  const W = 220, H = 40, PW = 54
+  function svg(faixa, graus, max, opts = {}) {
+    const det = opts.size !== 'sm'
+    const [corpo, listra] = CONSTR[faixa]
+    const claro = CLAROS.has(corpo)
+    const borda = claro ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.16)'
+    const trama = claro ? 'url(#ft-escura)' : 'url(#ft-clara)'
+    const x = 2, y = 4, w = W - 4, h = H - 8, r = 4
+    let o = ''
+    if (det) o += `<ellipse cx="${W / 2}" cy="${H - 1}" rx="${W / 2 - 8}" ry="4" fill="rgba(0,0,0,0.22)"/>`
+
+    if (faixa === 'preta' && graus >= 7) {
+      if (graus >= 9) {
+        o += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="url(#fg-branco)" stroke="rgba(0,0,0,0.35)"/>`
+        for (const f of [0.28, 0.5, 0.72]) o += `<rect x="${x + 6}" y="${y + h * f - 2}" width="${w - 12}" height="4" rx="2" fill="url(#fg-dourado)"/>`
+      } else {
+        const alt = graus === 7 ? 'preto' : 'branco', gw = w / 6
+        for (let i = 0; i < 6; i++) o += `<rect x="${x + i * gw}" y="${y}" width="${gw}" height="${h}" fill="url(#fg-${i % 2 ? alt : 'vermelho'})" stroke="rgba(0,0,0,0.25)" stroke-width="0.5"/>`
+        o += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="none" stroke="rgba(0,0,0,0.35)"/>`
+      }
+    } else {
+      o += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="url(#fg-${corpo})" stroke="${borda}"/>`
+      if (det) o += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${trama}"/>`
+      if (listra) {
+        const lh = h / 3, ly = y + (h - lh) / 2
+        const bl = listra === 'preto' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)'
+        o += `<rect x="${x}" y="${ly}" width="${w}" height="${lh}" rx="${lh / 2}" fill="url(#fg-${listra})" stroke="${bl}"/>`
+      }
+      if (det) {
+        o += `<line x1="${x + 6}" y1="${H * 0.32}" x2="${x + w - 6}" y2="${H * 0.32}" stroke="rgba(0,0,0,0.28)" stroke-dasharray="2 3"/>`
+        o += `<line x1="${x + 6}" y1="${H * 0.68}" x2="${x + w - 6}" y2="${H * 0.68}" stroke="rgba(0,0,0,0.28)" stroke-dasharray="2 3"/>`
+      }
+      const px = x + w - PW
+      o += `<rect x="${px}" y="${y}" width="${PW}" height="${h}" rx="${r}" fill="url(#fg-${faixa === 'preta' ? 'vermelho' : 'preto'})"/>`
+      if (faixa === 'preta') {
+        o += `<line x1="${px}" y1="${y + 2}" x2="${x + w}" y2="${y + 2}" stroke="#F3F1EC" stroke-width="1.5"/>`
+        o += `<line x1="${px}" y1="${y + h - 2}" x2="${x + w}" y2="${y + h - 2}" stroke="#F3F1EC" stroke-width="1.5"/>`
+      }
+      const total = faixa === 'preta' ? 6 : Math.max(1, max)
+      const acesas = Math.min(graus, total), esp = (PW - 12) / total, mw = Math.max(3, esp - 3)
+      for (let i = 0; i < total; i++) {
+        const mx = px + 6 + i * esp
+        o += i < acesas
+          ? `<rect x="${mx}" y="${y + 4}" width="${mw}" height="${h - 8}" rx="1.5" fill="#EDE7D9"/><rect x="${mx + mw - 1.4}" y="${y + 4}" width="1.4" height="${h - 8}" rx="0.7" fill="rgba(0,0,0,0.22)"/>`
+          : `<rect x="${mx}" y="${y + 4}" width="${mw}" height="${h - 8}" rx="1.5" fill="none" stroke="rgba(255,255,255,0.28)"/>`
+      }
+    }
+    const nome = FOJJ.nomeFaixa(faixa)
+    const a11y = opts.decor ? 'aria-hidden="true" focusable="false"' : `role="img" aria-label="Faixa ${nome}, ${graus} ${graus === 1 ? 'grau' : 'graus'}"`
+    return `<svg class="faixa" viewBox="0 0 ${W} ${H}" ${a11y} style="overflow:visible;display:block">${o}</svg>`
+  }
+
+  window.FOJJ = window.FOJJ || {}
+  FOJJ.faixaDefs = defs
+  FOJJ.faixa = svg
+})()
+
+</script>
+<script>/* comum/app.js (copiado do FOJJ) */
+// Comportamento comum aos protótipos. Cada direção fornece `R` com os
+// moldes (templates) dela; aqui fica só estado e eventos.
+// A chamada grava na hora (sem botão Salvar): um toque marca/desmarca, o
+// aviso "gravado" sai por aria-live e traz "Desfazer".
+
+(function () {
+  const A = () => FOJJ.alunos
+  const porId = id => A().find(a => a.id === id)
+  const primeiro = n => n.split(' ')[0]
+
+  FOJJ.iniciar = function (R) {
+    document.body.insertAdjacentHTML('afterbegin', FOJJ.faixaDefs())
+
+    // Estado inicial: manhã e almoço já aconteceram; a noite (20:00) está em andamento.
+    const presentes = new Set()
+    let k = 0
+    for (const a of A()) {
+      k++
+      if (a.afastado) continue
+      if (a.horario === 'h1' && k % 3 !== 0) presentes.add(a.id)
+      if (a.horario === 'h2' && k % 2 === 0) presentes.add(a.id)
+      if (a.horario === 'h3' && k % 3 === 1) presentes.add(a.id)
+      if (a.horario === 'h4' && k % 4 === 0) presentes.add(a.id)
+    }
+    const st = { horario: 'h4', presentes, extras: {}, busca: '', filtro: 'todos', sel: null, buscaCh: '' }
+    FOJJ.estado = st
+
+    const $ = s => document.querySelector(s)
+    const $$ = s => [...document.querySelectorAll(s)]
+    const icones = () => window.lucide && lucide.createIcons({ attrs: { 'stroke-width': R.traco || 2 } })
+    const pc = matchMedia('(min-width: 960px)')
+
+    // ── Aviso com "Desfazer" ────────────────────────────────────────────
+    const av = $('#aviso')
+    if (av) {
+      av.removeAttribute('role'); av.removeAttribute('aria-live')
+      av.innerHTML = '<span id="aviso-texto" role="status" aria-live="polite"></span><button type="button" id="aviso-desfazer" hidden>Desfazer</button>'
+    }
+    let desfazer = null
+    function aviso(t, acaoDesfazer) {
+      if (!av) return
+      const tx = $('#aviso-texto'), bt = $('#aviso-desfazer')
+      tx.textContent = ''
+      desfazer = acaoDesfazer || null
+      bt.hidden = !desfazer
+      setTimeout(() => { tx.textContent = t; av.classList.add('ver') }, 30)
+      clearTimeout(aviso.t)
+      aviso.t = setTimeout(() => { av.classList.remove('ver'); desfazer = null }, desfazer ? 6000 : 2000)
+    }
+
+    // ── Navegação por hash ──────────────────────────────────────────────
+    function tela() {
+      const t = (location.hash || '#chamada').slice(1)
+      $$('[data-tela]').forEach(el => el.hidden = el.dataset.tela !== t)
+      $$('[data-nav]').forEach(el => el.dataset.nav === t ? el.setAttribute('aria-current', 'page') : el.removeAttribute('aria-current'))
+    }
+    window.addEventListener('hashchange', tela)
+
+    // ── Chamada ─────────────────────────────────────────────────────────
+    const ordem = R.ordemChamada || ((a, b) => a.nome.localeCompare(b.nome))
+    const doHorario = h => A().filter(a => a.horario === h).sort(ordem)
+    const presentesNo = h => A().filter(a => st.presentes.has(a.id) && (st.extras[a.id] || a.horario) === h).length
+    const casa = a => FOJJ.semAcento(a.nome).includes(FOJJ.semAcento(st.buscaCh.trim()))
+
+    function contadores() {
+      const n = presentesNo(st.horario)
+      $$('[data-presentes]').forEach(el => el.textContent = n)
+      $$('[data-total]').forEach(el => el.textContent = doHorario(st.horario).length + Object.values(st.extras).filter(h => h === st.horario).length)
+      for (const h of FOJJ.horarios) $$(`[data-contagem="${h.id}"]`).forEach(el => el.textContent = presentesNo(h.id))
+    }
+
+    // Uma busca só, no topo: filtra o horário atual e, abaixo, oferece quem
+    // é de outro horário. Grupos opcionais (letra, faixa) vêm da direção.
+    function listaChamada() {
+      const el = $('#ch-lista'); if (!el) return
+      const q = st.buscaCh.trim()
+      const base = doHorario(st.horario).filter(a => !q || casa(a))
+      const extras = A().filter(a => st.extras[a.id] === st.horario && (!q || casa(a)))
+      let html = '', ult = null
+      const grupos = []
+      for (const a of base) {
+        if (R.grupoChamada) {
+          const g = R.grupoChamada(a)
+          // Cada grupo num bloco próprio: no computador (2 colunas) a letra não se separa dos nomes.
+          if (g !== ult) { html += (ult === null ? '' : '</div>') + `<div class="grupo-ch" role="group" aria-label="${g}">` + R.cabecalhoChamada(g); grupos.push(g); ult = g }
+        }
+        html += R.itemChamada(a, st.presentes.has(a.id), false)
+      }
+      if (R.grupoChamada && ult !== null) html += '</div>'
+      if (extras.length) html += (R.cabecalhoChamada ? R.cabecalhoChamada('De outro horário') : '') + extras.map(a => R.itemChamada(a, st.presentes.has(a.id), true)).join('')
+      el.innerHTML = html || (q ? R.vazio(`Ninguém com "${q}" às ${FOJJ.horarios.find(h => h.id === st.horario).hora}.`) : '')
+      const h = FOJJ.horarios.find(x => x.id === st.horario)
+      $$('[data-horario]').forEach(b => b.setAttribute('aria-pressed', b.dataset.horario === st.horario))
+      $$('[data-hora-atual]').forEach(e => e.textContent = h.hora)
+      $$('[data-prof-atual]').forEach(e => e.textContent = h.professor)
+      R.aposLista && R.aposLista(grupos)
+      contadores(); icones()
+    }
+
+    function buscaOutro() {
+      const el = $('#ch-extra'); if (!el) return
+      const q = st.buscaCh.trim()
+      if (!q) { el.innerHTML = ''; return }
+      const achados = A().filter(a => a.horario !== st.horario && !st.extras[a.id] && casa(a)).slice(0, 6)
+      el.innerHTML = achados.length ? R.outrosHorarios(achados.map(a => R.itemOutro(a)).join('')) : ''
+      icones()
+    }
+
+    function marcar(id, valor) {
+      valor ? st.presentes.add(id) : st.presentes.delete(id)
+      const velho = document.querySelector(`[data-presenca="${id}"]`)
+      if (velho) {
+        const novo = document.createElement('div'); novo.innerHTML = R.itemChamada(porId(id), valor, !!st.extras[id]).trim()
+        const no = novo.firstElementChild
+        velho.closest('[data-item]').replaceWith(no)
+        if (valor) no.classList.add('acabou-de-marcar')
+        return no
+      }
+    }
+
+    document.addEventListener('click', e => {
+      if (e.target.closest('#aviso-desfazer')) { const d = desfazer; desfazer = null; av.classList.remove('ver'); d && d(); return }
+      const p = e.target.closest('[data-presenca]')
+      if (p) {
+        const id = p.dataset.presenca, a = porId(id)
+        const agora = !st.presentes.has(id)
+        const no = marcar(id, agora)
+        const alvo = no && (no.matches('[data-presenca]') ? no : no.querySelector('[data-presenca]'))
+        alvo && alvo.focus({ preventScroll: true })
+        contadores(); icones()
+        aviso(agora ? `${primeiro(a.nome)}: presença gravada` : `${primeiro(a.nome)}: presença removida`,
+          () => { marcar(id, !agora); contadores(); icones(); aviso(`${primeiro(a.nome)}: desfeito`) })
+        return
+      }
+      const o = e.target.closest('[data-trazer]')
+      if (o) {
+        const a = porId(o.dataset.trazer)
+        st.extras[a.id] = st.horario; st.presentes.add(a.id); st.buscaCh = ''
+        const inp = $('#ch-busca'); if (inp) inp.value = ''
+        listaChamada(); buscaOutro()
+        aviso(`${primeiro(a.nome)} veio às ${FOJJ.horarios.find(h => h.id === st.horario).hora}: presença gravada`,
+          () => { delete st.extras[a.id]; st.presentes.delete(a.id); listaChamada(); aviso(`${primeiro(a.nome)}: desfeito`) })
+        return
+      }
+      const h = e.target.closest('[data-horario]')
+      if (h) { st.horario = h.dataset.horario; listaChamada(); buscaOutro(); return }
+
+      const f = e.target.closest('[data-filtro]')
+      if (f) { st.filtro = f.dataset.filtro; listaAlunos(); return }
+      const s = e.target.closest('[data-aluno]')
+      if (s) { st.sel = s.dataset.aluno; detalhe(true); listaAlunos(); return }
+      if (e.target.closest('[data-fechar]')) { fechar(); return }
+      const x = e.target.closest('[data-acao]')
+      if (x) { e.preventDefault(); aviso(x.dataset.acao); return }
+    })
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && document.body.classList.contains('detalhe-aberto')) fechar()
+      // Foco preso no detalhe enquanto ele cobre a tela (celular).
+      if (e.key === 'Tab' && document.body.classList.contains('detalhe-aberto') && !pc.matches) {
+        const f = [...$('#al-detalhe').querySelectorAll('button, [href], input')]
+        if (!f.length) return
+        if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f.at(-1).focus() }
+        else if (!e.shiftKey && document.activeElement === f.at(-1)) { e.preventDefault(); f[0].focus() }
+      }
+    })
+
+    // ── Alunos ──────────────────────────────────────────────────────────
+    const FILTROS = {
+      todos: () => true,
+      prontos: a => a.pronto,
+      afastados: a => a.afastado,
+      kids: a => a.infantil,
+      branca: a => !a.infantil && a.faixa === 'branca',
+      azul: a => a.faixa === 'azul', roxa: a => a.faixa === 'roxa', marrom: a => a.faixa === 'marrom', preta: a => a.faixa === 'preta',
+    }
+    FOJJ.contarFiltro = f => A().filter(FILTROS[f]).length
+
+    function listaAlunos() {
+      const el = $('#al-lista'); if (!el) return
+      const q = FOJJ.semAcento(st.busca.trim())
+      const lista = A().filter(FILTROS[st.filtro]).filter(a => !q || FOJJ.semAcento(a.nome).includes(q)).sort((a, b) => FOJJ.rank(a) - FOJJ.rank(b) || a.nome.localeCompare(b.nome))
+      el.innerHTML = lista.length ? R.listaAlunos(lista, st) : R.vazio(q ? `Nenhum aluno com "${st.busca}".` : 'Nenhum aluno neste filtro.')
+      $$('[data-filtro]').forEach(b => b.setAttribute('aria-pressed', b.dataset.filtro === st.filtro))
+      R.aposFiltro && R.aposFiltro(st.filtro)
+      $$('[data-achados]').forEach(e => e.textContent = lista.length)
+      icones()
+    }
+    function detalhe(abrir) {
+      const el = $('#al-detalhe'); if (!el) return
+      const a = porId(st.sel) || A().find(x => x.pronto)
+      st.sel = a.id
+      el.innerHTML = R.detalhe(a)
+      if (abrir && !pc.matches) {
+        document.body.classList.add('detalhe-aberto')
+        el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true')
+        el.querySelector('[data-fechar]')?.focus()
+      }
+      icones()
+    }
+    function fechar() {
+      document.body.classList.remove('detalhe-aberto')
+      const el = $('#al-detalhe'); el.removeAttribute('role'); el.removeAttribute('aria-modal')
+      $(`[data-aluno="${st.sel}"]`)?.focus()
+    }
+
+    const bc = $('#ch-busca'); if (bc) bc.addEventListener('input', e => { st.buscaCh = e.target.value; listaChamada(); buscaOutro() })
+    const ba = $('#al-busca'); if (ba) ba.addEventListener('input', e => { st.busca = e.target.value; listaAlunos() })
+
+    const hs = $('#horarios'); if (hs) hs.innerHTML = FOJJ.horarios.map(R.botaoHorario).join('')
+    const fs = $('#filtros')
+    const defs = [['todos', 'Todos'], ['prontos', 'Prontos p/ graduar', 1], ['afastados', 'Afastados', 1], ['kids', 'Kids'],
+      ['branca', 'Branca'], ['azul', 'Azul'], ['roxa', 'Roxa'], ['marrom', 'Marrom'], ['preta', 'Preta']]
+    if (fs) fs.innerHTML = R.montarFiltros ? R.montarFiltros(defs) : defs.map(([f, rot, alerta]) => R.botaoFiltro(f, rot, FOJJ.contarFiltro(f), !!alerta)).join('')
+    R.depois && R.depois(st)
+    // detalhe() antes de listaAlunos(): o aluno do painel já nasce destacado na lista.
+    tela(); listaChamada(); detalhe(false); listaAlunos()
+  }
+
+  // Textos de exemplo do painel do aluno. A regra da IBJJF e o ritmo do
+  // professor aparecem SEPARADOS, como no app (regras-ibjjf.ts ≠ ritmo-graus.ts).
+  FOJJ.resumo = function (a) {
+    const max = FOJJ.grausMaximos(a.faixa, a.infantil)
+    const meta = 30
+    const feitas = Math.min(meta, 12 + a.presencas30)
+    return {
+      max,
+      categoria: a.infantil ? `Kids, ${a.idade} anos` : `Adulto, ${a.idade} anos`,
+      horario: FOJJ.horarios.find(h => h.id === a.horario),
+      ibjjf: a.graus >= max
+        ? { texto: 'Graus completos. Próximo passo é a troca de faixa.' }
+        : { texto: `Grau ${a.graus + 1} liberado pela federação (a critério do professor).` },
+      ritmo: { feitas, meta, texto: a.pronto ? 'Atingiu o seu ritmo para o próximo grau.' : `Faltam ${meta - feitas} presenças no seu ritmo.` },
+    }
+  }
+})()
+
+</script>
+
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script>
+const grausTxt = g => `${g} ${g === 1 ? 'grau' : 'graus'}`
+const fx = a => FOJJ.faixa(a.faixa, a.graus, FOJJ.grausMaximos(a.faixa, a.infantil), { size: 'sm', decor: true })
+function fecharFx() {
+  document.getElementById('fx-painel')?.classList.remove('aberto')
+  document.querySelector('.fx-botao')?.setAttribute('aria-expanded', 'false')
+}
+const letraDe = a => FOJJ.semAcento(a.nome[0]).toUpperCase()
+
+// Troca de tema: o botão grava a escolha; sem escolha, segue o celular.
+function temaAtual() {
+  const t = document.documentElement.dataset.tema
+  if (t) return t
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('[data-tema-troca]')) return
+  const novo = temaAtual() === 'escuro' ? 'claro' : 'escuro'
+  document.documentElement.dataset.tema = novo
+  try { localStorage.setItem('gm-tema', novo) } catch (err) {}
+})
+
+const R = {
+  traco: 2.25,
+  grupoChamada: letraDe,
+  cabecalhoChamada: l => l.length === 1
+    ? `<div class="letra" id="ch-l-${l}" aria-hidden="true">${l}</div>`
+    : `<div class="letra">${l}</div>`,
+  aposLista(letras) {
+    const el = document.getElementById('ch-indice')
+    const cabem = matchMedia('(min-width: 960px)').matches ? letras.length : Math.max(4, Math.floor((window.innerHeight - 170) / 44))
+    const tam = Math.ceil(letras.length / cabem)
+    const grupos = []
+    for (let i = 0; i < letras.length; i += tam) grupos.push(letras.slice(i, i + tam))
+    el.innerHTML = grupos.map(g => {
+      const rot = g.length > 1 ? `${g[0]}-${g.at(-1)}` : g[0]
+      return `<button type="button" data-letra="${g[0]}" aria-label="Ir para ${g.length > 1 ? 'as letras ' + g.join(', ') : 'a letra ' + g[0]}"${g.length > 1 ? ' class="duplo"' : ''}>${rot}</button>`
+    }).join('')
+  },
+  itemChamada(a, presente, fora) {
+    const alerta = a.afastado ? '<span class="alerta">Afastado</span>, ' : ''
+    return `<div data-item><button class="linha" data-presenca="${a.id}" aria-pressed="${presente}">
+        ${fx(a)}
+        <span class="txt"><span class="nome">${a.nome}</span><small>${alerta}${a.infantil ? 'Kids, ' : ''}${FOJJ.nomeFaixa(a.faixa)}, ${grausTxt(a.graus)}${fora ? ', outro horário' : ''}</small></span>
+        <span class="caixa" aria-hidden="true">${presente ? '<i data-lucide="check"></i>Presente' : 'Marcar'}</span>
+      </button></div>`
+  },
+  itemOutro(a) {
+    const h = FOJJ.horarios.find(x => x.id === a.horario)
+    return `<div class="item-outro">${fx(a)}
+      <span class="txt"><span class="nome">${a.nome}</span><small style="display:block;color:var(--tinta-suave);font-size:13px">Costuma vir às ${h.hora}</small></span>
+      <button class="btn cheio" data-trazer="${a.id}"><i data-lucide="check"></i>Presente</button></div>`
+  },
+  outrosHorarios: html => `<div class="outros"><h3>De outro horário</h3>${html}</div>`,
+  vazio: t => `<p class="vazio">${t}</p>`,
+  botaoHorario: h => `<button class="hor" data-horario="${h.id}" aria-pressed="false">
+      <span class="h num">${h.hora}</span><span class="p">${h.rotulo}</span>
+      <span class="n num"><span data-contagem="${h.id}">0</span><span class="tot">/<span data-total>0</span></span><small class="pl-n-rot"> presentes</small></span></button>`,
+  montarFiltros(defs) {
+    const bt = ([f, rot, alerta]) => R.botaoFiltro(f, rot, FOJJ.contarFiltro(f), !!alerta)
+    return defs.slice(0, 3).map(bt).join('') +
+      `<div class="fx-menu"><button type="button" class="filtro fx-botao" aria-expanded="false" aria-controls="fx-painel"><span class="fx-rot">Faixa</span><i data-lucide="chevron-down"></i></button>
+       <div id="fx-painel" class="fx-painel" role="group" aria-label="Filtrar por faixa">${defs.slice(3).map(bt).join('')}</div></div>`
+  },
+  aposFiltro(f) {
+    const b = document.querySelector('.fx-botao'); if (!b) return
+    const faixa = ['kids', 'branca', 'azul', 'roxa', 'marrom', 'preta'].includes(f)
+    b.classList.toggle('ativo', faixa)
+    b.querySelector('.fx-rot').textContent = faixa ? 'Faixa: ' + document.querySelector(`#fx-painel [data-filtro="${f}"]`).firstChild.textContent.trim() : 'Faixa'
+    fecharFx()
+  },
+  botaoFiltro: (f, rot, n, alerta) => `<button class="filtro ${alerta ? 'alerta' : ''}" data-filtro="${f}" aria-pressed="false">${rot} <em class="num">${n}</em></button>`,
+  listaAlunos(lista, st) {
+    const ordem = ['Preta', 'Marrom', 'Roxa', 'Azul', 'Branca', 'Kids']
+    const grupos = {}
+    for (const a of lista) (grupos[FOJJ.grupo(a)] ||= []).push(a)
+    return ordem.filter(g => grupos[g]).map(g => `<section class="grupo" aria-label="${g}">
+      <h3><span class="etq etq-mini" style="padding:7px 10px">${g}</span><span class="num" style="font-size:14.5px;color:var(--tinta-media)">${grupos[g].length}</span></h3>
+      ${grupos[g].map(a => R.linhaAluno(a, st)).join('')}</section>`).join('')
+  },
+  status: a => a.pronto ? '<span class="etq-mini alerta">Pronto p/ grau</span>' : a.afastado ? '<span class="etq-mini alerta-contorno">Afastado</span>' : '',
+  linhaAluno(a, st) {
+    const h = FOJJ.horarios.find(x => x.id === a.horario)
+    const s = R.status(a)
+    const treinos = `${a.presencas30} ${a.presencas30 === 1 ? 'treino' : 'treinos'}`
+    return `<button class="al" data-aluno="${a.id}" aria-current="${st.sel === a.id}">
+      <span class="nome">${a.nome}</span>
+      ${fx(a)}
+      <span class="meta"><span>${FOJJ.nomeFaixa(a.faixa)}, ${grausTxt(a.graus)}</span><span>${h.hora}</span><span class="num">${treinos} em 30 dias</span>${s}</span>
+      <span class="col h2 num">${h.hora}</span><span class="col h2 num">${treinos}</span><span class="col st">${s || '<span style="color:var(--tinta-suave)">Em dia</span>'}</span>
+    </button>`
+  },
+  detalhe(a) {
+    const r = FOJJ.resumo(a)
+    return `<div class="det-topo"><span class="etq-mini contorno">${r.categoria}</span>
+        <button class="fechar" data-fechar aria-label="Fechar"><i data-lucide="x"></i></button></div>
+      <h2 class="det-nome">${a.nome}</h2>
+      ${R.status(a) ? `<div class="det-alerta">${R.status(a)}</div>` : ''}
+      <div class="det-faixa">${FOJJ.faixa(a.faixa, a.graus, r.max)}</div>
+      <dl class="det-dados">
+        <div><dt>Faixa</dt><dd>${FOJJ.nomeFaixa(a.faixa)}</dd></div>
+        <div><dt>Graus</dt><dd class="num">${a.graus} de ${r.max}</dd></div>
+        <div><dt>30 dias</dt><dd class="num">${a.presencas30}</dd></div>
+      </dl>
+      <div class="bloco ibjjf etq ponta"><h4 style="position:relative;z-index:1">Regra da IBJJF</h4><p>${r.ibjjf.texto}</p></div>
+      <div class="bloco ritmo"><h4>Seu ritmo de graus</h4><p>${r.ritmo.texto}</p>
+        <div class="contas"><b class="num">${r.ritmo.feitas}</b><span>de ${r.ritmo.meta} presenças desde o último grau</span></div></div>
+      <p style="color:var(--tinta-media);font-size:14.5px;margin:10px 0 0">Costuma treinar às ${r.horario.hora}. Aluno desde ${a.desde}.</p>
+      <div class="det-acoes">
+        <button class="btn cheio" data-acao="Abrindo a graduação de ${a.nome.split(' ')[0]}"><i data-lucide="award"></i>Graduar</button>
+        <button class="btn" data-acao="Editando o cadastro"><i data-lucide="pencil"></i>Editar</button>
+        <button class="btn" data-acao="Abrindo o histórico"><i data-lucide="history"></i>Histórico</button>
+      </div>`
+  },
+  depois() {
+    document.addEventListener('click', e => {
+      const b = e.target.closest('.fx-botao')
+      if (b) { const abre = b.getAttribute('aria-expanded') !== 'true'; b.setAttribute('aria-expanded', abre); document.getElementById('fx-painel').classList.toggle('aberto', abre); if (abre) document.querySelector('#fx-painel button')?.focus(); return }
+      if (!e.target.closest('#fx-painel')) fecharFx()
+    })
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('#fx-painel.aberto')) { fecharFx(); document.querySelector('.fx-botao').focus() } })
+    const ind = document.getElementById('ch-indice')
+    let ultima = null, arrastando = false
+    const pular = l => {
+      if (!l || l === ultima) return
+      ultima = l
+      document.getElementById('ch-l-' + l)?.scrollIntoView({ block: 'start' })
+      ind.querySelectorAll('button').forEach(b => b.classList.toggle('ativo', b.dataset.letra === l))
+    }
+    const sob = e => document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-letra]')?.dataset.letra
+    ind.addEventListener('pointerdown', e => { arrastando = true; ultima = null; ind.setPointerCapture(e.pointerId); pular(sob(e)) })
+    ind.addEventListener('pointermove', e => { if (arrastando) pular(sob(e)) })
+    const soltar = () => { arrastando = false; setTimeout(() => ind.querySelectorAll('.ativo').forEach(b => b.classList.remove('ativo')), 400) }
+    ind.addEventListener('pointerup', soltar); ind.addEventListener('pointercancel', soltar)
+    ind.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ultima = null; pular(e.target.dataset.letra) } })
+  },
+}
+FOJJ.iniciar(R)
+</script>
+</body>
+</html>

@@ -79,6 +79,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
+        // cor-ok: abertura em vídeo, escura nos dois temas até a G12
         background: '#0a0a0a',
         display: 'flex',
         alignItems: 'center',

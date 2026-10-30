@@ -3,659 +3,36 @@
 import { useState, useEffect, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { Aluno, Faixa, Graduacao, ProfessorPerfil, TabAluno } from '@/lib/types'
-import {
-  professorPodeAssinar, tipoAprovacaoGraduacao,
-  calcularIdade, calcularCategoria, ehInfantil,
-  FAIXAS_INFANTIS, FAIXAS_ADULTAS, NOMES_FAIXA,
-  grausMaximos, proximaFaixa, nomeFaixaExibicao, diasRestantesProvisorio,
-  anosNaFaixaAtual, prontoParaProximaFaixa, podeProximoGrauPreta,
-} from '@/lib/regras-ibjjf'
+import type { Aluno, Faixa, ProfessorPerfil, TabAluno } from '@/lib/types'
+import { nomeFaixaExibicao } from '@/lib/regras-ibjjf'
 import { alertaGraduacao, type Alerta } from '@/lib/alertas-graduacao'
-import { sugestaoProximoGrau, prontoParaProximoGrau, MESES_ENTRE_GRAUS_PADRAO, PRESENCAS_POR_GRAU_PADRAO } from '@/lib/ritmo-graus'
-import { estaAfastado, motivoAfastamento, AULAS_PARA_AFASTADO } from '@/lib/afastamento'
+import { prontoParaProximoGrau, MESES_ENTRE_GRAUS_PADRAO, PRESENCAS_POR_GRAU_PADRAO } from '@/lib/ritmo-graus'
 import { sair } from '@/lib/auth'
 import { eventoAtual, inscrever, descartarEvento, type EventoInstalacao } from '@/lib/instalacao'
 import { carregarDados, type CargaDados } from '@/lib/carregar-dados'
-import { subirFotoAula, removerFotoAula, assinarUrl } from '@/lib/foto-aula'
 import DashboardProfessor from '@/components/DashboardProfessor'
 import BannerInstalar from '@/components/BannerInstalar'
-import { FaixaDefs, FaixaDesenhada } from '@/components/FaixaDesenhada'
+import { FaixaDefs } from '@/components/FaixaDesenhada'
+import { theme, scrim, type Theme } from '@/lib/cores'
+import Navegacao from '@/components/Navegacao'
+import { definirTema, temaEfetivo, type Tema } from '@/lib/tema'
+import { hojeBrasil } from '@/lib/datas'
+import { FILTROS_VAZIOS, ehInfantilAluno, type Filtros } from '@/lib/alunos'
+import { DIAS_LIXEIRA, mandarParaLixeira, restaurarDaLixeira, limiteLixeira, textoPrazo, type TabelaComLixeira } from '@/lib/lixeira'
+import { BeltBadge } from '@/components/comum/BeltBadge'
+import { TelaAlunos } from '@/components/alunos/TelaAlunos'
+import { PainelFiltros } from '@/components/alunos/FiltrosAlunos'
+import { FichaAluno } from '@/components/alunos/FichaAluno'
+import { TelaAulas } from '@/components/aulas/TelaAulas'
+import { ModalAula } from '@/components/aulas/ModalAula'
 
-// ─── Tema (paleta GrauMestre — preto/vermelho, fixa) ──────────────────────────
-// Paleta única (sem alternância claro/escuro), conforme design schema do
-// Dashboard do Professor.
-type Theme = typeof theme
-const theme = {
-  bg: '#0a0a0a', surface: '#161616', surface2: '#1f1f1f',
-  border: 'rgba(255,255,255,0.12)', border2: 'rgba(255,255,255,0.18)',
-  text: '#FFFFFF', textSub: 'rgba(255,255,255,0.6)', textMute: 'rgba(255,255,255,0.4)',
-  accent: '#df2531', inputBg: '#161616',
-  accentBg: 'rgba(223,37,49,0.1)',
-}
 
-// frequência alta = branco/escuro, média = cinza, baixa = vermelho
-function freqColor(ratio: number, t: Theme) {
-  if (ratio >= 0.75) return t.text
-  if (ratio >= 0.5)  return t.textSub
-  return t.accent
-}
 
-// ─── Constantes ──────────────────────────────────────────────────────────────
-const BELT_COLORS: Record<Faixa, { bg: string; text: string }> = {
-  branca: { bg: '#FFFFFF', text: '#0D0D0D' },
-  cinza_branca:   { bg: '#BDBDBD', text: '#0D0D0D' },
-  cinza:          { bg: '#9E9E9E', text: '#fff' },
-  cinza_preta:    { bg: '#757575', text: '#fff' },
-  amarela_branca: { bg: '#FFF59D', text: '#0D0D0D' },
-  amarela:        { bg: '#FBC02D', text: '#0D0D0D' },
-  amarela_preta:  { bg: '#F9A825', text: '#0D0D0D' },
-  laranja_branca: { bg: '#FFCC80', text: '#0D0D0D' },
-  laranja:        { bg: '#F57C00', text: '#fff' },
-  laranja_preta:  { bg: '#E65100', text: '#fff' },
-  verde_branca:   { bg: '#A5D6A7', text: '#0D0D0D' },
-  verde:          { bg: '#2E7D32', text: '#fff' },
-  verde_preta:    { bg: '#1B5E20', text: '#fff' },
-  azul:   { bg: '#1565C0', text: '#fff' },
-  roxa:   { bg: '#6A1B9A', text: '#fff' },
-  marrom: { bg: '#4E342E', text: '#fff' },
-  preta:  { bg: '#0D0D0D', text: '#C9A84C' },
-}
 
-const POSITIONS = [
-  'Guarda Fechada', 'Meia Guarda', 'Passagem de Guarda', 'Montada',
-  'Costas', 'Raspagem', 'Finalização', 'Defesa', 'Leg Locks', 'Berimbolo',
-]
 
-// ─── Colunas graváveis de `alunos` ───────────────────────────────────────────
-// O objeto do aluno carrega campos derivados que NÃO são colunas da tabela:
-// total_presencas/total_aulas vêm da view alunos_frequencia, e
-// ultima_graduacao_data/historico_graduacoes são montados em app/page.tsx.
-// Mandar qualquer um deles no update faz o PostgREST rejeitar a request inteira
-// (PGRST204) e trava a edição do aluno por completo — inclusive quando o valor
-// é um array vazio, porque a validação é feita sobre as chaves do payload, não
-// sobre os valores. Whitelist em vez de descartar campo a campo: assim um campo
-// derivado novo não volta a quebrar o save silenciosamente.
-const COLUNAS_ALUNO = [
-  'nome', 'faixa', 'graus', 'inicio', 'data_nascimento', 'foto_url', 'instagram', 'notas',
-  'campeao_mundial_azul', 'campeao_mundial_roxa', 'campeao_mundial_marrom',
-  'veio_de_faixa_juvenil', 'status_graduacao', 'provisorio_desde',
-  'curso_primeiros_socorros', 'curso_regras_data', 'afastado_manual',
-] as const satisfies readonly (keyof Aluno)[]
 
-function payloadAluno(form: Aluno): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const coluna of COLUNAS_ALUNO) out[coluna] = form[coluna]
-  return out
-}
 
-// ─── Soft delete / lixeira ───────────────────────────────────────────────────
-// Nada aqui apaga linha do banco: "apagar" só carimba deleted_at, e restaurar
-// zera de volta. Os payloads são literais explícitos — nunca espalhe o objeto
-// de estado num update, foi exatamente assim que a edição de aluno quebrou
-// (campo derivado vazando no payload → PGRST204).
-//
-// ⚠ Este 7 existe DUAS VEZES: aqui, decidindo o que o professor vê na aba
-// Lixeira, e como `interval '7 days'` na função purgar_lixeira() da migration
-// 011, decidindo o que o banco apaga de verdade na madrugada. Mexeu num, mexa no
-// outro — senão o item some da tela dias antes (ou depois) de ser apagado.
-const DIAS_LIXEIRA = 7
 
-type TabelaComLixeira = 'alunos' | 'aulas' | 'graduacoes'
-
-function mandarParaLixeira(tabela: TabelaComLixeira, id: string) {
-  return supabase.from(tabela).update({ deleted_at: new Date().toISOString() }).eq('id', id)
-}
-
-function restaurarDaLixeira(tabela: TabelaComLixeira, id: string) {
-  return supabase.from(tabela).update({ deleted_at: null }).eq('id', id)
-}
-
-// Instante a partir do qual um item ainda é recuperável.
-function limiteLixeira(): string {
-  return new Date(Date.now() - DIAS_LIXEIRA * 86400000).toISOString()
-}
-
-function diasNaLixeira(deletedAt: string): number {
-  return Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000)
-}
-
-function textoPrazo(deletedAt: string): string {
-  const dias = diasNaLixeira(deletedAt)
-  const restantes = Math.max(0, DIAS_LIXEIRA - dias)
-  const apagado = dias === 0 ? 'hoje' : dias === 1 ? 'há 1 dia' : `há ${dias} dias`
-  const some = restantes === 0 ? 'some hoje' : restantes === 1 ? 'some em 1 dia' : `some em ${restantes} dias`
-  return `Apagado ${apagado} · ${some}`
-}
-
-// ─── Validação do formulário do aluno ────────────────────────────────────────
-// Retorna a mensagem de erro, ou null quando está tudo certo.
-function validarAluno(form: Aluno): string | null {
-  if (!form.nome.trim()) return 'O nome do aluno não pode ficar vazio.'
-
-  if (form.data_nascimento) {
-    // T00:00:00 força interpretação em horário local — sem isso a string ISO
-    // pura é lida como UTC e um nascimento de hoje pode cair no "futuro".
-    const nascimento = new Date(`${form.data_nascimento}T00:00:00`)
-    if (Number.isNaN(nascimento.getTime())) {
-      return 'A data de nascimento não é uma data válida.'
-    }
-    const hoje = new Date()
-    hoje.setHours(0, 0, 0, 0)
-    if (nascimento > hoje) {
-      return 'A data de nascimento não pode estar no futuro.'
-    }
-  }
-
-  return null
-}
-
-// ─── BeltBadge — etiqueta de texto + faixa desenhada (Etapa 4) ────────────────
-// Os losangos (`Diamonds`) saíram: quem desenha os graus agora é
-// `FaixaDesenhada` (components/FaixaDesenhada.tsx), com `max` sempre
-// calculado aqui — regra de faixa mora em regras-ibjjf.ts, o componente de
-// desenho não deduz nada sozinho.
-function BeltBadge({ faixa, graus, infantil, size = 'md', t }: { faixa: Faixa; graus: number; infantil: boolean; size?: 'sm' | 'md'; t: Theme }) {
-  const belt = BELT_COLORS[faixa] ?? BELT_COLORS.branca
-  const label = nomeFaixaExibicao(faixa, graus)
-  const px = size === 'sm' ? '4px 8px' : '5px 11px'
-  const fs = size === 'sm' ? 10 : 12
-  const max = grausMaximos(faixa, infantil)
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <span style={{
-        background: belt.bg, color: belt.text, padding: px, borderRadius: 3,
-        fontWeight: 700, fontSize: fs, letterSpacing: 1, textTransform: 'uppercase',
-        border: faixa === 'branca' ? '1px solid #ccc' : 'none', fontFamily: 'monospace',
-        flexShrink: 0,
-      }}>
-        {label}
-      </span>
-      <div style={{ flex: '1 1 auto', minWidth: size === 'sm' ? 70 : 100, maxWidth: size === 'sm' ? 140 : 200 }}>
-        <FaixaDesenhada faixa={faixa} graus={graus} max={max} size={size} />
-      </div>
-    </div>
-  )
-}
-
-// ─── FreqBar ─────────────────────────────────────────────────────────────────
-function FreqBar({ presencas, totalAulas, t }: { presencas: number; totalAulas: number; t: Theme }) {
-  const pct = totalAulas > 0 ? Math.round((presencas / totalAulas) * 100) : 0
-  const color = freqColor(pct / 100, t)
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 1 }}>Frequência</span>
-        <span style={{ color, fontSize: 11, fontWeight: 700, fontFamily: 'monospace' }}>{pct}%</span>
-      </div>
-      <div style={{ background: t.surface2, borderRadius: 2, height: 4 }}>
-        <div style={{ width: `${pct}%`, height: 4, background: color, borderRadius: 2, transition: 'width 0.5s ease' }} />
-      </div>
-    </div>
-  )
-}
-
-// ─── AlunoCard — crachá circular com anel de frequência ───────────────────────
-function AlunoCard({ aluno, onClick, presencasPorGrau, t }: { aluno: any; onClick: () => void; presencasPorGrau: number; t: Theme }) {
-  const [pressed, setPressed] = useState(false)
-  const [hovered, setHovered] = useState(false)
-
-  const totalAulas = aluno.total_aulas ?? 0
-  const presencas  = aluno.total_presencas ?? 0
-  const pct        = totalAulas > 0 ? presencas / totalAulas : 0
-  const dias       = Math.floor((Date.now() - new Date(aluno.inicio).getTime()) / 86400000)
-  const anos       = Math.floor(dias / 365)
-  const meses      = Math.floor((dias % 365) / 30)
-
-  const R        = 38
-  const C        = 2 * Math.PI * R   // ~238.76
-  const dash     = C * (1 - pct)
-  const ringColor = freqColor(pct, t)
-  const belt     = BELT_COLORS[aluno.faixa as Faixa] ?? BELT_COLORS.branca
-  const alerta   = alertaGraduacao(aluno, aluno.ultima_graduacao_data ?? null, presencasPorGrau)
-  const afastado = estaAfastado(aluno)
-
-  const nomeParts = aluno.nome.split(' ')
-
-  return (
-    <div
-      onClick={onClick}
-      onMouseDown={() => setPressed(true)}
-      onMouseUp={() => setPressed(false)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setPressed(false); setHovered(false) }}
-      onTouchStart={() => setPressed(true)}
-      onTouchEnd={() => setPressed(false)}
-      style={{
-        position: 'relative',
-        background: t.surface,
-        border: `1px solid ${hovered ? t.accent : t.border}`,
-        borderRadius: 14,
-        padding: '18px 10px 14px',
-        cursor: 'pointer',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-        transform: pressed ? 'scale(0.93)' : 'scale(1)',
-        transition: 'transform 0.1s ease, border-color 0.2s',
-        userSelect: 'none',
-      }}
-    >
-      {/* Afastado é estado informativo, não erro: cinza no canto oposto ao
-          selo PRONTO, sem cor de alarme e sem competir com ele. */}
-      {afastado && (
-        <div title={motivoAfastamento(aluno) ?? 'Afastado'} style={{
-          position: 'absolute', top: 8, left: 8,
-          background: t.surface2, color: t.textMute, fontSize: 8, fontWeight: 700,
-          padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', letterSpacing: 0.5,
-          border: `1px solid ${t.border}`,
-        }}>
-          AFASTADO
-        </div>
-      )}
-
-      {/* Sugestão de graduação — nunca bloqueio, só um aviso visual */}
-      {alerta && (
-        <div title={alerta.msg} style={{
-          position: 'absolute', top: 8, right: 8,
-          background: t.accent, color: '#fff', fontSize: 8, fontWeight: 800,
-          padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', letterSpacing: 0.5,
-        }}>
-          PRONTO
-        </div>
-      )}
-
-      {/* Anel de frequência + avatar circular */}
-      <div style={{ position: 'relative', width: 88, height: 88, marginBottom: 2 }}>
-        <svg width="88" height="88" style={{ position: 'absolute', top: 0, left: 0, transform: 'rotate(-90deg)' }}>
-          <circle cx="44" cy="44" r={R} fill="none" stroke={t.border2} strokeWidth="3.5" />
-          {pct > 0 && (
-            <circle
-              cx="44" cy="44" r={R}
-              fill="none" stroke={ringColor} strokeWidth="3.5"
-              strokeDasharray={C} strokeDashoffset={dash}
-              strokeLinecap="round"
-              style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-            />
-          )}
-        </svg>
-        <div style={{
-          position: 'absolute', top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 70, height: 70, borderRadius: '50%',
-          overflow: 'hidden', background: t.surface2,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: `2px solid ${t.border}`,
-        }}>
-          {/* referrerPolicy: a foto é URL externa colada à mão, e sem isto o host
-              dela recebe o endereço do app a cada carregamento */}
-          {aluno.foto_url
-            ? <img src={aluno.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <span style={{ fontSize: 26, fontWeight: 900, color: t.accent, fontFamily: 'monospace' }}>{aluno.nome[0]}</span>
-          }
-        </div>
-      </div>
-
-      {/* Nome */}
-      <div style={{ textAlign: 'center', lineHeight: 1.25 }}>
-        <div style={{ color: t.text, fontWeight: 700, fontSize: 13 }}>{nomeParts[0]}</div>
-        {nomeParts.length > 1 && (
-          <div style={{ color: t.textSub, fontWeight: 400, fontSize: 11 }}>
-            {nomeParts.slice(1).join(' ')}
-          </div>
-        )}
-      </div>
-
-      {/* Faixa */}
-      <div style={{
-        background: belt.bg, color: belt.text,
-        padding: '2px 8px', borderRadius: 3,
-        fontWeight: 700, fontSize: 9, letterSpacing: 1,
-        textTransform: 'uppercase', fontFamily: 'monospace',
-        border: aluno.faixa === 'branca' ? '1px solid #ccc' : 'none',
-        textAlign: 'center',
-      }}>
-        {nomeFaixaExibicao(aluno.faixa, aluno.graus)}
-      </div>
-
-      {/* Faixa desenhada com graus — `size="sm"` de propósito: sem trama nem
-          costura, é o que mantém os 33 cards do grid leves de rolar no
-          celular (ver CLAUDE.md, seção PERFORMANCE de FaixaDesenhada.tsx). */}
-      <div style={{ width: '100%' }}>
-        <FaixaDesenhada faixa={aluno.faixa} graus={aluno.graus} max={grausMaximos(aluno.faixa, ehInfantilAluno(aluno))} size="sm" />
-      </div>
-
-      {/* Tempo na arte */}
-      <div style={{ color: t.textMute, fontSize: 9, fontFamily: 'monospace', letterSpacing: 1 }}>
-        {anos > 0 ? `${anos}A ` : ''}{meses}M
-      </div>
-    </div>
-  )
-}
-
-// ─── Filtros da lista de alunos ──────────────────────────────────────────────
-// Combináveis em AND: marcar Azul + Adulto mostra quem é as duas coisas, não a
-// união. Nenhum critério aqui recalcula nada — faixa lê a coluna, "prontos"
-// chama a mesma alertaGraduacao() que alimenta a home e o selo do card, e
-// afastado vem de estaAfastado().
-type Filtros = {
-  faixa: Faixa | null
-  prontos: boolean
-  afastados: boolean
-  categoria: 'infantil' | 'adulto' | null
-}
-
-const FILTROS_VAZIOS: Filtros = { faixa: null, prontos: false, afastados: false, categoria: null }
-
-// Ordem de exibição dos chips de faixa: progressão adulta primeiro, depois as
-// infantis que não aparecem nela (cinza, amarela, laranja, verde e variações).
-const ORDEM_FAIXAS: Faixa[] = [
-  ...FAIXAS_ADULTAS,
-  ...FAIXAS_INFANTIS.filter(f => !FAIXAS_ADULTAS.includes(f)),
-]
-
-const temFiltroAtivo = (f: Filtros) =>
-  f.faixa !== null || f.prontos || f.afastados || f.categoria !== null
-
-// Aluno sem data_nascimento conta como adulto: a turma é majoritariamente
-// adulta e o cadastro costuma vir sem a data, então jogá-lo fora dos dois
-// grupos faria o filtro parecer quebrado. Preencher a data corrige sozinho.
-function ehInfantilAluno(aluno: any): boolean {
-  return aluno.data_nascimento ? ehInfantil(aluno.data_nascimento) : false
-}
-
-function aplicarFiltros(alunos: any[], f: Filtros, presencasPorGrau: number): any[] {
-  return alunos.filter(a => {
-    if (f.faixa && a.faixa !== f.faixa) return false
-    if (f.prontos && alertaGraduacao(a, a.ultima_graduacao_data ?? null, presencasPorGrau) === null) return false
-    if (f.afastados && !estaAfastado(a)) return false
-    if (f.categoria === 'infantil' && !ehInfantilAluno(a)) return false
-    if (f.categoria === 'adulto'   &&  ehInfantilAluno(a)) return false
-    return true
-  })
-}
-
-function Chip({ label, ativo, onClick, cores, t }: {
-  label: string; ativo: boolean; onClick: () => void
-  cores?: { bg: string; text: string }; t: Theme
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '6px 10px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
-        fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 0.5,
-        whiteSpace: 'nowrap',
-        background: ativo ? (cores?.bg ?? t.accentBg) : t.surface2,
-        color:      ativo ? (cores?.text ?? t.accent) : t.textSub,
-        border: `1px solid ${ativo ? (cores?.bg ?? t.accent) : t.border}`,
-        fontWeight: ativo ? 700 : 400,
-        transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
-
-// Chip ativo com ✕ embutido no rótulo — tocar em qualquer parte remove esse
-// filtro. Não é um botão dentro de outro (inválido em HTML): é um único
-// <button>, o "✕" é só texto no fim do label.
-function ChipRemovivel({ label, onClick, cores, t }: {
-  label: string; onClick: () => void; cores?: { bg: string; text: string }; t: Theme
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        padding: '6px 8px 6px 10px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
-        fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 0.5,
-        whiteSpace: 'nowrap', fontWeight: 700,
-        background: cores?.bg ?? t.accentBg, color: cores?.text ?? t.accent,
-        border: `1px solid ${cores?.bg ?? t.accent}`,
-      }}
-    >
-      {label}
-      <span style={{ opacity: 0.7, fontWeight: 400 }}>✕</span>
-    </button>
-  )
-}
-
-// setFiltros recebe atualização funcional de propósito: dois toques dentro do
-// mesmo frame leem o mesmo `filtros` do closure e o segundo apagaria o
-// primeiro. Com prev => ... cada toque parte do estado já atualizado. Vale
-// tanto aqui quanto dentro do PainelFiltros — nenhum dos dois usa rascunho
-// local, os dois mexem direto no estado real (decisão do usuário: o
-// contador ao vivo do painel já passa a mensagem de "isso já está valendo",
-// então descartar ao fechar seria a interação contradizendo a própria tela).
-function BarraFiltros({ alunos, filtros, setFiltros, totalVisivel, onAbrirPainel, t }: {
-  alunos: any[]; filtros: Filtros; setFiltros: React.Dispatch<React.SetStateAction<Filtros>>
-  totalVisivel: number; onAbrirPainel: () => void; t: Theme
-}) {
-  const qtdAtivos = (filtros.faixa ? 1 : 0) + (filtros.prontos ? 1 : 0) + (filtros.afastados ? 1 : 0) + (filtros.categoria ? 1 : 0)
-
-  const removerFiltro = <K extends keyof Filtros>(chave: K) =>
-    setFiltros(prev => ({ ...prev, [chave]: FILTROS_VAZIOS[chave] }))
-
-  const chipsAtivos: { chave: keyof Filtros; label: string; cores?: { bg: string; text: string } }[] = []
-  if (filtros.faixa) chipsAtivos.push({ chave: 'faixa', label: NOMES_FAIXA[filtros.faixa], cores: BELT_COLORS[filtros.faixa] })
-  if (filtros.prontos) chipsAtivos.push({ chave: 'prontos', label: 'Prontos' })
-  if (filtros.afastados) chipsAtivos.push({ chave: 'afastados', label: 'Afastados' })
-  if (filtros.categoria) chipsAtivos.push({ chave: 'categoria', label: filtros.categoria === 'infantil' ? 'Infantil' : 'Adulto' })
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, alignItems: 'center' }}>
-        <button
-          onClick={onAbrirPainel}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-            padding: '6px 12px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
-            fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700,
-            background: t.surface2, color: t.text, border: `1px solid ${t.border2}`,
-          }}
-        >
-          Filtrar
-          {qtdAtivos > 0 && (
-            <span style={{
-              background: t.accent, color: '#fff', fontSize: 10, fontWeight: 800,
-              borderRadius: 999, padding: '1px 6px', minWidth: 16, textAlign: 'center',
-            }}>
-              {qtdAtivos}
-            </span>
-          )}
-        </button>
-
-        {chipsAtivos.map(c => (
-          <ChipRemovivel key={c.chave} label={c.label} onClick={() => removerFiltro(c.chave)} cores={c.cores} t={t} />
-        ))}
-
-        {temFiltroAtivo(filtros) && (
-          <button
-            onClick={() => setFiltros(FILTROS_VAZIOS)}
-            style={{
-              marginLeft: 'auto', background: 'none', border: 'none', color: t.textMute,
-              fontSize: 11, fontFamily: 'monospace', textDecoration: 'underline',
-              cursor: 'pointer', padding: 4, whiteSpace: 'nowrap', flexShrink: 0,
-            }}
-          >
-            Ver todos ({alunos.length})
-          </button>
-        )}
-      </div>
-
-      {temFiltroAtivo(filtros) && (
-        <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace' }}>
-          {totalVisivel} de {alunos.length} alunos
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── PainelFiltros — sétimo modal, mesmo padrão de sempre ─────────────────────
-// Faixa/Situação/Categoria nomeados, sem rascunho: cada toque chama setFiltros
-// direto (ver comentário acima de BarraFiltros), e o número do rodapé é sempre
-// o resultado já aplicado — nunca uma prévia de algo que ainda não vale.
-function PainelFiltros({ alunos, filtros, setFiltros, presencasPorGrau, onClose, t }: {
-  alunos: any[]; filtros: Filtros; setFiltros: React.Dispatch<React.SetStateAction<Filtros>>
-  presencasPorGrau: number; onClose: () => void; t: Theme
-}) {
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const id = setTimeout(() => setVisible(true), 10)
-    return () => clearTimeout(id)
-  }, [])
-
-  const handleClose = () => {
-    setVisible(false)
-    setTimeout(onClose, 220)
-  }
-
-  const faixasPresentes = Array.from(new Set(alunos.map(a => a.faixa as Faixa)))
-    .sort((a, b) => ORDEM_FAIXAS.indexOf(a) - ORDEM_FAIXAS.indexOf(b))
-
-  const alterna = <K extends keyof Filtros>(chave: K, valor: Filtros[K]) =>
-    setFiltros(prev => ({ ...prev, [chave]: prev[chave] === valor ? FILTROS_VAZIOS[chave] : valor }))
-
-  const qtdVisivel = aplicarFiltros(alunos, filtros, presencasPorGrau).length
-  const ativo = temFiltroAtivo(filtros)
-  // Sem filtro: mostra o total, redação neutra ("ver todos os N") para não
-  // parecer ação pendente — é só o jeito de fechar o painel.
-  const textoBotao = ativo
-    ? `Ver ${qtdVisivel} ${qtdVisivel === 1 ? 'aluno' : 'alunos'}`
-    : `Ver todos os ${alunos.length} alunos`
-
-  const Grupo = ({ titulo, children }: { titulo: string; children: React.ReactNode }) => (
-    <div style={{ marginBottom: 22 }}>
-      <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-        {titulo}
-      </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
-    </div>
-  )
-
-  return (
-    <div
-      onClick={handleClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        transition: 'background 0.22s',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: t.bg, width: '100%', maxWidth: 480,
-          borderRadius: '16px 16px 0 0', border: `1px solid ${t.border}`,
-          maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
-          opacity: visible ? 1 : 0,
-          transition: 'transform 0.22s ease, opacity 0.22s ease',
-        }}
-      >
-        <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>Filtrar</div>
-          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
-        </div>
-
-        <div style={{ overflowY: 'auto', flex: 1, padding: '18px 20px 8px' }}>
-          {faixasPresentes.length > 0 && (
-            <Grupo titulo="Faixa">
-              {faixasPresentes.map(fx => (
-                <Chip
-                  key={fx} label={NOMES_FAIXA[fx]} ativo={filtros.faixa === fx}
-                  onClick={() => alterna('faixa', fx)}
-                  cores={filtros.faixa === fx ? BELT_COLORS[fx] : undefined}
-                  t={t}
-                />
-              ))}
-            </Grupo>
-          )}
-
-          <Grupo titulo="Situação">
-            <Chip label="Prontos"   ativo={filtros.prontos}   onClick={() => setFiltros(prev => ({ ...prev, prontos: !prev.prontos }))} t={t} />
-            <Chip label="Afastados" ativo={filtros.afastados} onClick={() => setFiltros(prev => ({ ...prev, afastados: !prev.afastados }))} t={t} />
-          </Grupo>
-
-          <Grupo titulo="Categoria">
-            <Chip label="Infantil" ativo={filtros.categoria === 'infantil'} onClick={() => alterna('categoria', 'infantil')} t={t} />
-            <Chip label="Adulto"   ativo={filtros.categoria === 'adulto'}   onClick={() => alterna('categoria', 'adulto')} t={t} />
-          </Grupo>
-
-          {ativo && (
-            <button
-              onClick={() => setFiltros(FILTROS_VAZIOS)}
-              style={{
-                background: 'none', border: 'none', color: t.textMute, fontSize: 12,
-                fontFamily: 'monospace', textDecoration: 'underline', cursor: 'pointer', padding: 0,
-              }}
-            >
-              Limpar filtros
-            </button>
-          )}
-        </div>
-
-        <div style={{ padding: 16, borderTop: `1px solid ${t.border}` }}>
-          <button
-            onClick={handleClose}
-            style={{
-              width: '100%', padding: 14, borderRadius: 10, border: 'none',
-              background: t.accent, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-            }}
-          >
-            {textoBotao}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Field ───────────────────────────────────────────────────────────────────
-function Field({ label, value, onChange, type = 'text', placeholder, t }: {
-  label: string; value: string | number; onChange: (v: string) => void;
-  type?: string; placeholder?: string; t: Theme
-}) {
-  return (
-    <div>
-      <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>{label}</div>
-      <input
-        type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        style={{ width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 14, boxSizing: 'border-box' }}
-      />
-    </div>
-  )
-}
-
-// ─── Toggle ──────────────────────────────────────────────────────────────────
-function Toggle({ label, checked, onChange, t }: { label: string; checked: boolean; onChange: (v: boolean) => void; t: Theme }) {
-  return (
-    <div
-      onClick={() => onChange(!checked)}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-        padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
-        background: checked ? t.accentBg : t.surface, border: `1px solid ${checked ? t.accent : t.border}`,
-      }}
-    >
-      <span style={{ color: t.text, fontSize: 13 }}>{label}</span>
-      <div style={{
-        width: 40, height: 22, borderRadius: 20, flexShrink: 0,
-        background: checked ? t.accent : t.surface2, border: `1px solid ${t.border}`,
-        position: 'relative', transition: 'background 0.2s',
-      }}>
-        <div style={{
-          position: 'absolute', top: 2, left: checked ? 20 : 2,
-          width: 16, height: 16, borderRadius: '50%', background: '#fff',
-          transition: 'left 0.2s',
-        }} />
-      </div>
-    </div>
-  )
-}
 
 // ─── Modal Professor ─────────────────────────────────────────────────────────
 function ModalProfessor({ professor, onClose, onSave, t }: {
@@ -702,7 +79,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         transition: 'background 0.22s',
       }}
@@ -711,7 +88,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
         onClick={e => e.stopPropagation()}
         style={{
           background: t.bg, width: '100%', maxWidth: 480,
-          borderRadius: '16px 16px 0 0', border: `1px solid ${t.border}`,
+          borderRadius: 'var(--r) var(--r) 0 0', border: `1px solid ${t.border}`,
           maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
           transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
           opacity: visible ? 1 : 0,
@@ -725,24 +102,24 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
 
         <div style={{ padding: 20, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Nome</div>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Nome</div>
             <div style={{ color: t.text, fontSize: 14 }}>{professor.nome}</div>
           </div>
           <div>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
               Grau na faixa preta (0–9)
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {Array.from({ length: 10 }, (_, g) => g).map(g => (
                 <button key={g} onClick={() => setGraus(g)} style={{
-                  width: 40, height: 40, borderRadius: 6, cursor: 'pointer', fontWeight: 700,
-                  background: graus === g ? t.accent : t.surface2,
-                  color: graus === g ? '#fff' : t.textMute,
+                  width: 40, height: 40, borderRadius: 'var(--r)', cursor: 'pointer', fontWeight: 700,
+                  background: graus === g ? t.ativo : t.surface2,
+                  color: graus === g ? t.sobreAtivo : t.textMute,
                   border: `1px solid ${t.border}`, fontSize: 14,
                 }}>{g}</button>
               ))}
             </div>
-            <div style={{ marginTop: 10, color: t.textSub, fontSize: 12, fontFamily: 'monospace' }}>
+            <div style={{ marginTop: 10, color: t.textSub, fontSize: 12, fontFamily: t.ui }}>
               7º = Vermelha e Preta · 8º = Vermelha e Branca · 9º = Vermelha
             </div>
           </div>
@@ -753,7 +130,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
               é global: é o ritmo de quem gradua, não uma propriedade de quem é
               graduado. Ver lib/ritmo-graus.ts. */}
           <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
               Ritmo de graus — sugestão sua
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -768,7 +145,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
                 }}
                 style={{
                   width: 80, background: t.inputBg, border: `1px solid ${t.border2}`,
-                  borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 15,
+                  borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 16,
                   fontWeight: 700, textAlign: 'center', boxSizing: 'border-box',
                 }}
               />
@@ -787,7 +164,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
               natureza do ritmo em meses acima: preferência do professor
               (art. 4.1.3), não regra da IBJJF. Ver lib/ritmo-graus.ts. */}
           <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
               Presenças por grau — sugestão sua
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -800,7 +177,7 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
                 }}
                 style={{
                   width: 80, background: t.inputBg, border: `1px solid ${t.border2}`,
-                  borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 15,
+                  borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 16,
                   fontWeight: 700, textAlign: 'center', boxSizing: 'border-box',
                 }}
               />
@@ -818,13 +195,13 @@ function ModalProfessor({ professor, onClose, onSave, t }: {
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', gap: 10 }}>
           <button
             onClick={handleClose}
-            style={{ flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${t.border}`, background: 'none', color: t.textSub, cursor: 'pointer', fontSize: 14 }}
+            style={{ flex: 1, padding: 12, borderRadius: 'var(--r)', border: `1px solid ${t.border}`, background: 'none', color: t.textSub, cursor: 'pointer', fontSize: 14 }}
           >
             Cancelar
           </button>
           <button
             onClick={handleSave} disabled={saving}
-            style={{ flex: 2, padding: 12, borderRadius: 8, border: 'none', background: t.accent, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
+            style={{ flex: 2, padding: 12, borderRadius: 'var(--r)', border: 'none', background: t.ativo, color: t.sobreAtivo, fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
           >
             {saving ? 'Salvando…' : 'Salvar alterações'}
           </button>
@@ -855,6 +232,15 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
   // (LoginGate monta apelido@graumestre.app) — o domínio é só identificador,
   // não recebe e-mail de verdade.
   const [apelido, setApelido] = useState<string | null>(null)
+  // O tema vale desde o primeiro frame (script no <head>, lib/tema.ts); aqui só
+  // se lê qual é para escrevê-lo no item e alternar.
+  const [tema, setTema] = useState<Tema>('claro')
+  useEffect(() => { setTema(temaEfetivo()) }, [])
+  const alternarTema = () => {
+    const proximo: Tema = tema === 'escuro' ? 'claro' : 'escuro'
+    definirTema(proximo)
+    setTema(proximo)
+  }
 
   useEffect(() => {
     const id = setTimeout(() => setVisible(true), 10)
@@ -901,7 +287,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
     }
   }
 
-  const ItemMenu = ({ label, badge, onClick }: { label: string; badge?: number; onClick: () => void }) => (
+  const ItemMenu = ({ label, badge, lado, onClick }: { label: string; badge?: number; lado?: string; onClick: () => void }) => (
     <button
       onClick={onClick}
       style={{
@@ -912,9 +298,10 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
       }}
     >
       <span>{label}</span>
+      {lado && <span style={{ color: t.textMute, fontSize: 12, fontWeight: 400 }}>{lado}</span>}
       {!!badge && (
         <span style={{
-          background: t.accent, color: '#fff', fontSize: 11, fontWeight: 800,
+          background: t.ativo, color: t.sobreAtivo, fontSize: 11, fontWeight: 800,
           borderRadius: 999, padding: '2px 7px', minWidth: 18, textAlign: 'center',
         }}>
           {badge}
@@ -928,7 +315,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'stretch', justifyContent: 'flex-start',
         transition: 'background 0.22s',
       }}
@@ -953,6 +340,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
           <ItemMenu label="Perfil do Professor" onClick={() => { onClose(); onAbrirPerfil() }} />
           <ItemMenu label="Lixeira" badge={naLixeira} onClick={() => { onClose(); onAbrirLixeira() }} />
           {eventoInstalar && <ItemMenu label="Instalar no celular" onClick={instalarApp} />}
+          <ItemMenu label={`Tema: ${tema === 'escuro' ? 'kimono preto' : 'kimono branco'}`} lado="trocar" onClick={alternarTema} />
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}` }}>
@@ -964,7 +352,7 @@ function MenuLateral({ naLixeira, onClose, onAbrirPerfil, onAbrirLixeira, t }: {
           <button
             onClick={handleSair} disabled={saindo}
             style={{
-              width: '100%', padding: 12, borderRadius: 8,
+              width: '100%', padding: 12, borderRadius: 'var(--r)',
               border: `1px solid ${t.border2}`, background: 'none', color: t.textSub,
               fontSize: 14, cursor: saindo ? 'not-allowed' : 'pointer',
               opacity: saindo ? 0.6 : 1, transition: 'opacity 0.15s',
@@ -1011,7 +399,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
+        background: scrim(visible),
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         transition: 'background 0.22s',
       }}
@@ -1020,7 +408,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
         onClick={e => e.stopPropagation()}
         style={{
           background: t.bg, width: '100%', maxWidth: 480,
-          borderRadius: '16px 16px 0 0', border: `1px solid ${t.border}`,
+          borderRadius: 'var(--r) var(--r) 0 0', border: `1px solid ${t.border}`,
           maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
           transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
           opacity: visible ? 1 : 0,
@@ -1059,7 +447,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
                   onClick={() => onSelect(aluno)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
+                    padding: '10px 8px', borderRadius: 'var(--r)', cursor: 'pointer',
                     background: t.surface, border: `1px solid ${t.border}`,
                   }}
                 >
@@ -1073,7 +461,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
                         host dela recebe o endereço do app a cada carregamento */}
                     {aluno.foto_url
                       ? <img src={aluno.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 15, fontWeight: 900, color: t.accent, fontFamily: 'monospace' }}>{aluno.nome[0]}</span>
+                      : <span style={{ fontSize: 15, fontWeight: 900, color: t.textSub, fontFamily: t.ui }}>{aluno.nome[0]}</span>
                     }
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1081,7 +469,7 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
                       {aluno.nome}
                     </div>
                     <div style={{ marginBottom: 4 }}><BeltBadge faixa={aluno.faixa} graus={aluno.graus} infantil={ehInfantilAluno(aluno)} size="sm" t={t} /></div>
-                    <div style={{ color: t.accent, fontWeight: 700, fontSize: 12 }}>{alerta.msg}</div>
+                    <div style={{ color: t.alertaTexto, fontWeight: 700, fontSize: 12 }}>{alerta.msg}</div>
                     <div style={{ color: t.textMute, fontSize: 11 }}>{evidencia}</div>
                   </div>
                   <span style={{ color: t.textMute, fontSize: 20, flexShrink: 0 }}>›</span>
@@ -1095,1048 +483,10 @@ function PainelProntos({ itens, presencasPorGrau, onClose, onSelect, t }: {
   )
 }
 
-// ─── Modal Aluno ─────────────────────────────────────────────────────────────
-function ModalAluno({ aluno, professor, onClose, onSave, onDelete, onDeleteGraduacao, t, podeEditar = true, tabInicial = 'perfil' }: {
-  aluno: Aluno & { total_presencas?: number; total_aulas?: number; ultima_graduacao_data?: string | null; historico_graduacoes?: Graduacao[]; ultima_presenca_data?: string | null; aulas_perdidas?: number };
-  professor: ProfessorPerfil | null;
-  onClose: () => void; onSave: (a: Aluno) => void; onDelete: (id: string) => void;
-  // avisa o AppShell que algo entrou na lixeira, para o badge da aba recontar
-  onDeleteGraduacao: () => void; t: Theme;
-  // Hoje é sempre true (app single-user, só o professor usa). Fica preparado
-  // para quando o aluno puder logar e ver o próprio perfil em modo leitura.
-  podeEditar?: boolean;
-  // Aba já aberta ao montar. Quem chega pelo card "Prontos para graduar" vem
-  // para graduar — passar pelo perfil primeiro seria toque desperdiçado.
-  tabInicial?: TabAluno;
-}) {
-  const [form, setForm]   = useState({ ...aluno })
-  const [tab, setTab]     = useState<TabAluno>(tabInicial)
-  const [saving, setSaving] = useState(false)
-  const [erro, setErro]   = useState<string | null>(null)
-  const [visible, setVisible] = useState(false)
-  // cópia local do histórico para o ✕ sumir na hora, sem esperar recarga
-  const [historico, setHistorico] = useState<Graduacao[]>(aluno.historico_graduacoes ?? [])
-  const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
-  const tabs: TabAluno[] = ['perfil', 'frequência', 'notas', 'graduação']
 
-  // Validação de quem pode assinar (art. 6°, 7.3, 7.4, 7.4.1) — só entra em
-  // jogo quando a faixa está de fato mudando nesta edição.
-  const faixaAlterada = form.faixa !== aluno.faixa
-  const tipoAprovacao = tipoAprovacaoGraduacao(form.faixa, form.status_graduacao)
-  const aprovacao: { ok: boolean; motivo?: string } = professor && faixaAlterada
-    ? professorPodeAssinar(professor, tipoAprovacao)
-    : { ok: true }
 
-  // Idade/categoria (art. 2.2.1) e lista de faixas disponíveis — infantil e
-  // adulto nunca aparecem juntos no seletor (art. 2°).
-  const idade     = form.data_nascimento ? calcularIdade(form.data_nascimento) : null
-  const categoria = form.data_nascimento ? calcularCategoria(form.data_nascimento) : null
-  const infantilAluno = form.data_nascimento ? ehInfantil(form.data_nascimento) : false
-  const faixasDisponiveis = infantilAluno ? FAIXAS_INFANTIS : FAIXAS_ADULTAS
-  const maxGrausFaixa = grausMaximos(form.faixa, infantilAluno)
-  const ultimaGraduacaoData = aluno.ultima_graduacao_data ?? null
 
-  // Próxima COR — só faz sentido para quem já está no teto de graus. Depende de
-  // `infantilAluno` porque `branca` está nas duas progressões.
-  const proxFaixa = proximaFaixa(form.faixa, infantilAluno)
 
-  // Ritmo do professor: SUGESTÃO dele (art. 4.1.3), não exigência da IBJJF.
-  // Calculado sobre `form` e não sobre `aluno` para acompanhar a edição em
-  // curso — trocar a faixa na tela já muda o que a sugestão diz.
-  const mesesEntreGraus = professor?.meses_entre_graus ?? MESES_ENTRE_GRAUS_PADRAO
-  const ritmo = sugestaoProximoGrau(form, ultimaGraduacaoData, mesesEntreGraus)
-
-  useEffect(() => {
-    const id = setTimeout(() => setVisible(true), 10)
-    return () => clearTimeout(id)
-  }, [])
-
-  const handleClose = () => {
-    setVisible(false)
-    setTimeout(onClose, 220)
-  }
-
-  const handleDelete = async () => {
-    if (!window.confirm(
-      `Apagar ${aluno.nome}? O aluno vai para a lixeira e pode ser restaurado por ${DIAS_LIXEIRA} dias.`
-    )) return
-    setSaving(true)
-    const { error } = await mandarParaLixeira('alunos', aluno.id)
-    if (error) {
-      setErro(`Não foi possível apagar o aluno: ${error.message}`)
-      setSaving(false)
-      return
-    }
-    onDelete(aluno.id)
-    handleClose()
-  }
-
-  const handleDeleteGraduacao = async (g: Graduacao) => {
-    if (!window.confirm(
-      `Apagar esta graduação do histórico? Ela vai para a lixeira e pode ser restaurada por ${DIAS_LIXEIRA} dias.`
-    )) return
-    const { error } = await mandarParaLixeira('graduacoes', g.id)
-    if (error) {
-      setErro(`Não foi possível apagar a graduação: ${error.message}`)
-      return
-    }
-    setErro(null)
-    setHistorico(prev => prev.filter(h => h.id !== g.id))
-    onDeleteGraduacao()
-  }
-
-  const handleSave = async () => {
-    const invalido = validarAluno(form)
-    if (invalido) {
-      setErro(invalido)
-      setTab('perfil')   // todos os campos validados vivem nessa aba
-      return
-    }
-    setErro(null)
-
-    // Tempo mínimo é sugestão, nunca bloqueio (art. 3.1.3 / 4.1.5) — avisa e
-    // deixa o professor decidir, ao contrário do grau de assinatura (bloqueio).
-    if (faixaAlterada && aluno.faixa !== 'preta' && !prontoParaProximaFaixa(aluno, ultimaGraduacaoData)) {
-      const confirmado = window.confirm(
-        'O tempo mínimo na faixa atual ainda não foi cumprido segundo o Sistema Geral de Graduação IBJJF. Graduar mesmo assim?'
-      )
-      if (!confirmado) return
-    }
-    if (aluno.faixa === 'preta' && form.graus > aluno.graus) {
-      const anos = anosNaFaixaAtual(aluno, ultimaGraduacaoData)
-      const { pode } = podeProximoGrauPreta(anos, anos, aluno.graus)
-      if (!pode) {
-        const confirmado = window.confirm(
-          'O tempo mínimo para o próximo grau ainda não foi cumprido. Conceder o grau mesmo assim?'
-        )
-        if (!confirmado) return
-      }
-    }
-
-    setSaving(true)
-    const payload = { ...payloadAluno(form), nome: form.nome.trim() }
-    const { error } = await supabase.from('alunos').update(payload).eq('id', aluno.id)
-    if (error) {
-      // Modal continua aberto de propósito: o professor não perde o que digitou.
-      setErro(`Não foi possível salvar as alterações: ${error.message}`)
-      setSaving(false)
-      return
-    }
-
-    // Registra o histórico sempre que faixa ou grau mudam (mesmo grau dentro
-    // da mesma faixa), para dataInicioFaixaAtual() ter uma data real a usar.
-    let novaUltimaGraduacao = ultimaGraduacaoData
-    if (form.faixa !== aluno.faixa || form.graus !== aluno.graus) {
-      const hoje = new Date().toISOString().split('T')[0]
-      const { error: gradErr } = await supabase.from('graduacoes').insert({
-        aluno_id: aluno.id,
-        faixa_anterior: aluno.faixa,
-        faixa_nova: form.faixa,
-        graus_anterior: aluno.graus,
-        graus_novo: form.graus,
-        data: hoje,
-      })
-      if (gradErr) {
-        // Os dados do aluno já foram salvos — reflete isso na lista, mas mantém
-        // o modal aberto para o professor poder tentar o histórico de novo.
-        onSave({ ...form, nome: payload.nome as string, ultima_graduacao_data: novaUltimaGraduacao } as Aluno)
-        setErro(`Os dados do aluno foram salvos, mas não foi possível registrar o histórico de graduação: ${gradErr.message}. Tente salvar novamente.`)
-        setSaving(false)
-        return
-      }
-      novaUltimaGraduacao = hoje
-    }
-
-    onSave({ ...form, nome: payload.nome as string, ultima_graduacao_data: novaUltimaGraduacao } as Aluno)
-    handleClose()
-  }
-
-  return (
-    <div
-      onClick={handleClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        transition: 'background 0.22s',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: t.bg, width: '100%', maxWidth: 480,
-          borderRadius: '16px 16px 0 0', border: `1px solid ${t.border}`,
-          maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
-          opacity: visible ? 1 : 0,
-          transition: 'transform 0.22s ease, opacity 0.22s ease',
-        }}
-      >
-        <div style={{ padding: '20px 20px 0', borderBottom: `1px solid ${t.border}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div>
-              <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>{form.nome}</div>
-              <div style={{ marginTop: 6 }}><BeltBadge faixa={form.faixa} graus={form.graus} infantil={infantilAluno} t={t} /></div>
-            </div>
-            <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
-          </div>
-          <div style={{ display: 'flex' }}>
-            {tabs.map(tb => (
-              <button key={tb} onClick={() => setTab(tb)} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: tab === tb ? t.accent : t.textMute,
-                fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 1,
-                padding: '8px 10px',
-                borderBottom: tab === tb ? `2px solid ${t.accent}` : '2px solid transparent',
-              }}>{tb}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* fieldset desabilita de uma vez todos os inputs/selects/botões que
-            estiverem dentro dele — as abas ficam de fora e continuam navegáveis */}
-        <fieldset
-          disabled={!podeEditar}
-          style={{ padding: 20, overflowY: 'auto', flex: 1, border: 'none', margin: 0, minWidth: 0 }}
-        >
-          {tab === 'perfil' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <Field label="Nome" value={form.nome} onChange={v => set('nome', v)} t={t} />
-              <Field
-                label="Data de nascimento" value={form.data_nascimento ?? ''}
-                onChange={v => set('data_nascimento', v || null)} type="date" t={t}
-              />
-              {form.data_nascimento && (
-                <div style={{ display: 'flex', gap: 20 }}>
-                  <div>
-                    <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Idade</div>
-                    <div style={{ color: t.text, fontSize: 14 }}>{idade} anos</div>
-                  </div>
-                  <div>
-                    <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Categoria</div>
-                    <div style={{ color: t.text, fontSize: 14 }}>{categoria}</div>
-                  </div>
-                </div>
-              )}
-              <Field label="Instagram" value={form.instagram ?? ''} onChange={v => set('instagram', v)} t={t} />
-              <Field label="Foto URL" value={form.foto_url ?? ''} onChange={v => set('foto_url', v)} placeholder="https://..." t={t} />
-              <Field label="Início no jiu-jítsu" value={form.inicio} onChange={v => set('inicio', v)} type="date" t={t} />
-
-              {/* Três estados numa tela só: o toggle liga/desliga o override, e
-                  o link ao lado devolve a decisão para o cálculo automático. */}
-              <div>
-                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
-                  Situação
-                </div>
-                <Toggle
-                  label="Afastado"
-                  checked={form.afastado_manual ?? estaAfastado({ ...form, aulas_perdidas: aluno.aulas_perdidas })}
-                  onChange={v => set('afastado_manual', v)}
-                  t={t}
-                />
-                <div style={{ color: t.textMute, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
-                  {form.afastado_manual === null || form.afastado_manual === undefined
-                    ? `Automático: ${motivoAfastamento({ ...form, aulas_perdidas: aluno.aulas_perdidas, ultima_presenca_data: aluno.ultima_presenca_data }) ?? `menos de ${AULAS_PARA_AFASTADO} aulas perdidas seguidas`}.`
-                    : (
-                      <>
-                        Definido manualmente como {form.afastado_manual ? 'afastado' : 'ativo'}.{' '}
-                        <button
-                          onClick={() => set('afastado_manual', null)}
-                          style={{ background: 'none', border: 'none', color: t.accent, fontSize: 11, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
-                        >
-                          Voltar ao automático
-                        </button>
-                      </>
-                    )}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
-                  Histórico de graduações
-                </div>
-                {historico.length === 0 ? (
-                  <div style={{ color: t.textSub, fontSize: 12, fontStyle: 'italic' }}>Nenhuma graduação registrada ainda.</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {historico.map(g => (
-                      <div key={g.id} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                          <span style={{ color: t.text, fontSize: 13, fontWeight: 700 }}>
-                            {nomeFaixaExibicao(g.faixa_anterior, g.graus_anterior)} → {nomeFaixaExibicao(g.faixa_nova, g.graus_novo)}
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                            <span style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace' }}>{g.data}</span>
-                            <button
-                              onClick={() => handleDeleteGraduacao(g)}
-                              title="Apagar graduação"
-                              style={{
-                                background: 'none', border: 'none', color: t.textMute,
-                                fontSize: 13, cursor: 'pointer', padding: '0 2px', lineHeight: 1,
-                              }}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                        <div style={{ color: t.textSub, fontSize: 11, fontFamily: 'monospace' }}>
-                          {g.graus_anterior}º → {g.graus_novo}º grau
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {tab === 'frequência' && (
-            <div>
-              <FreqBar presencas={(form as any).total_presencas ?? 0} totalAulas={(form as any).total_aulas ?? 0} t={t} />
-              <div style={{ marginTop: 16, color: t.textMute, fontSize: 12, fontFamily: 'monospace' }}>
-                {(form as any).total_presencas ?? 0} presenças de {(form as any).total_aulas ?? 0} aulas registradas
-              </div>
-              <div style={{ marginTop: 12, padding: 12, background: t.surface, borderRadius: 8, border: `1px solid ${t.border}`, color: t.textSub, fontSize: 13 }}>
-                Para registrar presença, abra a aula na aba Aulas — ou crie uma no "+" — e faça a chamada.
-              </div>
-            </div>
-          )}
-
-          {tab === 'notas' && (
-            <div>
-              <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8 }}>Observações do professor</div>
-              <textarea
-                value={form.notas ?? ''} onChange={e => set('notas', e.target.value)}
-                placeholder="Anote evolução, pontos de atenção..."
-                style={{ width: '100%', minHeight: 160, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 8, padding: 12, color: t.text, fontSize: 14, lineHeight: 1.6, resize: 'vertical', boxSizing: 'border-box' }}
-              />
-            </div>
-          )}
-
-          {tab === 'graduação' && (
-            <div>
-              <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 12 }}>
-                Faixa atual {form.data_nascimento && `— ${infantilAluno ? 'infantil' : 'adulto'}`}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                {faixasDisponiveis.map(fx => (
-                  // Ajusta faixa e graus JUNTOS: cada faixa tem seu teto (4 na
-                  // branca/azul/roxa/marrom, 9 na preta, 3 no infantil), e um
-                  // `set('faixa', ...)` sozinho deixaria um preta 6º grau virar
-                  // "marrom 6º grau" — grau que não existe (art. 4.1.2). O
-                  // banco aceitaria: o check é `graus between 0 and 9`, global,
-                  // não por faixa. E como os botões de grau re-renderizam 0–4,
-                  // nenhum ficaria destacado e o professor não veria o erro.
-                  <button key={fx} onClick={() => setForm(f => ({
-                    ...f, faixa: fx, graus: Math.min(f.graus, grausMaximos(fx, infantilAluno)),
-                  }))} style={{
-                    padding: '8px 14px', borderRadius: 6, cursor: 'pointer',
-                    background: BELT_COLORS[fx].bg, color: BELT_COLORS[fx].text, fontWeight: 700, fontSize: 12,
-                    border: form.faixa === fx ? `2px solid ${t.accent}` : '2px solid transparent',
-                    textTransform: 'uppercase', letterSpacing: 1,
-                  }}>{NOMES_FAIXA[fx]}</button>
-                ))}
-              </div>
-              <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 10 }}>Graus</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {Array.from({ length: maxGrausFaixa + 1 }, (_, g) => g).map(g => (
-                  <button key={g} onClick={() => set('graus', g)} style={{
-                    width: 44, height: 44, borderRadius: 6, cursor: 'pointer', fontWeight: 700,
-                    background: form.graus === g ? t.accent : t.surface2,
-                    color: form.graus === g ? '#fff' : t.textMute,
-                    border: `1px solid ${t.border}`, fontSize: 15,
-                  }}>{g}</button>
-                ))}
-              </div>
-              {/* Três desfechos, não dois. No teto de graus o passo seguinte é a
-                  próxima COR (art. 4.1.2) — dizer só "pronto para subir de faixa"
-                  não diz qual. E na preta com 9 graus não existe faixa nenhuma
-                  depois: o 10º é honorário (art. 4.1.5.X), então prometer "subir
-                  de faixa" ali era errado. */}
-              <div style={{ marginTop: 16, padding: 14, background: t.surface, borderRadius: 8, border: `1px solid ${t.border}` }}>
-                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', marginBottom: 6 }}>PRÓXIMO PASSO</div>
-                {form.graus < maxGrausFaixa ? (
-                  <div style={{ color: t.accent, fontSize: 13 }}>+1 grau → {nomeFaixaExibicao(form.faixa, form.graus + 1)}</div>
-                ) : proxFaixa ? (
-                  <div style={{ color: t.accent, fontSize: 13 }}>
-                    {maxGrausFaixa}º grau completo → promover para Faixa {NOMES_FAIXA[proxFaixa]}
-                  </div>
-                ) : (
-                  <div style={{ color: t.accent, fontSize: 13 }}>
-                    {form.faixa === 'preta'
-                      ? 'Topo da progressão de graus solicitáveis'
-                      : 'Pronto para subir de faixa'}
-                  </div>
-                )}
-              </div>
-
-              {/* ─── Ritmo do professor — SUGESTÃO, não regra da federação ────────
-                  Bloco deliberadamente diferente dos blocos IBJJF logo abaixo:
-                  borda tracejada, sem o vermelho de "exigência", e o rótulo diz
-                  de quem é a regra. O pedido era que as duas coisas não se
-                  confundissem — o art. 4.1.3 deixa o sistema de graus a critério
-                  do Professor até a marrom, enquanto o tempo mínimo de
-                  permanência (art. 3.1.3) é da IBJJF e ninguém altera.
-                  Não renderiza na faixa preta nem no teto de graus: quem decide
-                  isso é sugestaoProximoGrau(), que devolve null. */}
-              {ritmo && (
-                <div style={{
-                  marginTop: 12, padding: 14, borderRadius: 8,
-                  background: 'transparent', border: `1px dashed ${t.border2}`,
-                }}>
-                  <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', marginBottom: 6 }}>
-                    RITMO DO PROFESSOR · SUGESTÃO SUA
-                  </div>
-                  <div style={{ color: t.text, fontSize: 13 }}>
-                    {ritmo.proximoGrau}º grau sugerido em <strong>{ritmo.dataFormatada}</strong>
-                  </div>
-                  <div style={{ color: ritmo.vencido ? t.accent : t.textSub, fontSize: 12, marginTop: 4 }}>
-                    {ritmo.vencido
-                      ? `Já passou ${Math.abs(ritmo.diasRestantes)} dia(s) do seu ritmo de ${mesesEntreGraus} meses por grau.`
-                      : `Faltam ${ritmo.diasRestantes} dia(s) — seu ritmo é de ${mesesEntreGraus} meses por grau.`}
-                  </div>
-                  <div style={{ color: t.textMute, fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
-                    Ritmo definido por você no Perfil do Professor, editável a qualquer momento.
-                    Não é exigência da IBJJF — o art. 4.1.3 deixa o sistema de graus a critério
-                    do Professor até a faixa marrom.
-                  </div>
-                </div>
-              )}
-
-              {/* Exceções de tempo mínimo (art. 3.1.3) — só a do campeonato da faixa atual */}
-              {(aluno.faixa === 'azul' || aluno.faixa === 'roxa' || aluno.faixa === 'marrom') && (
-                <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {/* O rótulo nomeia a IBJJF de propósito: é o contraste que impede
-                      ler o bloco de ritmo acima como se fosse a mesma regra. */}
-                  <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase' }}>
-                    Exceções de tempo mínimo · exigência IBJJF (art. 3.1.3)
-                  </div>
-                  {aluno.faixa === 'azul' && (
-                    <Toggle label="Campeão mundial faixa azul" checked={form.campeao_mundial_azul} onChange={v => set('campeao_mundial_azul', v)} t={t} />
-                  )}
-                  {aluno.faixa === 'roxa' && (
-                    <Toggle label="Campeão mundial faixa roxa" checked={form.campeao_mundial_roxa} onChange={v => set('campeao_mundial_roxa', v)} t={t} />
-                  )}
-                  {aluno.faixa === 'marrom' && (
-                    <Toggle label="Campeão mundial faixa marrom" checked={form.campeao_mundial_marrom} onChange={v => set('campeao_mundial_marrom', v)} t={t} />
-                  )}
-                </div>
-              )}
-
-              <div style={{ marginTop: 20 }}>
-                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Veio de faixa juvenil
-                </div>
-                <select
-                  value={form.veio_de_faixa_juvenil ?? ''}
-                  onChange={e => set('veio_de_faixa_juvenil', e.target.value || null)}
-                  style={{ width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 14, boxSizing: 'border-box' }}
-                >
-                  <option value="">Nenhuma</option>
-                  <option value="azul_juvenil">Azul juvenil</option>
-                  <option value="roxa_juvenil">Roxa juvenil</option>
-                  <option value="laranja">Laranja</option>
-                  <option value="verde">Verde</option>
-                </select>
-              </div>
-
-              <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase' }}>
-                  Graduação provisória (art. 7°)
-                </div>
-                <Toggle
-                  label="Sem histórico de faixa documentado"
-                  checked={form.status_graduacao === 'provisorio'}
-                  onChange={v => setForm(f => ({
-                    ...f,
-                    status_graduacao: v ? 'provisorio' : 'regular',
-                    provisorio_desde: v ? (f.provisorio_desde ?? new Date().toISOString().split('T')[0]) : null,
-                  }))}
-                  t={t}
-                />
-                {form.status_graduacao === 'provisorio' && (
-                  <>
-                    <Field
-                      label="Provisório desde" value={form.provisorio_desde ?? ''}
-                      onChange={v => set('provisorio_desde', v || null)} type="date" t={t}
-                    />
-                    {form.provisorio_desde && (
-                      <div style={{
-                        alignSelf: 'flex-start', padding: '6px 12px', borderRadius: 6,
-                        background: t.accentBg, border: `1px solid ${t.accent}`,
-                        color: t.accent, fontSize: 12, fontFamily: 'monospace',
-                      }}>
-                        {diasRestantesProvisorio(form.provisorio_desde)} dias restantes
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {!professor && (
-                <div style={{ marginTop: 12, padding: 12, background: t.surface, borderRadius: 8, border: `1px solid ${t.border}`, color: t.textSub, fontSize: 12 }}>
-                  Perfil do professor não encontrado — não é possível validar quem pode assinar esta graduação.
-                </div>
-              )}
-              {professor && faixaAlterada && !aprovacao.ok && (
-                <div style={{
-                  marginTop: 12, padding: 12, borderRadius: 8,
-                  background: t.accentBg, border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
-                }}>
-                  ⚠ {aprovacao.motivo}
-                </div>
-              )}
-            </div>
-          )}
-        </fieldset>
-
-        {erro && (
-          <div style={{
-            margin: '0 20px', padding: 12, borderRadius: 8,
-            background: t.accentBg, border: `1px solid ${t.accent}`,
-            color: t.accent, fontSize: 12, lineHeight: 1.5,
-          }}>
-            ⚠ {erro}
-          </div>
-        )}
-
-        <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', gap: 10 }}>
-          <button
-            onClick={handleClose}
-            style={{ flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${t.border}`, background: 'none', color: t.textSub, cursor: 'pointer', fontSize: 14 }}
-          >
-            {podeEditar ? 'Cancelar' : 'Fechar'}
-          </button>
-          {podeEditar && (
-            <button
-              onClick={handleSave} disabled={saving || (faixaAlterada && !aprovacao.ok)}
-              style={{
-                flex: 2, padding: 12, borderRadius: 8, border: 'none',
-                background: t.accent, color: '#fff', fontWeight: 800, fontSize: 14,
-                cursor: saving || (faixaAlterada && !aprovacao.ok) ? 'not-allowed' : 'pointer',
-                opacity: saving || (faixaAlterada && !aprovacao.ok) ? 0.5 : 1,
-                transition: 'opacity 0.15s',
-              }}
-            >
-              {saving ? 'Salvando…' : faixaAlterada && !aprovacao.ok ? 'Grau insuficiente p/ assinar' : 'Salvar alterações'}
-            </button>
-          )}
-        </div>
-
-        {podeEditar && (
-          <div style={{ padding: '0 20px 16px', display: 'flex', justifyContent: 'center' }}>
-            <button
-              onClick={handleDelete} disabled={saving}
-              style={{
-                background: 'none', border: 'none', color: t.textMute,
-                fontSize: 12, cursor: saving ? 'not-allowed' : 'pointer',
-                textDecoration: 'underline', padding: 4,
-              }}
-            >
-              Apagar aluno
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Validação do link da gravação ───────────────────────────────────────────
-// Campo opcional: vazio nunca é erro, porque o link só existe depois que o
-// professor grava e sobe o vídeo. Preenchido, exige uma URL http(s) de um
-// domínio do YouTube — errar o link é pior do que não ter link, já que o card
-// passa a exibir um "Assistir aula" que não leva a lugar nenhum.
-const HOSTS_YOUTUBE = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'studio.youtube.com']
-
-function validarLinkYoutube(valor: string): string | null {
-  const limpo = valor.trim()
-  if (!limpo) return null
-
-  let url: URL
-  try {
-    url = new URL(limpo)
-  } catch {
-    return 'O link precisa ser uma URL completa, começando com https://'
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    return 'O link precisa começar com http:// ou https://'
-  }
-  if (!HOSTS_YOUTUBE.includes(url.hostname.toLowerCase())) {
-    return 'O link precisa ser do YouTube (youtube.com ou youtu.be).'
-  }
-  return null
-}
-
-// Extrai o id do vídeo para montar a miniatura (Etapa 6) — nunca lança.
-// `studio.youtube.com` passa em validarLinkYoutube() (está em
-// HOSTS_YOUTUBE) mas não tem id extraível no mesmo formato: cai no `return
-// null` final, e quem chama trata isso como "sem miniatura, mostra o botão
-// de texto", nunca como erro.
-function extrairIdYoutube(link: string): string | null {
-  let url: URL
-  try {
-    url = new URL(link)
-  } catch {
-    return null
-  }
-  const host = url.hostname.toLowerCase()
-  if (host === 'youtu.be') {
-    return url.pathname.split('/').filter(Boolean)[0] ?? null
-  }
-  if (host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com') {
-    if (url.pathname === '/watch') return url.searchParams.get('v')
-    const partes = url.pathname.split('/').filter(Boolean)
-    if (partes[0] === 'shorts' || partes[0] === 'embed') return partes[1] ?? null
-  }
-  return null
-}
-
-// ─── Foto da aula (com reassinatura) ─────────────────────────────────────────
-// A URL assinada vence em 1h (VALIDADE_URL_SEGUNDOS). A imagem já pintada
-// continua na tela depois disso — o que expira é o direito de baixar de novo —,
-// mas se o app ficar aberto e o browser descartar a imagem do cache, o próximo
-// pedido leva 403 e a foto some sem explicação. Aqui o `onError` assina de novo
-// e repõe.
-//
-// O anti-loop é o par onError/onLoad: uma tentativa por exibição bem-sucedida.
-// Objeto que sumiu de vez do bucket erra, tenta uma vez, erra de novo e para —
-// nunca dispara onLoad, então nunca rearma. Rearmar no onLoad, e não quando a
-// prop muda, é o que evita o ciclo em que a URL renovada realimenta a tentativa.
-function FotoAula({ path, url, onUrlRenovada, style, t }: {
-  path: string | null
-  url: string | null
-  onUrlRenovada?: (url: string) => void
-  style: React.CSSProperties
-  t: Theme
-}) {
-  const [src, setSrc] = useState(url)
-  const [falhou, setFalhou] = useState(false)
-  const jaTentou = useRef(false)
-
-  useEffect(() => { setSrc(url); setFalhou(false) }, [url])
-
-  const renovar = async () => {
-    if (jaTentou.current || !path) { setFalhou(true); return }
-    jaTentou.current = true
-    const nova = await assinarUrl(path)
-    if (!nova) { setFalhou(true); return }
-    setSrc(nova)
-    onUrlRenovada?.(nova)
-  }
-
-  // Caixa no lugar da imagem em vez de ícone quebrado: some a dúvida entre
-  // "esta aula não tem foto" e "a foto não carregou agora".
-  if (falhou || !src) {
-    return (
-      <div style={{
-        ...style,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: t.surface2, color: t.textMute, fontSize: 11, textAlign: 'center',
-        padding: 8, boxSizing: 'border-box',
-      }}>
-        Não foi possível carregar a foto agora.
-      </div>
-    )
-  }
-
-  return (
-    <img
-      src={src} alt="" referrerPolicy="no-referrer" style={style}
-      onError={renovar}
-      onLoad={() => { jaTentou.current = false }}
-    />
-  )
-}
-
-// ─── Miniatura do vídeo da aula (Etapa 6) ─────────────────────────────────────
-// Mesmo padrão do FotoAula acima: cai de volta num estado visível em vez de
-// deixar retângulo quebrado ou uma miniatura minúscula sem sentido. Aqui o
-// "de volta" é o botão de texto que o card já usava antes desta etapa. `id`
-// pode ser `null` (link válido pelo validador mas sem id extraível —
-// studio.youtube.com, por exemplo) e cai no mesmo botão.
-//
-// ⚠ Vídeo privado/removido NÃO dá erro de rede — `i.ytimg.com` devolve
-// HTTP 200 com uma imagem de placeholder 120×90 (bem menor que os 480×360
-// do hqdefault.jpg de verdade). `onError` nunca dispara nesse caso; quem
-// pega isso é o `onLoad`, comparando `naturalWidth`/`naturalHeight` da
-// imagem carregada contra o tamanho do placeholder. Confirmado testando
-// contra vídeo privado de verdade — não "simular" com id inventado de novo
-// achando que vai reproduzir (um id que nunca existiu costuma dar o mesmo
-// placeholder, mas o teste que importa é com vídeo privado/removido real).
-const LARGURA_PLACEHOLDER_YOUTUBE = 120
-const ALTURA_PLACEHOLDER_YOUTUBE = 90
-
-function MiniaturaYoutube({ id, link, style, t }: {
-  id: string | null; link: string; style: React.CSSProperties; t: Theme
-}) {
-  const [falhou, setFalhou] = useState(false)
-
-  if (!id || falhou) {
-    return (
-      <a
-        href={link} target="_blank" rel="noopener noreferrer"
-        onClick={e => e.stopPropagation()}
-        style={{
-          ...style,
-          background: t.accentBg, border: `1px solid ${t.accent}`,
-          color: t.accent, fontWeight: 700, fontSize: 12, textDecoration: 'none',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-        }}
-      >
-        ▶ Assistir aula
-      </a>
-    )
-  }
-
-  return (
-    <a
-      href={link} target="_blank" rel="noopener noreferrer"
-      onClick={e => e.stopPropagation()}
-      style={{ ...style, position: 'relative', display: 'block', overflow: 'hidden' }}
-    >
-      <img
-        src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}
-        alt="" referrerPolicy="no-referrer"
-        onError={() => setFalhou(true)}
-        // Vídeo privado/removido: HTTP 200 com o placeholder 120×90 do
-        // YouTube, não erro de rede — só o onLoad + naturalWidth pega isso.
-        onLoad={e => {
-          const img = e.currentTarget
-          if (img.naturalWidth === LARGURA_PLACEHOLDER_YOUTUBE && img.naturalHeight === ALTURA_PLACEHOLDER_YOUTUBE) {
-            setFalhou(true)
-          }
-        }}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-      />
-      {/* ▶ sobreposto: lado a lado e do mesmo tamanho da foto da aula, sem
-          isto as duas imagens ficam indistinguíveis — só descobriria qual é
-          o vídeo tocando, o toque desperdiçado que este app evita. */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{
-          width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,0,0,0.55)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{
-            width: 0, height: 0, marginLeft: 3,
-            borderTop: '7px solid transparent', borderBottom: '7px solid transparent',
-            borderLeft: '11px solid #fff',
-          }} />
-        </div>
-      </div>
-    </a>
-  )
-}
-
-// ─── Modal Aula (criar e editar) ─────────────────────────────────────────────
-// Só os dados da aula. A chamada não vive aqui: ao criar, o botão grava a aula
-// e entrega o registro pronto para o AppShell abrir a <Chamada />. Sem aula
-// gravada não existe aula_id, e sem aula_id a presença não teria onde ser
-// salva a cada toque.
-//
-// Com `aula` preenchida vira edição: mesmos campos, update em vez de insert, e
-// nenhuma presença é tocada. É o caminho para cadastrar o link do YouTube
-// depois, que é como acontece na prática — grava a aula, sobe o vídeo, e só
-// então tem link para colar.
-function ModalAula({ aula, onClose, onCriada, onEditada, onFotoAlterada, t }: {
-  aula?: any; onClose: () => void; onCriada: (aula: any) => void; onEditada: (aula: any) => void;
-  // Avisa a lista que a foto mudou, SEM fechar o modal. Não dá para reusar
-  // onEditada aqui: ela desmonta o modal, e o professor que acabou de escolher
-  // uma foto ainda está no meio da edição.
-  onFotoAlterada?: (aulaId: string, fotoPath: string | null, fotoUrl: string | null) => void;
-  t: Theme
-}) {
-  const editando = !!aula
-  const [form, setForm]   = useState({
-    data:         aula?.data         ?? new Date().toISOString().split('T')[0],
-    tecnica:      aula?.tecnica      ?? '',
-    posicao:      aula?.posicao      ?? '',
-    notas:        aula?.notas        ?? '',
-    link_youtube: aula?.link_youtube ?? '',
-  })
-  const [saving, setSaving] = useState(false)
-  const [erro, setErro]   = useState<string | null>(null)
-  const [visible, setVisible] = useState(false)
-  const set    = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
-
-  // Foto vive fora de `form` de propósito: ela é gravada na hora do upload, não
-  // no "Salvar alterações". Misturá-la ao form sugeriria que ela espera o botão.
-  const [fotoPath, setFotoPath] = useState<string | null>(aula?.foto_path ?? null)
-  const [fotoUrl, setFotoUrl]   = useState<string | null>(aula?.foto_url ?? null)
-  const [fotoOcupada, setFotoOcupada] = useState(false)
-  const [erroFoto, setErroFoto] = useState<string | null>(null)
-  const inputFoto = useRef<HTMLInputElement>(null)
-
-  const escolherFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const arquivo = e.target.files?.[0]
-    // Zera o input no fim: sem isso, escolher o MESMO arquivo de novo depois de
-    // um erro não dispara change, e a tela parece travada.
-    e.target.value = ''
-    if (!arquivo || !aula) return
-
-    setFotoOcupada(true)
-    setErroFoto(null)
-    try {
-      const r = await subirFotoAula(aula.id, arquivo, fotoPath)
-      setFotoPath(r.foto_path)
-      setFotoUrl(r.foto_url)
-      onFotoAlterada?.(aula.id, r.foto_path, r.foto_url)
-    } catch (err) {
-      setErroFoto(err instanceof Error ? err.message : String(err))
-    }
-    setFotoOcupada(false)
-  }
-
-  const apagarFoto = async () => {
-    if (!aula || !fotoPath) return
-    if (!window.confirm('Remover a foto desta aula? Isso não tem lixeira — o arquivo é apagado de vez.')) return
-
-    setFotoOcupada(true)
-    setErroFoto(null)
-    try {
-      await removerFotoAula(aula.id, fotoPath)
-      setFotoPath(null)
-      setFotoUrl(null)
-      onFotoAlterada?.(aula.id, null, null)
-    } catch (err) {
-      setErroFoto(err instanceof Error ? err.message : String(err))
-    }
-    setFotoOcupada(false)
-  }
-
-  useEffect(() => {
-    const id = setTimeout(() => setVisible(true), 10)
-    return () => clearTimeout(id)
-  }, [])
-
-  const handleClose = () => {
-    setVisible(false)
-    setTimeout(onClose, 220)
-  }
-
-  const handleSave = async () => {
-    const linkInvalido = validarLinkYoutube(form.link_youtube)
-    if (linkInvalido) {
-      setErro(linkInvalido)
-      return
-    }
-    setSaving(true)
-
-    // Whitelist explícita das colunas de `aulas` — mesmo motivo da edição de
-    // aluno: campo que não é coluna derruba a request inteira (PGRST204). Vale
-    // dobrado aqui, porque o objeto da aula que vem da listagem carrega
-    // `presencas` embutido, que não é coluna.
-    const payload = {
-      data:         form.data,
-      tecnica:      form.tecnica || null,
-      posicao:      form.posicao || null,
-      notas:        form.notas   || null,
-      link_youtube: form.link_youtube.trim() || null,
-      // O caminho, nunca a URL: `foto_url` é derivada (assinada no
-      // carregamento) e mandá-la aqui derrubaria a request com PGRST204.
-      // Redundante com o update que o upload já fez — de propósito, para o
-      // payload continuar sendo a lista completa das colunas que este modal
-      // controla, e não uma lista que esconde uma exceção.
-      foto_path:    fotoPath,
-    }
-
-    const { data: salva, error } = editando
-      ? await supabase.from('aulas').update(payload).eq('id', aula.id).select().single()
-      : await supabase.from('aulas').insert(payload).select().single()
-
-    if (error) {
-      setErro(`Não foi possível ${editando ? 'salvar' : 'criar'} a aula: ${error.message}`)
-      setSaving(false)
-      return
-    }
-    // foto_url não volta do banco (é derivada), então vai junto daqui — senão a
-    // lista perderia a URL assinada e o card ficaria sem miniatura até recarregar.
-    editando ? onEditada({ ...salva, foto_url: fotoUrl }) : onCriada(salva)
-    handleClose()
-  }
-
-  return (
-    <div
-      onClick={handleClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 100,
-        background: `rgba(0,0,0,${visible ? 0.75 : 0})`,
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        transition: 'background 0.22s',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: t.bg, width: '100%', maxWidth: 480,
-          borderRadius: '16px 16px 0 0', border: `1px solid ${t.border}`,
-          maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          transform: visible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
-          opacity: visible ? 1 : 0,
-          transition: 'transform 0.22s ease, opacity 0.22s ease',
-        }}
-      >
-        <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>{editando ? 'Editar Aula' : 'Registrar Aula'}</div>
-          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: t.textMute, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
-        </div>
-
-        <div style={{ padding: 20, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Field label="Data" value={form.data} onChange={v => set('data', v)} type="date" t={t} />
-          <Field label="Técnica ensinada" value={form.tecnica} onChange={v => set('tecnica', v)} placeholder="Ex: Triângulo, Kimura..." t={t} />
-          <div>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>Posição</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {POSITIONS.map(p => (
-                <button key={p} onClick={() => set('posicao', p)} style={{
-                  padding: '6px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
-                  background: form.posicao === p ? t.accentBg : t.surface2,
-                  color: form.posicao === p ? t.accent : t.textSub,
-                  border: form.posicao === p ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
-                }}>{p}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <Field
-              label="Link do YouTube (opcional)"
-              value={form.link_youtube}
-              onChange={v => set('link_youtube', v)}
-              type="url"
-              placeholder="https://youtu.be/..."
-              t={t}
-            />
-            <div style={{ color: t.textMute, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
-              Para quem faltou assistir depois. Pode deixar vazio agora e colar o link
-              aqui quando a gravação subir.
-              <br />
-              Use &quot;Não listado&quot;. Vídeo &quot;Privado&quot; não gera miniatura nem abre para o aluno.
-            </div>
-          </div>
-
-          {/* Foto da aula — só depois que a aula existe, porque o arquivo é
-              guardado numa pasta com o id dela. Mesma lógica do link do
-              YouTube: registra a aula agora, sobe a foto quando der, sem prazo. */}
-          {editando && (
-            <div>
-              <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 }}>
-                Foto da aula
-              </div>
-
-              {/* Sem `capture`: com ele o Android abre direto a câmera e tira a
-                  galeria da jogada. Sem ele o próprio sistema oferece as duas,
-                  que é o que o professor precisa para subir foto de outro dia. */}
-              <input
-                ref={inputFoto} type="file" accept="image/*"
-                onChange={escolherFoto} style={{ display: 'none' }}
-              />
-
-              {/* A condição é `fotoPath`, não `fotoUrl`: a URL é derivada e pode
-                  falhar sozinha. Ramificar por ela faria uma aula COM foto
-                  aparecer como "adicionar foto" num tropeço de assinatura — e
-                  deixaria o botão Remover inalcançável justamente aí. */}
-              {fotoPath ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <FotoAula
-                    path={fotoPath} url={fotoUrl} onUrlRenovada={setFotoUrl} t={t}
-                    style={{
-                      width: '100%', height: 220, objectFit: 'cover',
-                      borderRadius: 10, border: `1px solid ${t.border}`,
-                      opacity: fotoOcupada ? 0.5 : 1, transition: 'opacity 0.15s',
-                    }}
-                  />
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={() => inputFoto.current?.click()} disabled={fotoOcupada}
-                      style={{
-                        flex: 1, padding: '10px 12px', borderRadius: 8, fontSize: 13,
-                        background: t.surface2, color: t.textSub,
-                        border: `1px solid ${t.border}`, cursor: fotoOcupada ? 'default' : 'pointer',
-                      }}
-                    >
-                      {fotoOcupada ? 'Enviando…' : 'Trocar foto'}
-                    </button>
-                    <button
-                      onClick={apagarFoto} disabled={fotoOcupada}
-                      style={{
-                        padding: '10px 12px', borderRadius: 8, fontSize: 13,
-                        background: 'none', color: t.accent,
-                        border: `1px solid ${t.accent}`, cursor: fotoOcupada ? 'default' : 'pointer',
-                      }}
-                    >
-                      Remover
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => inputFoto.current?.click()} disabled={fotoOcupada}
-                  style={{
-                    width: '100%', padding: '22px 12px', borderRadius: 10,
-                    background: t.surface, color: fotoOcupada ? t.textMute : t.textSub,
-                    border: `1px dashed ${t.border2}`, cursor: fotoOcupada ? 'default' : 'pointer',
-                    fontSize: 13,
-                  }}
-                >
-                  {fotoOcupada ? 'Enviando…' : '＋ Adicionar foto da turma'}
-                </button>
-              )}
-
-              {erroFoto && (
-                <div style={{
-                  marginTop: 8, padding: 10, borderRadius: 8, background: t.accentBg,
-                  border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
-                }}>
-                  ⚠ {erroFoto}
-                </div>
-              )}
-
-              <div style={{ color: t.textMute, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
-                Uma foto por aula. Sobe na hora ou dias depois, sem prazo — e é salva
-                assim que você escolhe, sem esperar o botão abaixo.
-              </div>
-            </div>
-          )}
-          <div>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 }}>Observações</div>
-            <textarea
-              value={form.notas} onChange={e => set('notas', e.target.value)}
-              placeholder="Anotações gerais sobre a aula..."
-              style={{ width: '100%', minHeight: 80, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 6, padding: 10, color: t.text, fontSize: 13, resize: 'none', boxSizing: 'border-box' }}
-            />
-          </div>
-        </div>
-
-        <div style={{ padding: '14px 20px', borderTop: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {erro && (
-            <div style={{
-              padding: 12, borderRadius: 8, background: t.accentBg,
-              border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
-            }}>
-              ⚠ {erro}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={handleClose}
-              style={{ flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${t.border}`, background: 'none', color: t.textSub, cursor: 'pointer', fontSize: 14 }}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSave} disabled={saving}
-              style={{ flex: 2, padding: 12, borderRadius: 8, border: 'none', background: t.accent, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 14, opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s' }}
-            >
-              {editando
-                ? (saving ? 'Salvando…' : 'Salvar alterações')
-                : (saving ? 'Criando…'  : 'Iniciar chamada →')}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ─── Chamada ─────────────────────────────────────────────────────────────────
 // Hoje quem lança presença é sempre o professor. Quando o aluno tiver login e
@@ -2283,7 +633,7 @@ function Chamada({ aula, alunos, onClose, t }: {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ color: t.text, fontWeight: 800, fontSize: 18 }}>Chamada</div>
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', marginTop: 2 }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, marginTop: 2 }}>
               {[aula.data, aula.tecnica].filter(Boolean).join(' · ')}
             </div>
           </div>
@@ -2296,15 +646,15 @@ function Chamada({ aula, alunos, onClose, t }: {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <div style={{ color: t.accent, fontWeight: 800, fontSize: 22, fontFamily: 'monospace' }}>
+          <div style={{ color: t.ativo, fontWeight: 800, fontSize: 22, fontFamily: t.ui }}>
             {totalPresentes}
           </div>
           <div style={{ color: t.textSub, fontSize: 13 }}>de {alunos.length} presentes</div>
           <button
             onClick={marcarTodos}
             style={{
-              marginLeft: 'auto', padding: '8px 12px', borderRadius: 8,
-              border: `1px solid ${t.accent}`, background: t.accentBg, color: t.accent,
+              marginLeft: 'auto', padding: '8px 12px', borderRadius: 'var(--r)',
+              border: `1px solid ${t.ativo}`, background: t.ativoBg, color: t.ativo,
               fontWeight: 700, fontSize: 12, cursor: 'pointer', flexShrink: 0,
             }}
           >
@@ -2317,7 +667,7 @@ function Chamada({ aula, alunos, onClose, t }: {
           placeholder="Buscar por nome…"
           style={{
             width: '100%', background: t.inputBg, border: `1px solid ${t.border2}`,
-            borderRadius: 8, padding: '10px 12px', color: t.text, fontSize: 14,
+            borderRadius: 'var(--r)', padding: '10px 12px', color: t.text, fontSize: 16,
             boxSizing: 'border-box',
           }}
         />
@@ -2325,8 +675,8 @@ function Chamada({ aula, alunos, onClose, t }: {
 
       {erro && (
         <div style={{
-          margin: '12px 16px 0', padding: 12, borderRadius: 8, background: t.accentBg,
-          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5, flexShrink: 0,
+          margin: '12px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+          border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5, flexShrink: 0,
         }}>
           ⚠ {erro}
         </div>
@@ -2338,7 +688,7 @@ function Chamada({ aula, alunos, onClose, t }: {
         ) : visiveis.length === 0 ? (
           <div style={{
             padding: 24, textAlign: 'center', background: t.surface,
-            border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSub, fontSize: 13,
+            border: `1px solid ${t.border}`, borderRadius: 'var(--r)', color: t.textSub, fontSize: 13,
           }}>
             Nenhum aluno com esse nome.
           </div>
@@ -2350,9 +700,9 @@ function Chamada({ aula, alunos, onClose, t }: {
               key={a.id} onClick={() => alternar(a.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
-                padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
-                background: presente ? t.accentBg : t.surface,
-                border: presente ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
+                padding: '12px 14px', borderRadius: 'var(--r)', cursor: 'pointer',
+                background: presente ? t.ativoBg : t.surface,
+                border: presente ? `1px solid ${t.ativo}` : `1px solid ${t.border}`,
                 opacity: emVoo ? 0.6 : 1,
                 transition: 'background 0.15s, border-color 0.15s, opacity 0.15s',
               }}
@@ -2364,7 +714,7 @@ function Chamada({ aula, alunos, onClose, t }: {
               }}>
                 {a.foto_url
                   ? <img src={a.foto_url} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 16, fontWeight: 900, color: t.accent, fontFamily: 'monospace' }}>{a.nome[0]}</span>
+                  : <span style={{ fontSize: 16, fontWeight: 900, color: t.textSub, fontFamily: t.ui }}>{a.nome[0]}</span>
                 }
               </div>
 
@@ -2375,10 +725,10 @@ function Chamada({ aula, alunos, onClose, t }: {
 
               <div style={{
                 width: 28, height: 28, borderRadius: '50%', border: '2px solid',
-                borderColor: presente ? t.accent : t.border2,
-                background: presente ? t.accent : 'transparent',
+                borderColor: presente ? t.ativo : t.border2,
+                background: presente ? t.ativo : 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 15, color: '#fff', flexShrink: 0,
+                fontSize: 15, color: t.sobreAtivo, flexShrink: 0,
                 transition: 'background 0.15s, border-color 0.15s',
               }}>
                 {presente ? '✓' : ''}
@@ -2479,15 +829,15 @@ function Lixeira({ t, onRestaurado, onVoltar }: { t: Theme; onRestaurado: () => 
         <div style={{ color: t.textMute, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Carregando…</div>
       ) : (
         <>
-      <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace', lineHeight: 1.6 }}>
+      <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui, lineHeight: 1.6 }}>
         Itens apagados ficam aqui por {DIAS_LIXEIRA} dias e podem ser restaurados.
         Depois disso somem desta tela.
       </div>
 
       {erro && (
         <div style={{
-          padding: 12, borderRadius: 8, background: t.accentBg,
-          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+          padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+          border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
         }}>
           ⚠ {erro}
         </div>
@@ -2496,18 +846,18 @@ function Lixeira({ t, onRestaurado, onVoltar }: { t: Theme; onRestaurado: () => 
       {itens.length === 0 ? (
         <div style={{
           padding: 24, textAlign: 'center', background: t.surface,
-          border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSub, fontSize: 13,
+          border: `1px solid ${t.border}`, borderRadius: 'var(--r)', color: t.textSub, fontSize: 13,
         }}>
           A lixeira está vazia.
         </div>
       ) : itens.map(item => (
         <div key={`${item.tabela}-${item.id}`} style={{
-          background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10,
+          background: t.surface, border: `1px solid ${t.border}`, borderRadius: 'var(--r)',
           padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              color: t.textMute, fontSize: 9, fontFamily: 'monospace',
+              color: t.textMute, fontSize: 9, fontFamily: t.ui,
               textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4,
             }}>
               {item.rotulo}
@@ -2516,15 +866,15 @@ function Lixeira({ t, onRestaurado, onVoltar }: { t: Theme; onRestaurado: () => 
             {item.detalhe && (
               <div style={{ color: t.textSub, fontSize: 12, marginBottom: 4 }}>{item.detalhe}</div>
             )}
-            <div style={{ color: t.textMute, fontSize: 11, fontFamily: 'monospace' }}>
+            <div style={{ color: t.textMute, fontSize: 11, fontFamily: t.ui }}>
               {textoPrazo(item.deleted_at)}
             </div>
           </div>
           <button
             onClick={() => restaurar(item)} disabled={ocupado === item.id}
             style={{
-              flexShrink: 0, padding: '9px 14px', borderRadius: 8,
-              border: `1px solid ${t.accent}`, background: t.accentBg, color: t.accent,
+              flexShrink: 0, padding: '9px 14px', borderRadius: 'var(--r)',
+              border: `1px solid ${t.ativo}`, background: t.ativoBg, color: t.ativo,
               fontWeight: 700, fontSize: 12, cursor: ocupado === item.id ? 'not-allowed' : 'pointer',
               opacity: ocupado === item.id ? 0.5 : 1, transition: 'opacity 0.15s',
             }}
@@ -2538,6 +888,8 @@ function Lixeira({ t, onRestaurado, onVoltar }: { t: Theme; onRestaurado: () => 
     </div>
   )
 }
+
+type FichaAberta = { id: string; origem: 'alunos' | 'fora'; aba: TabAluno }
 
 // ─── AppShell ────────────────────────────────────────────────────────────────
 // Sem props de dados: a carga inteira acontece aqui, no cliente, ao montar.
@@ -2559,10 +911,11 @@ export default function AppShell() {
   const [erroCarga, setErroCarga] = useState<string | null>(null)
   const [erroPerfil, setErroPerfil] = useState<string | null>(null)
   const [retentando, setRetentando] = useState(false)
-  const [tab, setTab]       = useState<'alunos' | 'aulas' | 'lixeira'>('alunos')
-  const [alunoSel, setAlunoSel]   = useState<any | null>(null)
-  // aba em que o modal do aluno abre — só o card "Prontos para graduar" muda isso
-  const [abaAluno, setAbaAluno]   = useState<TabAluno>('perfil')
+  const [tab, setTab]       = useState<'inicio' | 'alunos' | 'aulas' | 'lixeira'>('inicio')
+  // Ficha aberta: guardamos o ID (e a origem e a aba), não o objeto. O objeto é
+  // lido da lista a cada render, então a recarga depois de graduar chega na
+  // ficha aberta, e um aluno apagado some da tela sozinho.
+  const [ficha, setFicha] = useState<FichaAberta | null>(null)
   const [modalAula, setModalAula] = useState(false)
   // aula cuja chamada está aberta — recém-criada pelo modal ou reaberta pelo card
   const [chamadaAula, setChamadaAula] = useState<any | null>(null)
@@ -2573,17 +926,18 @@ export default function AppShell() {
   const [painelProntos, setPainelProntos] = useState(false)
   const [menuAberto, setMenuAberto] = useState(false)
   const [filtroAberto, setFiltroAberto] = useState(false)
-  const [erroAula, setErroAula] = useState<string | null>(null)
   const [naLixeira, setNaLixeira] = useState(0)
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
+  // Busca por nome da tela de Alunos: mora aqui (como os filtros) para
+  // sobreviver à troca de aba.
+  const [buscaAluno, setBuscaAluno] = useState('')
 
   // Critério de presença deste professor para "pronto para o próximo grau" —
   // único ponto de leitura, thread-ado para todo call site de alertaGraduacao
-  // (AlunoCard, aplicarFiltros, DashboardProfessor, PainelProntos) para todos
+  // (LinhaAluno, aplicarFiltros, DashboardProfessor, PainelProntos) para todos
   // lerem o mesmo número. Perfil ausente cai no padrão de lib/ritmo-graus.ts.
   const presencasPorGrau = professor?.presencas_por_grau ?? PRESENCAS_POR_GRAU_PADRAO
 
-  const alunosVisiveis = aplicarFiltros(alunos, filtros, presencasPorGrau)
 
   // Lista de prontos, computada uma vez aqui — o badge do sininho
   // (DashboardProfessor) recebe só a contagem, e o painel do sininho
@@ -2657,34 +1011,61 @@ export default function AppShell() {
 
   useEffect(() => { contarLixeira() }, [])
 
-  // Ponto único de abertura do modal do aluno: quem não pede aba cai em
+  // Ponto único de abertura da ficha do aluno: quem não pede aba cai em
   // 'perfil'. Sem isso a aba escolhida por uma abertura anterior sobreviveria
-  // para a próxima, porque `abaAluno` é estado do AppShell, não do modal.
-  const abrirAluno = (aluno: any, aba: TabAluno = 'perfil') => {
-    setAbaAluno(aba)
-    setAlunoSel(aluno)
+  // para a próxima, porque a aba é estado do AppShell, não da ficha. `origem`
+  // diz de onde veio o toque (a tela de Alunos ou o Início/Graduar) — a G5.4 usa.
+  const abrirAluno = (aluno: any, aba: TabAluno = 'perfil', origem: FichaAberta['origem'] = 'alunos') => {
+    // tocar de novo no aluno que já está aberto não faz nada (nem pergunta)
+    if (ficha && ficha.id === aluno.id && ficha.aba === aba && ficha.origem === origem) return
+    if (!confirmarDescarte()) return
+    setFicha({ id: aluno.id, aba, origem })
   }
 
-  const apagarAula = async (aula: any) => {
-    if (!window.confirm(`Apagar a aula de ${aula.data}? Ela vai para a lixeira e pode ser restaurada por ${DIAS_LIXEIRA} dias.`)) return
-    const { error } = await mandarParaLixeira('aulas', aula.id)
-    if (error) { setErroAula(`Não foi possível apagar a aula: ${error.message}`); return }
-    setErroAula(null)
-    setAulas(prev => prev.filter(a => a.id !== aula.id))
-    contarLixeira()
+  const alunoAberto = ficha ? alunos.find(a => a.id === ficha.id) ?? null : null
+
+  // A ficha avisa (onAlteradoMudou) se há alteração não salva. Com o painel
+  // fixo ao lado da tabela, a navegação fica à vista: trocar de aluno ou de
+  // tela passa por esta pergunta, ou o que foi digitado se perderia sem aviso.
+  const fichaAlterada = useRef(false)
+  useEffect(() => { if (!ficha) fichaAlterada.current = false }, [ficha])
+  const confirmarDescarte = () =>
+    !ficha || !fichaAlterada.current ||
+    window.confirm(`Descartar as alterações em ${alunoAberto?.nome ?? 'este aluno'}?`)
+
+  // Troca de tela: fecha a ficha (depois da pergunta, se houver alteração).
+  const irPara = (aba: typeof tab) => {
+    if (!confirmarDescarte()) return
+    setFicha(null)
+    setTab(aba)
   }
+  // aluno apagado (ou sumido da lista): a ficha não pode ficar aberta sobre nada
+  useEffect(() => { if (ficha && !alunoAberto) setFicha(null) }, [ficha, alunoAberto])
+
+  // A foto da aula é gravada no momento do upload (modal de edição ou botão Foto
+  // da etiqueta), então a lista acompanha sem esperar nenhum "Salvar".
+  const fotoAulaAlterada = (id: string, foto_path: string | null, foto_url: string | null) =>
+    setAulas(prev => prev.map(a => a.id === id ? { ...a, foto_path, foto_url } : a))
 
   const novoAluno = async () => {
+    if (!confirmarDescarte()) return
     const { data, error } = await supabase
       .from('alunos')
-      .insert({ nome: 'Novo Aluno', faixa: 'branca', graus: 0, inicio: new Date().toISOString().split('T')[0] })
+      .insert({ nome: 'Novo Aluno', faixa: 'branca', graus: 0, inicio: hojeBrasil() })
       .select()
       .single()
     if (error) { alert(`Não foi possível cadastrar o aluno: ${error.message}`); return }
-    if (data) setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0, aulas_perdidas: 0 }])
+    if (data) {
+      setAlunos(prev => [...prev, { ...data, total_presencas: 0, total_aulas: 0, presencas_desde_graduacao: 0, aulas_desde_graduacao: 0, aulas_perdidas: 0 }])
+      // Um toque a menos: a ficha do aluno recém-criado já abre, para dar o
+      // nome na hora em vez de caçar "Novo Aluno" na lista.
+      setFicha({ id: data.id, aba: 'perfil', origem: 'alunos' })
+    }
   }
 
-  const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(new Date().toISOString().slice(0, 7))).length
+  // Só as aulas já dadas: uma lançada para o fim do mês ainda não conta.
+  const hoje = hojeBrasil()
+  const aulasEsseMes = aulas.filter((a: any) => a.data?.startsWith(hoje.slice(0, 7)) && a.data <= hoje).length
 
   // Sem isto o dashboard pisca com 0 alunos e 0% de frequência antes da carga
   // chegar, o que parece uma academia vazia em vez de uma tela carregando.
@@ -2693,15 +1074,48 @@ export default function AppShell() {
       <div style={{
         background: t.bg, minHeight: '100vh', color: t.textMute,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'monospace', fontSize: 13,
+        fontFamily: t.ui, fontSize: 13,
       }}>
         Carregando…
       </div>
     )
   }
 
+  // A ficha do aluno aberta. Origem 'alunos': vai para a vaga ao lado da
+  // tabela; 'fora' (Início, Graduar): painel por cima, na raiz.
+  const fichaEl = ficha && alunoAberto ? (
+    <FichaAluno
+      key={`${ficha.id}-${ficha.origem}-${ficha.aba}`}
+      aluno={alunoAberto}
+      professor={professor}
+      presencasPorGrau={presencasPorGrau}
+      origem={ficha.origem}
+      onAlteradoMudou={alterado => { fichaAlterada.current = alterado }}
+      onClose={() => setFicha(null)}
+      onSave={updated => {
+        setAlunos(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
+        startTransition(() => router.refresh())
+      }}
+      onDelete={id => {
+        setAlunos(prev => prev.filter(a => a.id !== id))
+        contarLixeira()
+      }}
+      // A gravação já está no banco; recarregar traz o histórico novo, o selo
+      // PRONTO recalculado pela view e o badge da lixeira certo.
+      onGraduacaoMudou={async () => { await recarregar(); await contarLixeira() }}
+      tabInicial={ficha.aba}
+      t={t}
+    />
+  ) : null
+
   return (
-    <div style={{ background: t.bg, minHeight: '100vh', fontFamily: 'var(--font-body), system-ui, sans-serif', color: t.text, maxWidth: 480, margin: '0 auto' }}>
+    <div className="app" style={{ fontFamily: t.ui, color: t.text }}>
+      <Navegacao
+        atual={tab} onIr={irPara}
+        onGraduar={() => setPainelProntos(true)} onMais={() => setMenuAberto(true)}
+        qtdProntos={prontos.length}
+      />
+      <main className={`conteudo${tab === 'alunos' ? ' larga' : ''}${tab === 'aulas' ? ' aulas-larga' : ''}`}>
 
       {/* Gradientes + trama da faixa desenhada — declarados UMA VEZ aqui,
           referenciados por url(#id) em toda faixa da tela. Monta um <svg>
@@ -2712,12 +1126,32 @@ export default function AppShell() {
           árvore não importa — fica no topo só para não se perder no meio. */}
       <BannerInstalar />
 
-      {/* Dashboard do Professor */}
-      <DashboardProfessor
-        alunos={alunos} aulasEsseMes={aulasEsseMes} qtdProntos={prontos.length} qtdLixeira={naLixeira}
-        onAbrirProntos={() => setPainelProntos(true)} onAbrirMenu={() => setMenuAberto(true)}
-        onSelectAluno={abrirAluno}
-      />
+      {/* Início: o painel com frequência, distribuição e destaques. Era a
+          cabeça da tela de Alunos; virou aba própria (G3.3). */}
+      {tab === 'inicio' && (
+        <DashboardProfessor
+          alunos={alunos} aulasEsseMes={aulasEsseMes} qtdProntos={prontos.length}
+          onAbrirProntos={() => setPainelProntos(true)}
+          onSelectAluno={(aluno, aba) => abrirAluno(aluno, aba, 'fora')}
+        />
+      )}
+
+      {(tab === 'alunos' || tab === 'aulas') && (
+        <header className="topo">
+          <h1>{tab === 'alunos' ? 'Alunos' : 'Aulas'}</h1>
+          <span className="sub">{tab === 'alunos' ? `${alunos.length} alunos` : `${aulas.length} aulas`}</span>
+          {tab === 'alunos' && (
+            <span className="acoes-topo">
+              <button type="button" className="al-btn cheio al-novo" onClick={novoAluno}>+ Novo aluno</button>
+            </span>
+          )}
+          {tab === 'aulas' && (
+            <span className="acoes-topo">
+              <button type="button" className="al-btn cheio al-novo" onClick={() => setModalAula(true)}>+ Nova aula</button>
+            </span>
+          )}
+        </header>
+      )}
 
       {/* Falha de carga: o aviso é obrigatório justamente porque a lista
           continua na tela. Sem ele o professor veria dado velho achando que é
@@ -2725,8 +1159,8 @@ export default function AppShell() {
           rede que já voltou. */}
       {erroCarga && (
         <div style={{
-          margin: '14px 16px 0', padding: 12, borderRadius: 8, background: t.accentBg,
-          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+          margin: '14px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+          border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
           display: 'flex', alignItems: 'flex-start', gap: 10,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>⚠ {erroCarga}</div>
@@ -2738,9 +1172,9 @@ export default function AppShell() {
             }}
             disabled={retentando}
             style={{
-              flexShrink: 0, padding: '6px 10px', borderRadius: 6,
-              border: `1px solid ${t.accent}`, background: 'transparent',
-              color: t.accent, fontSize: 11, fontWeight: 700,
+              flexShrink: 0, padding: '6px 10px', borderRadius: 'var(--r)',
+              border: `1px solid ${t.erro}`, background: 'transparent',
+              color: t.erroTexto, fontSize: 11, fontWeight: 700,
               cursor: retentando ? 'not-allowed' : 'pointer', opacity: retentando ? 0.6 : 1,
             }}
           >
@@ -2751,178 +1185,35 @@ export default function AppShell() {
 
       {erroPerfil && (
         <div style={{
-          margin: '14px 16px 0', padding: 12, borderRadius: 8, background: t.accentBg,
-          border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
+          margin: '14px 16px 0', padding: 12, borderRadius: 'var(--r)', background: t.erroBg,
+          border: `1px solid ${t.erro}`, color: t.erroTexto, fontSize: 12, lineHeight: 1.5,
         }}>
           ⚠ {erroPerfil}
         </div>
       )}
 
-      {/* Tabs — só duas: Lixeira saiu para o menu (Etapa 3). `tab` continua
-          podendo valer 'lixeira' (setado pelo item do menu); a barra só
-          deixa de desenhar o terceiro botão, então o resto do render que já
-          checa tab === 'lixeira' (conteúdo, FAB) não precisa mudar. */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, marginTop: 14 }}>
-        {(['alunos', 'aulas'] as const).map(tb => {
-          const contagem = tb === 'alunos' ? alunos.length : 0
-          return (
-            <button
-              key={tb} onClick={() => setTab(tb)}
-              style={{
-                flex: 1, padding: 14, border: 'none', background: 'none', cursor: 'pointer',
-                color: tab === tb ? t.accent : t.textMute,
-                borderBottom: tab === tb ? `2px solid ${t.accent}` : '2px solid transparent',
-                fontFamily: 'monospace', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1,
-              }}
-            >
-              {tb}
-              {contagem > 0 && (
-                <span style={{ marginLeft: 6, fontSize: 11, color: tab === tb ? t.accent : t.textMute, opacity: 0.7 }}>
-                  {contagem}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
       {/* Conteúdo */}
-      <div style={{ padding: '16px 16px 100px' }}>
+      <div className="area">
 
-        {/* Grade de crachás circulares */}
         {tab === 'alunos' && (
-          <>
-            <BarraFiltros
-              alunos={alunos} filtros={filtros} setFiltros={setFiltros}
-              totalVisivel={alunosVisiveis.length} onAbrirPainel={() => setFiltroAberto(true)} t={t}
-            />
-            {alunosVisiveis.length === 0 ? (
-              <div style={{
-                padding: 24, textAlign: 'center', background: t.surface,
-                border: `1px solid ${t.border}`, borderRadius: 10, color: t.textSub, fontSize: 13,
-              }}>
-                Nenhum aluno com esses filtros.
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                {alunosVisiveis.map((a: any) => (
-                  <AlunoCard key={a.id} aluno={a} onClick={() => abrirAluno(a)} presencasPorGrau={presencasPorGrau} t={t} />
-                ))}
-              </div>
-            )}
-          </>
+          <TelaAlunos
+            alunos={alunos} filtros={filtros} setFiltros={setFiltros}
+            busca={buscaAluno} setBusca={setBuscaAluno}
+            presencasPorGrau={presencasPorGrau} idAberto={ficha?.id ?? null}
+            onAbrir={aluno => abrirAluno(aluno)} onAbrirFiltros={() => setFiltroAberto(true)}
+            ficha={ficha?.origem === 'alunos' ? fichaEl : null}
+          />
         )}
 
         {/* Lista de aulas */}
         {tab === 'aulas' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {erroAula && (
-              <div style={{
-                padding: 12, borderRadius: 8, background: t.accentBg,
-                border: `1px solid ${t.accent}`, color: t.accent, fontSize: 12, lineHeight: 1.5,
-              }}>
-                ⚠ {erroAula}
-              </div>
-            )}
-            {aulas.map((a: any) => {
-              // Calculado uma vez por card: usado para decidir se a
-              // miniatura entra na linha de imagens (2 casos: sem link
-              // nenhum, ou link válido mas sem id extraível — studio.youtube.com
-              // ou algo fora dos formatos cobertos) e para montar a própria
-              // miniatura, sem repetir a extração.
-              const idYoutube = a.link_youtube ? extrairIdYoutube(a.link_youtube) : null
-              return (
-              // card inteiro abre a chamada daquela aula — sem botão extra
-              <div
-                key={a.id} onClick={() => setChamadaAula(a)}
-                style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: 16, cursor: 'pointer' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
-                  <div style={{ color: t.text, fontWeight: 700 }}>{a.tecnica || 'Aula'}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                    <div style={{ color: t.textMute, fontSize: 12, fontFamily: 'monospace' }}>{a.data}</div>
-                    <button
-                      // stopPropagation em todos os controles do card: o toque no
-                      // card em si segue reservado para abrir a chamada
-                      onClick={e => { e.stopPropagation(); setAulaEdicao(a) }}
-                      title="Editar aula"
-                      style={{
-                        background: 'none', border: 'none', color: t.textMute,
-                        fontSize: 14, cursor: 'pointer', padding: '0 2px', lineHeight: 1,
-                      }}
-                    >
-                      ✎
-                    </button>
-                    {/* Alvo de 44×44 (mínimo de toque), mas com margens negativas:
-                        a área cresce para dentro do padding do card — que é
-                        espaço morto — em vez de aumentar a altura da linha. O
-                        glifo continua do mesmo tamanho e na mesma posição.
-                        marginLeft afasta do ✎; o resto do card abre a chamada, e
-                        errar o toque aqui já apagou aula em teste real. */}
-                    <button
-                      onClick={e => { e.stopPropagation(); apagarAula(a) }}
-                      title="Apagar aula"
-                      style={{
-                        background: 'none', border: 'none', color: t.textMute,
-                        fontSize: 15, cursor: 'pointer', padding: 0, lineHeight: 1,
-                        width: 44, height: 44,
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0,
-                        marginTop: -14, marginBottom: -14, marginRight: -10, marginLeft: 4,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-                {a.posicao && (
-                  <div style={{ color: t.accent, fontSize: 12, fontFamily: 'monospace', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {a.posicao}
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ background: t.surface2, border: `1px solid ${t.border}`, borderRadius: 4, padding: '3px 8px', fontSize: 12, color: t.textSub }}>
-                    {(a.presencas ?? []).filter((p: any) => p.presente).length} presentes
-                  </span>
-                </div>
-                {/* Foto + miniatura do vídeo, lado a lado (Etapa 6). Foto à
-                    esquerda (não muda de lugar), miniatura à direita (a
-                    novidade); cada uma ocupa a linha inteira quando é a
-                    única. Sem nenhuma das duas, nada ocupa este espaço —
-                    mesmo princípio de sempre, nada de placeholder. */}
-                {(a.foto_path || a.link_youtube) && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                    {a.foto_path && (
-                      <FotoAula
-                        path={a.foto_path} url={a.foto_url} t={t}
-                        // guarda a URL renovada na lista: sem isto o próximo render
-                        // do card voltaria à URL vencida e erraria de novo
-                        onUrlRenovada={nova =>
-                          setAulas(prev => prev.map(x => x.id === a.id ? { ...x, foto_url: nova } : x))
-                        }
-                        style={{
-                          flex: 1, minWidth: 0, height: 110, objectFit: 'cover',
-                          borderRadius: 8, border: `1px solid ${t.border}`, display: 'block',
-                        }}
-                      />
-                    )}
-                    {/* `idYoutube` pode ser null aqui (studio.youtube.com, ou
-                        qualquer formato fora dos cobertos) — MiniaturaYoutube
-                        trata isso como o mesmo botão de texto do onError,
-                        nunca deixa a linha com buraco do lado da foto. */}
-                    {a.link_youtube && (
-                      <MiniaturaYoutube
-                        id={idYoutube} link={a.link_youtube} t={t}
-                        style={{ flex: 1, minWidth: 0, height: 110, borderRadius: 8, border: `1px solid ${t.border}` }}
-                      />
-                    )}
-                  </div>
-                )}
-                {a.notas && <div style={{ marginTop: 8, color: t.textSub, fontSize: 12, fontStyle: 'italic' }}>{a.notas}</div>}
-              </div>
-              )
-            })}
-          </div>
+          <TelaAulas
+            aulas={aulas}
+            onAbrirChamada={setChamadaAula} onEditar={setAulaEdicao}
+            onNovaAula={() => setModalAula(true)} onFotoAlterada={fotoAulaAlterada}
+            onUrlRenovada={(id, nova) =>
+              setAulas(prev => prev.map(x => x.id === id ? { ...x, foto_url: nova } : x))}
+          />
         )}
 
         {/* Lixeira */}
@@ -2935,13 +1226,12 @@ export default function AppShell() {
         )}
       </div>
 
-      {/* FAB — não faz sentido na lixeira */}
-      {tab !== 'lixeira' && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: '50%', transform: 'translateX(50%)',
-          maxWidth: 480, width: '100%', padding: '0 16px', boxSizing: 'border-box',
-          display: 'flex', justifyContent: 'flex-end',
-        }}>
+      </main>
+
+      {/* FAB — só onde há o que criar: Alunos e Aulas. No Início e na lixeira
+          não há (no Início o "+" abriria uma aula, o que ninguém espera). */}
+      {(tab === 'alunos' || tab === 'aulas') && (
+        <div className="fab-area so-celular">
           <FabButton
             onClick={tab === 'alunos' ? novoAluno : () => setModalAula(true)}
             t={t}
@@ -2950,24 +1240,7 @@ export default function AppShell() {
       )}
 
       {/* Modais */}
-      {alunoSel && (
-        <ModalAluno
-          aluno={alunoSel}
-          professor={professor}
-          onClose={() => setAlunoSel(null)}
-          onSave={updated => {
-            setAlunos(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
-            startTransition(() => router.refresh())
-          }}
-          onDelete={id => {
-            setAlunos(prev => prev.filter(a => a.id !== id))
-            contarLixeira()
-          }}
-          onDeleteGraduacao={contarLixeira}
-          tabInicial={abaAluno}
-          t={t}
-        />
-      )}
+      {ficha?.origem === 'fora' && fichaEl}
       {modalAula && (
         <ModalAula
           onClose={() => setModalAula(false)}
@@ -2990,8 +1263,11 @@ export default function AppShell() {
           }}
           // A foto é gravada no momento do upload, então a lista precisa
           // acompanhar sem esperar o "Salvar alterações" — e sem fechar o modal.
-          onFotoAlterada={(id, foto_path, foto_url) => {
-            setAulas(prev => prev.map(a => a.id === id ? { ...a, foto_path, foto_url } : a))
+          onFotoAlterada={fotoAulaAlterada}
+          // apagar pelo modal: a aula sai da lista e o contador da lixeira sobe
+          onApagada={id => {
+            setAulas(prev => prev.filter(a => a.id !== id))
+            contarLixeira()
           }}
           t={t}
         />
@@ -3026,7 +1302,7 @@ export default function AppShell() {
           onClose={() => setPainelProntos(false)}
           // Fecha o painel na hora e abre o modal na aba de graduação — sem
           // empilhar overlays, mesmo padrão do ModalAula → Chamada.
-          onSelect={aluno => { setPainelProntos(false); abrirAluno(aluno, 'graduação') }}
+          onSelect={aluno => { setPainelProntos(false); abrirAluno(aluno, 'graduação', 'fora') }}
           t={t}
         />
       )}
@@ -3035,7 +1311,7 @@ export default function AppShell() {
           naLixeira={naLixeira}
           onClose={() => setMenuAberto(false)}
           onAbrirPerfil={() => { setMenuAberto(false); setModalProfessor(true) }}
-          onAbrirLixeira={() => { setMenuAberto(false); setTab('lixeira') }}
+          onAbrirLixeira={() => { setMenuAberto(false); irPara('lixeira') }}
           t={t}
         />
       )}
@@ -3063,10 +1339,9 @@ function FabButton({ onClick, t }: { onClick: () => void; t: Theme }) {
       onTouchStart={() => setPressed(true)}
       onTouchEnd={() => setPressed(false)}
       style={{
-        background: t.accent, color: '#fff', border: 'none',
+        background: t.ativo, color: t.sobreAtivo, border: 'none',
         borderRadius: '50%', width: 56, height: 56,
         fontSize: 28, cursor: 'pointer', fontWeight: 900,
-        boxShadow: `0 4px 24px ${t.accent}66`,
         transform: pressed ? 'scale(0.95)' : 'scale(1)',
         transition: 'transform 0.12s ease, box-shadow 0.1s',
         display: 'flex', alignItems: 'center', justifyContent: 'center',

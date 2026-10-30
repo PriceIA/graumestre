@@ -1,0 +1,289 @@
+/* Tela de Alunos (G5). Só var(--token): o verificador de cor (checar-cores)
+   varre este arquivo. Celular primeiro; o computador (960 px) é o bloco no fim.
+   Prefixo `al-` para não colidir com as classes da casca (globals.css). */
+
+/* ── Busca, filtros e chips ─────────────────────────────────────────────── */
+.al-ferramentas { display: flex; flex-direction: column; gap: 10px; }
+.al-linha-busca { display: flex; gap: 8px; }
+.al-busca {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  min-height: 48px; padding: 0 14px;
+  background: var(--papel); border: 1.5px solid var(--controle); border-radius: var(--r);
+}
+.al-busca:focus-within { outline: 3px solid var(--tinta); outline-offset: 2px; }
+.al-busca svg { width: 18px; height: 18px; flex: none; color: var(--tinta-suave); }
+.al-busca input {
+  width: 100%; min-height: 44px; border: 0; outline: 0; background: none;
+  font-size: 16px; color: var(--tinta);
+}
+.al-busca input::placeholder { color: var(--tinta-suave); }
+
+.al-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none;
+  min-height: 48px; padding: 0 16px; border-radius: var(--r);
+  border: 1.5px solid var(--controle); background: var(--papel); color: var(--tinta);
+  font: 750 15px/1 var(--ui); font-variation-settings: 'wdth' 85; white-space: nowrap; cursor: pointer;
+  touch-action: manipulation;
+}
+.al-btn svg { width: 18px; height: 18px; }
+.al-btn:active { transform: translateY(1px); }
+.al-btn.cheio { background: var(--ativo); border-color: var(--ativo); color: var(--sobre-ativo); }
+.al-btn.cheio:hover { background: var(--ativo-hover); }
+.al-badge {
+  min-width: 20px; padding: 3px 6px; border-radius: 999px; text-align: center;
+  background: var(--ativo); color: var(--sobre-ativo); font: 800 12px/1 var(--ui);
+}
+
+.al-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.al-chip {
+  min-height: 44px; padding: 0 14px; border-radius: var(--r); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  border: 1.5px solid var(--tinta-suave); background: var(--papel); color: var(--tinta);
+  font: 700 14.5px/1 var(--ui); font-variation-settings: 'wdth' 85;
+  touch-action: manipulation;
+}
+.al-chip[aria-pressed="true"], .al-chip.removivel { background: var(--ativo); border-color: var(--ativo); color: var(--sobre-ativo); }
+.al-chip.alerta { border-color: var(--alerta); color: var(--alerta-texto); }
+.al-chip.alerta[aria-pressed="true"], .al-chip.alerta.removivel { background: var(--alerta); border-color: var(--alerta); color: var(--sobre-alerta); }
+.al-chip .x { opacity: .8; font-weight: 600; }
+.al-limpar {
+  min-height: 44px; padding: 0 6px; background: none; border: 0; cursor: pointer;
+  color: var(--tinta-media); font: 600 14px/1 var(--ui); text-decoration: underline;
+}
+.al-contagem { color: var(--tinta-media); font-size: 13px; font-weight: 600; }
+
+/* ── Lista agrupada por faixa ───────────────────────────────────────────── */
+.al-lista { margin-top: 4px; }
+.al-grupo { margin-top: 18px; }
+.al-grupo h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font: inherit; }
+.al-grupo h3 .num { font-size: 14.5px; color: var(--tinta-media); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Etiqueta pequena: sempre escrita, nunca só cor (DESIGN.md). */
+.al-etq {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 6px 8px; border-radius: var(--r);
+  font: 800 12px/1 var(--ui); font-variation-settings: 'wdth' 80; letter-spacing: .06em; text-transform: uppercase;
+}
+.al-etq.rotulo { background: var(--etiqueta); color: var(--sobre-etiqueta); box-shadow: inset 0 0 0 1px var(--etiqueta-borda); padding: 7px 10px; }
+.al-etq.alerta { background: var(--alerta); color: var(--sobre-alerta); }
+.al-etq.alerta-contorno { border: 1.5px solid var(--alerta); color: var(--alerta-texto); background: var(--papel); padding: 4.5px 6.5px; }
+.al-etq.contorno { border: 1.5px solid var(--tinta-media); color: var(--tinta-media); padding: 4.5px 6.5px; }
+
+.al-linha {
+  width: 100%; display: grid; grid-template-columns: 40px minmax(0, 1fr) 96px; grid-template-rows: auto auto;
+  align-items: center; gap: 2px 12px; min-height: 64px; padding: 10px 2px;
+  background: none; border: 0; border-bottom: 1px solid var(--linha);
+  text-align: left; color: var(--tinta); cursor: pointer; touch-action: manipulation;
+}
+.al-linha[aria-current="true"] { background: var(--papel); box-shadow: inset 0 0 0 1.5px var(--controle); }
+.al-av {
+  grid-row: 1 / span 2; width: 40px; height: 40px; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: var(--papel); border: 1.5px solid var(--linha);
+  font: 800 16px/1 var(--ui); color: var(--tinta-media);
+}
+.al-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.al-nome { font: 700 16px/1.2 var(--ui); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.al-meta { grid-column: 2; color: var(--tinta-suave); font-size: 13px; display: flex; gap: 4px 8px; flex-wrap: wrap; align-items: center; }
+.al-meta .num { font-variant-numeric: tabular-nums; }
+.al-faixa { grid-column: 3; grid-row: 1 / span 2; width: 96px; }
+.al-col { display: none; }
+.al-col .suave { color: var(--tinta-suave); }
+.al-cab { display: none; }
+.al-novo { display: none; }
+.al-lateral { display: contents; }
+.ficha-vazia { display: none; }
+.ficha-raiz { display: contents; }
+.ficha-scrim { display: none; }
+.area { padding: 16px 16px 0; }
+
+.al-vazio {
+  margin-top: 18px; padding: 24px; text-align: center; font-size: 15px; color: var(--tinta-media);
+  background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r);
+}
+
+/* ── Ficha do aluno ─────────────────────────────────────────────────────────
+   Celular: folha que sobe e cobre a tela. O computador (bloco no fim do
+   arquivo, G5.4) a põe ao lado da tabela. */
+.ficha {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column;
+  background: var(--trama), var(--fundo); color: var(--tinta);
+  transform: translateY(100%); visibility: hidden;
+  transition: transform .22s var(--ease), visibility 0s .22s;
+  touch-action: manipulation;
+}
+.ficha:focus { outline: none; }
+.ficha.aberta { transform: none; visibility: visible; transition: transform .22s var(--ease); }
+
+.ficha-rolagem { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 24px; }
+/* sem padding no alto da rolagem: a barra de abas gruda no topo de verdade */
+.ficha-topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 14px 0 10px; }
+.ficha-fechar {
+  width: 48px; height: 48px; flex: none; display: grid; place-items: center; cursor: pointer;
+  border: 1.5px solid var(--controle); background: var(--papel); color: var(--tinta); border-radius: var(--r);
+}
+.ficha-fechar svg { width: 22px; height: 22px; }
+.ficha-nome { font: 900 40px/.92 var(--display); text-transform: uppercase; letter-spacing: .01em; margin: 4px 0 12px; overflow-wrap: anywhere; }
+.ficha-selos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.ficha-motivo { margin: 0 0 12px; font-size: 14px; color: var(--tinta-media); }
+.ficha-quadro { padding: 16px 14px 12px; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); }
+.ficha-quadro .rot { margin-top: 8px; font: 700 14px/1.2 var(--ui); color: var(--tinta-media); }
+
+/* Abas: a barra gruda no alto enquanto o conteúdo rola. */
+.ficha-abas {
+  position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: repeat(4, 1fr);
+  margin: 14px -16px 16px; padding: 0 16px; background: var(--fundo); border-bottom: 1.5px solid var(--controle);
+}
+.ficha-aba {
+  min-height: 44px; border: 0; background: none; cursor: pointer; color: var(--tinta-media);
+  font: 800 12px/1 var(--ui); font-variation-settings: 'wdth' 80; letter-spacing: .06em; text-transform: uppercase;
+}
+.ficha-aba[aria-selected="true"] { background: var(--ativo); color: var(--sobre-ativo); }
+
+/* O fieldset só desliga a edição; a rolagem é da .ficha-rolagem (G5.2). */
+.ficha-campos { border: 0; margin: 0; padding: 0; min-width: 0; }
+.ficha-conteudo { display: flex; flex-direction: column; gap: 14px; }
+.ficha-duplo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 0; }
+/* campo de data: o seletor do navegador é largo; sem isto estoura a coluna */
+.ficha-duplo .cp-input { min-width: 0; padding: 0 10px; }
+.ficha-dado dt { font-size: 13px; color: var(--tinta-media); font-weight: 600; }
+.ficha-dado dd { margin: 2px 0 0; font: 800 22px/1.1 var(--ui); font-variation-settings: 'wdth' 75; }
+.ficha-notas { min-height: 160px; padding: 12px 14px; line-height: 1.5; resize: vertical; }
+.ficha-link { background: none; border: 0; padding: 0; min-height: 44px; color: var(--tinta); text-decoration: underline; font: inherit; font-weight: 700; cursor: pointer; }
+
+.ficha-hist { padding: 10px 12px; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); }
+.ficha-hist-linha { display: flex; align-items: center; gap: 8px; }
+.ficha-hist-faixa { flex: 1; min-width: 0; font: 700 14px/1.25 var(--ui); }
+.ficha-hist-data { flex: none; font-size: 13px; color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
+.ficha-hist-x {
+  flex: none; width: 44px; height: 44px; margin: -8px -10px -8px 0; display: grid; place-items: center;
+  background: none; border: 0; color: var(--tinta-media); cursor: pointer;
+}
+.ficha-hist-x svg { width: 18px; height: 18px; }
+
+.ficha-apagar {
+  align-self: flex-start; min-height: 44px; margin-top: 8px; padding: 0 2px; background: none; border: 0; cursor: pointer;
+  color: var(--erro-texto); font: 700 14px/1 var(--ui); text-decoration: underline;
+}
+.ficha-apagar:disabled { cursor: default; opacity: .6; }
+
+.ficha-erro {
+  margin: 0 16px 10px; padding: 12px; border: 1.5px solid var(--erro); border-radius: var(--r);
+  background: color-mix(in srgb, var(--erro) 10%, var(--papel)); color: var(--erro-texto); font-size: 14px; line-height: 1.4;
+}
+.ficha-rodape {
+  display: flex; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1.5px solid var(--controle); background: var(--papel);
+}
+.ficha-rodape .al-btn { flex: 1; }
+.ficha-rodape .al-btn.cheio { flex: 2; }
+.ficha-rodape .al-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Aba Graduação */
+.fi-rot { margin: 20px 0 10px; color: var(--tinta-media); font: 800 12px/1.3 var(--ui); font-variation-settings: 'wdth' 80; letter-spacing: .06em; text-transform: uppercase; }
+.ficha-conteudo > .fi-rot:first-child { margin-top: 0; }
+.fi-grupo { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.fi-faixas { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.fi-faixa {
+  min-height: 44px; padding: 0 14px; border: 2px solid transparent; border-radius: var(--r); cursor: pointer;
+  font: 800 12px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase;
+}
+.fi-faixa[aria-pressed="true"] { border-color: var(--tinta); box-shadow: 0 0 0 2px var(--fundo), 0 0 0 4px var(--tinta); }
+.fi-graus { display: flex; flex-wrap: wrap; gap: 8px; }
+.fi-grau {
+  width: 44px; height: 44px; border-radius: var(--r); cursor: pointer; font: 800 16px/1 var(--ui);
+  border: 1.5px solid var(--controle); background: var(--papel); color: var(--tinta);
+}
+.fi-grau[aria-pressed="true"] { background: var(--ativo); border-color: var(--ativo); color: var(--sobre-ativo); }
+.fi-bloco { margin-top: 16px; padding: 14px; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); font-size: 15px; }
+.fi-bloco.ritmo { margin-top: 12px; background: transparent; border: 1.5px dashed var(--controle); }
+.fi-bloco-rot { margin-bottom: 6px; color: var(--tinta-media); font: 800 12px/1.3 var(--ui); letter-spacing: .06em; text-transform: uppercase; }
+.fi-apoio { color: var(--tinta-media); font-size: 14px; }
+.fi-ritmo-vencido { margin-top: 4px; color: var(--alerta-texto); font-size: 14px; font-weight: 600; }
+.fi-nota { margin-top: 8px; color: var(--tinta-suave); font-size: 13px; line-height: 1.5; }
+.fi-aviso {
+  margin-top: 12px; padding: 10px 12px; border: 1.5px solid var(--alerta); border-radius: var(--r);
+  background: color-mix(in srgb, var(--alerta) 10%, var(--papel)); color: var(--alerta-texto); font-size: 14px; line-height: 1.4; font-weight: 600;
+}
+
+/* ═══ Computador (960 px ou mais), G5.4 ════════════════════════════════════
+   Alunos usa a largura toda. A tela vira duas colunas que rolam cada uma no
+   seu ritmo: a lista à esquerda (busca e filtros presos no alto) e a ficha
+   fixa à direita, sem abrir janela por cima. Largura útil conferida em
+   960 px: 960 - 232 (menu) - 72 (margens) - 28 (vão) - 340 (ficha) = 288 px
+   para a lista — por isso a tabela só aparece a partir de 1240 px. */
+@media (min-width: 960px) {
+  .conteudo.larga { max-width: none; height: 100dvh; display: flex; flex-direction: column; padding-bottom: 0; }
+  .conteudo.larga .topo { flex: none; }
+  .conteudo.larga .area { flex: 1; min-height: 0; padding: 0 24px 24px; display: flex; flex-direction: column; }
+  .conteudo.larga .topo { margin-left: 24px; margin-right: 24px; }
+  .al-novo { display: inline-flex; }
+  .fab-area.so-celular { display: none; }
+
+  .al-grade {
+    flex: 1; min-height: 0; display: grid; gap: 28px; align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+  .al-principal { min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  .al-ferramentas { flex: none; }
+  .al-rolagem { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+  .al-lateral { display: block; min-height: 0; position: relative; }
+
+  /* Ficha fixa: ocupa a coluna da direita, sem animação de subida. */
+  .ficha-raiz.fixa { display: block; height: 100%; }
+  .ficha-raiz.fixa .ficha {
+    position: static; inset: auto; height: 100%; z-index: auto;
+    transform: none; visibility: visible; transition: none;
+    background: var(--papel); border: 1.5px solid var(--controle); border-radius: var(--r);
+  }
+  .ficha-raiz.fixa .ficha-fechar { display: none; }
+  .ficha-vazia {
+    display: grid; place-items: center; height: 100%; padding: 24px; text-align: center;
+    color: var(--tinta-media); font-size: 15px; background: var(--papel); border: 1.5px dashed var(--controle); border-radius: var(--r);
+  }
+
+  /* Ficha que vem de fora (Início, Graduar): painel pela direita sobre a tela. */
+  .ficha-raiz.fora { display: block; position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+  .ficha-raiz.fora .ficha-scrim {
+    display: block; position: absolute; inset: 0; pointer-events: auto;
+    background: color-mix(in srgb, var(--scrim) 0%, transparent); transition: background .22s;
+  }
+  .ficha-raiz.fora .ficha-scrim.aberto { background: color-mix(in srgb, var(--scrim) 60%, transparent); }
+  .ficha-raiz.fora .ficha {
+    inset: 0 0 0 auto; width: 440px; max-width: 100%; pointer-events: auto;
+    background: var(--papel); border-left: 1.5px solid var(--controle);
+    transform: translateX(100%); transition: transform .22s var(--ease), visibility 0s .22s;
+  }
+  .ficha-raiz.fora .ficha.aberta { transform: none; transition: transform .22s var(--ease); }
+
+  /* Dentro do painel o fundo é papel; a trama fica na página. */
+  .ficha-raiz .ficha-rolagem { padding: 0 20px 20px; }
+  .ficha-raiz .ficha-abas { margin: 14px -20px 16px; padding: 0 20px; background: var(--papel); }
+  .ficha-raiz .ficha-quadro { background: var(--fundo); }
+  .ficha-raiz .ficha-rodape { padding: 12px 20px; }
+  .ficha-erro { margin: 0 20px 10px; }
+
+  .al-nome { font-size: 15.5px; }
+  .al-linha { grid-template-columns: 40px minmax(0, 1fr) 84px; }
+  .al-faixa { width: 84px; }
+  .al-linha[aria-current="true"] { background: var(--fundo); }
+  .al-cab { position: sticky; top: 0; z-index: 1; background: var(--fundo); }
+}
+
+/* Tabela: nome, faixa, frequência, situação. Só onde cabem as quatro colunas. */
+@media (min-width: 1240px) {
+  .conteudo.larga .area { padding: 0 36px 24px; }
+  .conteudo.larga .topo { margin-left: 36px; margin-right: 36px; }
+  .al-grade { grid-template-columns: minmax(0, 1fr) 380px; }
+  .al-cab {
+    display: grid; grid-template-columns: 40px minmax(120px, 1fr) 104px 104px 100px; gap: 12px;
+    padding: 12px 2px 8px; border-bottom: 1.5px solid var(--controle);
+    font: 750 12px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-media);
+  }
+  .al-linha { grid-template-columns: 40px minmax(120px, 1fr) 104px 104px 100px; grid-template-rows: auto; gap: 12px; min-height: 56px; padding: 8px 2px; }
+  .al-av { grid-row: auto; }
+  .al-faixa { grid-column: 3; grid-row: auto; width: 104px; }
+  .al-meta { display: none; }
+  .al-col { display: block; color: var(--tinta-media); font-size: 14.5px; white-space: nowrap; }
+  .al-col.st { display: flex; align-items: center; gap: 6px; }
+  .al-grupo h3 { margin-top: 4px; }
+}

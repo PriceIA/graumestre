@@ -1,0 +1,155 @@
+/* Tela de Aulas (G6). Só var(--token) — scripts/checar-cores.mjs barra cor solta.
+   Celular primeiro; o computador (960 px ou mais) entra no bloco do fim. */
+
+/* ── Etiqueta "Aula do dia": a etiqueta tecida do DESIGN.md, com costura e
+   ponteira de faixa preta na ponta direita ─────────────────────────────── */
+.au-etq {
+  --pw: 22px; position: relative; margin-bottom: 20px; color: var(--sobre-etiqueta);
+  background: var(--etiqueta); box-shadow: inset 0 0 0 1px var(--etiqueta-borda); border-radius: var(--r);
+  padding: 12px calc(var(--pw) + 14px) 14px 16px;
+}
+.au-etq::before {
+  content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: var(--pw); border-radius: 0 var(--r) var(--r) 0;
+  background:
+    linear-gradient(var(--friso), var(--friso)) left 0 top 4px / 100% 2px no-repeat,
+    linear-gradient(var(--friso), var(--friso)) left 0 bottom 4px / 100% 2px no-repeat,
+    var(--ponteira-faixa);
+  pointer-events: none;
+}
+.au-etq::after {
+  content: ''; position: absolute; inset: 5px calc(var(--pw) + 4px) 5px 5px;
+  border: 1.5px dashed var(--costura-etiqueta); border-radius: var(--r); pointer-events: none;
+}
+.au-etq.toque { cursor: pointer; }
+.au-etq > * { position: relative; z-index: 1; }
+.au-etq :focus-visible { outline-color: var(--sobre-etiqueta); box-shadow: 0 0 0 6px var(--etiqueta); }
+
+.au-etq-pos {
+  display: flex; flex-wrap: wrap; gap: 4px 10px; font: 700 12px/1 var(--ui); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--sobre-etiqueta-suave);
+}
+.au-etq-titulo { margin: 6px 0 0; font: 900 24px/1.05 var(--display); text-transform: uppercase; letter-spacing: .01em; }
+.au-etq-titulo button {
+  display: block; max-width: 100%; padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
+  font: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.au-etq-meta { margin-top: 6px; font-size: 14px; color: var(--sobre-etiqueta-suave); font-variant-numeric: tabular-nums; }
+.au-etq-vazio { margin: 8px 0 12px; font-size: 16px; color: var(--sobre-etiqueta-suave); }
+.au-etq-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+/* Botões dentro da etiqueta: vazados (DESIGN.md), ícone + nome escrito. */
+.au-btn-etq {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 14px;
+  border-radius: var(--r); border: 1.5px solid var(--contorno-sobre-etiqueta); background: transparent;
+  color: var(--sobre-etiqueta); font: 750 14.5px/1 var(--ui); font-variation-settings: 'wdth' 85;
+  white-space: nowrap; text-decoration: none; cursor: pointer; touch-action: manipulation;
+}
+.au-btn-etq:hover { background: var(--realce-sobre-etiqueta); }
+.au-btn-etq:active { transform: translateY(1px); }
+.au-btn-etq svg { width: 18px; height: 18px; }
+/* "Lançar a aula de hoje": cheio invertido, 48 px */
+.au-btn-etq.cheio { min-height: 48px; background: var(--sobre-etiqueta); border-color: var(--sobre-etiqueta); color: var(--etiqueta); }
+.au-btn-etq.cheio:hover { background: var(--sobre-etiqueta-suave); }
+
+/* Foto + miniatura do vídeo, lado a lado. A altura mora aqui (e não no style
+   dos componentes) para o computador poder aumentar. */
+.au-imgs { display: flex; gap: 8px; margin-top: 12px; }
+.au-imgs > * { flex: 1; min-width: 0; height: 110px; border-radius: var(--r); border: 1.5px solid var(--linha); }
+.au-etq .au-imgs > * { border-color: var(--contorno-sobre-etiqueta); }
+
+/* ── Seções ─────────────────────────────────────────────────────────────── */
+.au-secao { margin-top: 22px; }
+.au-secao-tit {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 10px; color: var(--tinta-media);
+  font: 800 12px/1 var(--ui); font-variation-settings: 'wdth' 80; letter-spacing: .06em; text-transform: uppercase;
+}
+.au-secao-tit .num { font-variant-numeric: tabular-nums; color: var(--tinta-suave); }
+.au-vazio { margin: 0; padding: 18px; text-align: center; color: var(--tinta-media); font-size: 15px; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); }
+.au-grade { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Card de aula ───────────────────────────────────────────────────────── */
+.au-card { padding: 14px 16px; cursor: pointer; background: var(--papel); border: 1.5px solid var(--controle); border-radius: var(--r); }
+.au-card-topo { display: flex; align-items: flex-start; gap: 10px; }
+.au-card-tec { flex: 1; min-width: 0; font: 700 16px/1.25 var(--ui); color: var(--tinta); overflow-wrap: anywhere; }
+.au-card-data { flex: none; padding-top: 2px; font-size: 13px; color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
+.au-card-edit {
+  flex: none; width: 44px; height: 44px; margin: -10px -12px -10px -4px; display: grid; place-items: center;
+  background: none; border: 0; color: var(--tinta-media); cursor: pointer; touch-action: manipulation;
+}
+.au-card-edit svg { width: 18px; height: 18px; }
+.au-card-pos { margin-top: 6px; font: 700 12px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-media); }
+.au-card-meta { margin-top: 10px; }
+.au-card-notas { margin-top: 8px; font-size: 13px; font-style: italic; color: var(--tinta-media); overflow-wrap: anywhere; }
+
+/* ── "Apagar aula" no fim do modal de edição ────────────────────────────── */
+.au-apagar {
+  align-self: flex-start; min-height: 44px; padding: 0 2px; background: none; border: 0; cursor: pointer;
+  color: var(--erro-texto); font: 700 14px/1 var(--ui); text-decoration: underline; touch-action: manipulation;
+}
+.au-apagar:disabled { cursor: default; opacity: .6; }
+
+/* ── Folha de confirmação da foto (celular: sobe de baixo) ─────────────────
+   O computador a centraliza no bloco do fim (G6.5). */
+.au-scrim {
+  position: fixed; inset: 0; z-index: 110; display: flex; align-items: flex-end; justify-content: center;
+  transition: background .22s; touch-action: manipulation;
+}
+.au-folha {
+  width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--fundo); color: var(--tinta); border: 1.5px solid var(--controle); border-radius: var(--r) var(--r) 0 0;
+  transform: translateY(40px); opacity: 0; transition: transform .22s var(--ease), opacity .22s var(--ease);
+}
+.au-folha.aberta { transform: none; opacity: 1; }
+.au-folha-topo { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1.5px solid var(--linha); }
+.au-folha-tit { font: 800 18px/1.1 var(--ui); font-variation-settings: 'wdth' 85; }
+.au-folha-fechar {
+  width: 44px; height: 44px; margin: -6px -8px -6px 0; background: none; border: 0; cursor: pointer;
+  color: var(--tinta-media); font-size: 20px; touch-action: manipulation;
+}
+.au-folha-fechar:disabled { opacity: .4; cursor: default; }
+.au-folha-corpo {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+.au-folha-previa { width: 100%; max-height: 50vh; object-fit: contain; background: var(--papel); border: 1.5px solid var(--linha); border-radius: var(--r); }
+.au-folha-aviso { padding: 18px 0; text-align: center; color: var(--tinta-media); font-size: 15px; }
+.au-folha-erro {
+  padding: 12px; border: 1.5px solid var(--erro); border-radius: var(--r); font-size: 14px; line-height: 1.4;
+  background: color-mix(in srgb, var(--erro) 10%, var(--papel)); color: var(--erro-texto);
+}
+.au-folha-cheio { width: 100%; }
+.au-folha-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.au-folha button:disabled { opacity: .6; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .au-folha, .au-scrim { transition: none; } }
+
+/* ── Computador (960 px ou mais) ────────────────────────────────────────────
+   Largura toda, como a tela de Alunos, mas a página rola inteira: aqui não há
+   coluna fixa, então não há a trava de 100dvh do `.conteudo.larga`. */
+@media (min-width: 960px) {
+  .conteudo.aulas-larga { max-width: none; padding-bottom: 40px; }
+  .conteudo.aulas-larga .topo { margin-left: 24px; margin-right: 24px; }
+  .conteudo.aulas-larga .area { padding: 0 24px 0; }
+
+  /* Etiqueta de ponta a ponta: texto à esquerda, foto e vídeo grandes à direita */
+  .au-etq { --pw: 30px; padding: 20px calc(var(--pw) + 24px) 22px 24px; }
+  .au-etq-titulo { font-size: 44px; }
+  .au-etq-titulo button { white-space: normal; }
+  .au-etq-meta { font-size: 15px; }
+  .au-etq.com-imagens { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 52%); column-gap: 28px; align-content: start; }
+  .au-etq.com-imagens > * { grid-column: 1; }
+  .au-etq.com-imagens > .au-imgs { grid-column: 2; grid-row: 1 / span 6; margin-top: 0; align-self: center; }
+  .au-etq .au-imgs > * { height: 180px; }
+
+  /* Seções em grade de 2 a 3 colunas */
+  .au-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+
+  /* Modal e folha de confirmação centralizados, não colados embaixo */
+  .au-scrim { align-items: center; padding: 24px; }
+  .au-folha { max-width: 520px; border-radius: var(--r); transform: translateY(12px); }
+  .au-folha.aberta { transform: none; }
+}
+@media (min-width: 1240px) {
+  .conteudo.aulas-larga .topo { margin-left: 36px; margin-right: 36px; }
+  .conteudo.aulas-larga .area { padding: 0 36px 0; }
+}

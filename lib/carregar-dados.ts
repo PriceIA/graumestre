@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { assinarUrls } from '@/lib/foto-aula'
+import { hojeBrasil } from '@/lib/datas'
 
 // Carrega as listagens ATIVAS — o que está na lixeira (deleted_at preenchido)
 // fica de fora de tudo, inclusive das graduações que alimentam
@@ -92,8 +93,14 @@ export async function carregarDados(): Promise<CargaDados> {
     // Estas aulas já vêm filtradas por deleted_at is null, e desde a 010 a view
     // alunos_frequencia filtra igual — é o que faz o crachá e o selo AFASTADO
     // contarem a mesma história.
+    //
+    // Aula com data futura (lançada com antecedência) ainda não foi dada: não
+    // conta como perdida nem como presença. A view faz o mesmo corte desde a
+    // 016, com o mesmo "hoje" de São Paulo (lib/datas.ts).
+    const hoje = hojeBrasil()
+    const aulasDadas = (aulas ?? []).filter((au: any) => au.data <= hoje)
     const ultimaPresencaPorAluno: Record<string, string> = {}
-    for (const aula of aulas ?? []) {
+    for (const aula of aulasDadas) {
       for (const p of (aula as any).presencas ?? []) {
         if (!p.presente) continue
         if (!ultimaPresencaPorAluno[p.aluno_id]) ultimaPresencaPorAluno[p.aluno_id] = (aula as any).data
@@ -114,7 +121,7 @@ export async function carregarDados(): Promise<CargaDados> {
     const alunosComGraduacao = (alunos ?? []).map(a => {
       const ultimaPresenca = ultimaPresencaPorAluno[a.id] ?? null
       const aulasPerdidas = ultimaPresenca
-        ? (aulas ?? []).filter((au: any) => au.data > ultimaPresenca).length
+        ? aulasDadas.filter((au: any) => au.data > ultimaPresenca).length
         : (a.total_aulas ?? 0)
       return {
         ...a,
