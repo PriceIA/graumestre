@@ -29,3 +29,10 @@ export function agruparNaOrdem<T>(
   const fora = vistas.filter(c => ordem.indexOf(c) === -1)
   return conhecidos.concat(fora).map(c => ({ chave: c, itens: grupos[c] }))
 }
+
+// Letra do cabeçalho de grupo na chamada: primeira letra sem acento, maiúscula.
+// Nome que não começa por letra ("1Teste", vazio) cai no grupo '#'.
+export function letraInicial(nome: string): string {
+  const l = normalizar(nome).charAt(0).toUpperCase()
+  return /^[A-Z]$/.test(l) ? l : '#'
+}

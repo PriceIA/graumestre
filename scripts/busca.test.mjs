@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { casaBusca, agruparNaOrdem } from '../lib/busca.ts'
+import { casaBusca, agruparNaOrdem, letraInicial } from '../lib/busca.ts'
 
 test('casaBusca ignora acento e maiúscula', () => {
   assert.equal(casaBusca('João Pedro', 'joao'), true)
@@ -34,4 +34,16 @@ test('agruparNaOrdem não perde item com chave fora da ordem: vai para o fim', (
     { chave: 'azul', itens: [{ f: 'azul' }] },
     { chave: 'x', itens: [{ f: 'x' }] },
   ])
+})
+
+test('letraInicial tira acento e põe maiúscula', () => {
+  assert.equal(letraInicial('Ângela'), 'A')
+  assert.equal(letraInicial('élio'), 'E')
+  assert.equal(letraInicial('joão'), 'J')
+})
+
+test('letraInicial devolve # para nome que não começa por letra', () => {
+  assert.equal(letraInicial('1Teste'), '#')
+  assert.equal(letraInicial(''), '#')
+  assert.equal(letraInicial('  Ana'), '#')
 })
