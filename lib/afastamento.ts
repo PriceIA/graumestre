@@ -40,3 +40,48 @@ export function motivoAfastamento(aluno: { afastado_manual?: boolean | null; aul
   if (!aluno.ultima_presenca_data) return `Nunca esteve presente (${perdidas} aulas lançadas)`
   return `Faltou às últimas ${perdidas} aulas`
 }
+
+// ─── Aulas perdidas até um corte ─────────────────────────────────────────────
+// A conta de `aulas_perdidas` mora aqui, num lugar só: lib/carregar-dados.ts a
+// usa sem corte ("até agora") e a Chamada a usa com o corte na data da aula
+// aberta. "Voltou" (G7) = estava afastado considerando só o que veio ANTES
+// desta aula; sem o corte, marcar um aluno sumido e reabrir a chamada o faria
+// deixar de ser afastado — o "voltaram" daria 0 justo quando o professor foi
+// dar as boas-vindas.
+
+export type AulaComPresencas = {
+  data: string
+  presencas?: { aluno_id: string; presente: boolean }[] | null
+}
+
+/**
+ * `aulasDadas`: aulas ativas com data <= hoje, em qualquer ordem. `corte`: só
+ * contam aulas com data ESTRITAMENTE menor (outra aula no mesmo dia do corte
+ * fica de fora); null = sem corte. Datas 'AAAA-MM-DD' se comparam como texto.
+ *
+ * Com presença antes do corte: `perdidas` = aulas antes do corte com data
+ * depois da última presença. Sem nenhuma: aulas antes do corte desde `inicio`
+ * (todas, se `inicio` for null) — quem nunca veio e entrou depois não perdeu o
+ * que aconteceu antes de entrar.
+ */
+export function aulasPerdidasAte(
+  alunoId: string,
+  inicio: string | null,
+  aulasDadas: AulaComPresencas[],
+  corte: string | null,
+): { perdidas: number; ultimaPresenca: string | null } {
+  const antes = corte === null ? aulasDadas : aulasDadas.filter(au => au.data < corte)
+
+  let ultimaPresenca: string | null = null
+  for (const au of antes) {
+    // presente = false registra que faltou: o oposto do que se mede aqui.
+    const veio = (au.presencas ?? []).some(p => p.aluno_id === alunoId && p.presente)
+    if (veio && (ultimaPresenca === null || au.data > ultimaPresenca)) ultimaPresenca = au.data
+  }
+
+  const perdidas = ultimaPresenca !== null
+    ? antes.filter(au => au.data > ultimaPresenca!).length
+    : antes.filter(au => inicio === null || au.data >= inicio).length
+
+  return { perdidas, ultimaPresenca }
+}

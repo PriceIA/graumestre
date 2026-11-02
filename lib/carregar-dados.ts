@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { assinarUrls } from '@/lib/foto-aula'
 import { hojeBrasil } from '@/lib/datas'
+import { aulasPerdidasAte } from '@/lib/afastamento'
 
 // Carrega as listagens ATIVAS — o que está na lixeira (deleted_at preenchido)
 // fica de fora de tudo, inclusive das graduações que alimentam
@@ -82,8 +83,7 @@ export async function carregarDados(): Promise<CargaDados> {
 
     // Data da última presença por aluno, para o cálculo de afastado
     // (lib/afastamento.ts). Sai das aulas que já vieram acima em vez de uma query
-    // nova: elas chegam com presencas(aluno_id, presente) embutido e ordenadas por
-    // data desc, então a primeira ocorrência de cada aluno já é a mais recente.
+    // nova: elas chegam com presencas(aluno_id, presente) embutido.
     //
     // Só conta presente = true: linha com presente = false registra que o aluno
     // faltou naquele dia, o oposto do que estamos medindo. O limite de 50 aulas
@@ -99,36 +99,29 @@ export async function carregarDados(): Promise<CargaDados> {
     // 016, com o mesmo "hoje" de São Paulo (lib/datas.ts).
     const hoje = hojeBrasil()
     const aulasDadas = (aulas ?? []).filter((au: any) => au.data <= hoje)
-    const ultimaPresencaPorAluno: Record<string, string> = {}
-    for (const aula of aulasDadas) {
-      for (const p of (aula as any).presencas ?? []) {
-        if (!p.presente) continue
-        if (!ultimaPresencaPorAluno[p.aluno_id]) ultimaPresencaPorAluno[p.aluno_id] = (aula as any).data
-      }
-    }
 
     // Aulas ativas perdidas seguidas, para lib/afastamento.ts (Etapa 3B do
     // lote de agosto/2026 — critério mudou de dias de calendário para aulas
     // perdidas, porque dia sem aula lançada não é dia que o aluno faltou).
     //
-    // Com presença registrada: conta as aulas (das mesmas já carregadas
-    // acima, ordenadas desc) com data > a da última presença — `>`, não
-    // `>=`, porque a aula em que ele esteve presente não é uma aula perdida.
+    // A conta mora em aulasPerdidasAte() (lib/afastamento.ts) e é a mesma que a
+    // Chamada usa, só que lá com corte na data da aula aberta. Aqui sem corte:
+    // "até agora".
+    //
+    // Com presença registrada: conta as aulas com data > a da última presença —
+    // `>`, não `>=`, porque a aula em que ele esteve presente não é perdida.
     // Sem presença nenhuma: usa `total_aulas` da view, que já é exatamente
     // "aulas ativas desde que este aluno entrou" (migration 010) — é o que
     // faz um aluno novo, numa academia sem chamada lançada ainda, dar 0 e
     // não nascer afastado.
     const alunosComGraduacao = (alunos ?? []).map(a => {
-      const ultimaPresenca = ultimaPresencaPorAluno[a.id] ?? null
-      const aulasPerdidas = ultimaPresenca
-        ? aulasDadas.filter((au: any) => au.data > ultimaPresenca).length
-        : (a.total_aulas ?? 0)
+      const { perdidas, ultimaPresenca } = aulasPerdidasAte(a.id, a.inicio ?? null, aulasDadas, null)
       return {
         ...a,
         ultima_graduacao_data: ultimaGraduacaoPorAluno[a.id] ?? null,
         historico_graduacoes: historicoPorAluno[a.id] ?? [],
         ultima_presenca_data: ultimaPresenca,
-        aulas_perdidas: aulasPerdidas,
+        aulas_perdidas: ultimaPresenca ? perdidas : (a.total_aulas ?? 0),
       }
     })
 
